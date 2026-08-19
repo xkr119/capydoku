@@ -100,7 +100,7 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Palette.bg,
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            SvgPicture.string(capyGyul, width: 120),
+            Image.asset('assets/mascot/capy_base.png', height: 160),
             const SizedBox(height: 14),
             const Text('판을 준비하는 중...',
                 style: TextStyle(fontSize: 16, color: Palette.brownSoft)),
@@ -1249,7 +1249,8 @@ class _WinCelebrationState extends State<WinCelebration>
                 curve: Curves.elasticOut,
                 builder: (context, t, child) =>
                     Transform.scale(scale: t, child: child),
-                child: SvgPicture.string(capyOnsen, width: 210),
+                child:
+                    Image.asset('assets/mascot/capy_gyul.png', height: 280),
               ),
               const SizedBox(height: 18),
               const Text('완성!',

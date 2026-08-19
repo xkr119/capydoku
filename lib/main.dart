@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
-import 'art/capy_art.dart';
 import 'core/palette.dart';
 import 'core/progress.dart';
 import 'game/game_screen.dart';
@@ -131,7 +129,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
 
             // ── 중앙: 로고 ──
             const Spacer(flex: 2),
-            SvgPicture.string(capyGyul, width: 170),
+            Image.asset('assets/mascot/capy_gyul.png', height: 250),
             const SizedBox(height: 18),
             const Text('Capydoku',
                 style: TextStyle(fontSize: 42, color: Palette.brown, height: 1.0)),
