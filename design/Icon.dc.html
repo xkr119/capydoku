@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif; }
+    a { color: #8a5a3b; } a:hover { color: #6b4529; }
+  </style>
+</helmet>
+<div style="width: 720px; height: 520px; background: #F6F0E7; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <div style="font-size: 24px; color: #5b4232">앱 아이콘 — 배경 3안</div>
+  <sc-for list="{{options}}" as="opt" hint-placeholder-count="3">
+    <div style="display: flex; align-items: center; gap: 24px">
+      <div style="width: 132px; height: 132px; border-radius: 30px; background: {{opt.bg}}; display: flex; align-items: center; justify-content: center">
+        <svg viewBox="0 0 200 240" width="96" height="115">
+          <ellipse cx="74" cy="30" rx="13" ry="11" fill="#DCAE79" stroke="#5A4531" stroke-width="6"></ellipse>
+          <ellipse cx="126" cy="30" rx="13" ry="11" fill="#DCAE79" stroke="#5A4531" stroke-width="6"></ellipse>
+          <path d="M64 40 Q100 22 136 40 Q154 52 152 86 Q151 112 166 152 Q176 190 154 210 Q128 228 100 228 Q72 228 46 210 Q24 190 34 152 Q49 112 48 86 Q46 52 64 40 Z" fill="#DCAE79" stroke="#5A4531" stroke-width="6" stroke-linejoin="round"></path>
+          <ellipse cx="100" cy="84" rx="27" ry="40" fill="#C08A57"></ellipse>
+          <path d="M90 66 Q100 74 110 66" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <path d="M100 72 V 96" stroke="#5A4531" stroke-width="5" stroke-linecap="round"></path>
+          <path d="M100 96 Q93 104 85 102 M100 96 Q107 104 115 102" stroke="#5A4531" stroke-width="4.5" fill="none" stroke-linecap="round"></path>
+          <path d="M45 60 Q52 57 59 60" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <path d="M141 60 Q148 57 155 60" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          <ellipse cx="78" cy="224" rx="15" ry="9" fill="#DCAE79" stroke="#5A4531" stroke-width="5"></ellipse>
+          <ellipse cx="122" cy="224" rx="15" ry="9" fill="#DCAE79" stroke="#5A4531" stroke-width="5"></ellipse>
+        </svg>
+      </div>
+      <div style="width: 56px; height: 56px; border-radius: 13px; background: {{opt.bg}}; display: flex; align-items: center; justify-content: center">
+        <svg viewBox="0 0 200 240" width="40" height="48">
+          <ellipse cx="74" cy="30" rx="13" ry="11" fill="#DCAE79" stroke="#5A4531" stroke-width="7"></ellipse>
+          <ellipse cx="126" cy="30" rx="13" ry="11" fill="#DCAE79" stroke="#5A4531" stroke-width="7"></ellipse>
+          <path d="M64 40 Q100 22 136 40 Q154 52 152 86 Q151 112 166 152 Q176 190 154 210 Q128 228 100 228 Q72 228 46 210 Q24 190 34 152 Q49 112 48 86 Q46 52 64 40 Z" fill="#DCAE79" stroke="#5A4531" stroke-width="7" stroke-linejoin="round"></path>
+          <ellipse cx="100" cy="84" rx="28" ry="42" fill="#C08A57"></ellipse>
+          <path d="M89 66 Q100 75 111 66" stroke="#5A4531" stroke-width="6" fill="none" stroke-linecap="round"></path>
+          <path d="M100 73 V 98" stroke="#5A4531" stroke-width="6" stroke-linecap="round"></path>
+          <path d="M43 60 Q52 56 61 60" stroke="#5A4531" stroke-width="6" fill="none" stroke-linecap="round"></path>
+          <path d="M139 60 Q148 56 157 60" stroke="#5A4531" stroke-width="6" fill="none" stroke-linecap="round"></path>
+        </svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px">
+        <div style="font-size: 19px; color: #5b4232">{{opt.name}}</div>
+        <div style="font-size: 14px; color: #8a715c; font-family: 'Apple SD Gothic Neo', sans-serif">{{opt.note}}</div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":720,"height":520}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      options: [
+        { bg: '#F8B04C', name: 'A. 살구 오렌지', note: '따뜻하고 스토어에서 눈에 띔 — Meowdoku 계열의 검증된 온도' },
+        { bg: '#7EC4B4', name: 'B. 민트 티일', note: '퍼즐 = 차분함. 갈색 얼굴과 보색이라 얼굴이 가장 또렷함' },
+        { bg: '#F3E3C9', name: 'C. 크림', note: '인게임 배경과 같은 톤 — 부드럽지만 스토어에서 묻힐 위험' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

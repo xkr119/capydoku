@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+  <style>
+    body { margin: 0; font-family: 'Jua', 'Apple SD Gothic Neo', sans-serif; }
+    a { color: #8a5a3b; } a:hover { color: #6b4529; }
+  </style>
+</helmet>
+<div style="width: 760px; height: 640px; background: #F6F0E7; padding: 28px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+  <div style="font-size: 24px; color: #5b4232">토큰 대비 실험 — 실제 타일 색 위에서</div>
+
+  <div style="background: #FFFFFF; border-radius: 16px; padding: 16px 18px; display: flex; align-items: center; gap: 18px">
+    <div style="display: flex; gap: 8px">
+      <sc-for list="{{tiles}}" as="tile" hint-placeholder-count="5">
+        <div style="width: 68px; height: 68px; border-radius: 12px; background: {{tile}}; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 200 176" width="54" height="48">
+            <path d="M40 66 L50 14 L90 42 Z" fill="#2A2522"></path>
+            <path d="M160 66 L150 14 L110 42 Z" fill="#2A2522"></path>
+            <path d="M48 46 L53 26 L73 40 Z" fill="#E89DA0"></path>
+            <path d="M152 46 L147 26 L127 40 Z" fill="#E89DA0"></path>
+            <rect x="24" y="36" width="152" height="126" rx="56" fill="#2A2522"></rect>
+            <circle cx="68" cy="94" r="17" fill="#F6C445"></circle>
+            <ellipse cx="68" cy="94" rx="6" ry="12" fill="#221E1B"></ellipse>
+            <circle cx="73" cy="87" r="3.5" fill="#ffffff"></circle>
+            <circle cx="132" cy="94" r="17" fill="#F6C445"></circle>
+            <ellipse cx="132" cy="94" rx="6" ry="12" fill="#221E1B"></ellipse>
+            <circle cx="137" cy="87" r="3.5" fill="#ffffff"></circle>
+            <path d="M94 120 L100 127 L106 120 Z" fill="#E89DA0"></path>
+            <path d="M100 127 v5 M100 132 q-6 7 -13 5 M100 132 q6 7 13 5" stroke="#9c948d" stroke-width="3.5" fill="none" stroke-linecap="round"></path>
+          </svg>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1">
+      <div style="font-size: 18px; color: #5b4232">A. 새까만 고양이 · 노란 눈</div>
+      <div style="font-size: 13px; color: #8a715c; font-family: 'Apple SD Gothic Neo', sans-serif; line-height: 1.5">대비 최강, 정석 귀여움. 단, 원작과 같은 종 — "짝퉁" 인상 리스크만 감수.</div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border-radius: 16px; padding: 16px 18px; display: flex; align-items: center; gap: 18px">
+    <div style="display: flex; gap: 8px">
+      <sc-for list="{{tiles}}" as="tile" hint-placeholder-count="5">
+        <div style="width: 68px; height: 68px; border-radius: 12px; background: {{tile}}; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 200 170" width="52" height="44">
+            <ellipse cx="64" cy="28" rx="12" ry="10" fill="#6F4A2F" stroke="#33231A" stroke-width="5.5"></ellipse>
+            <ellipse cx="136" cy="28" rx="12" ry="10" fill="#6F4A2F" stroke="#33231A" stroke-width="5.5"></ellipse>
+            <rect x="26" y="24" width="148" height="134" rx="58" fill="#6F4A2F" stroke="#33231A" stroke-width="5.5"></rect>
+            <ellipse cx="100" cy="100" rx="30" ry="46" fill="#59371F"></ellipse>
+            <path d="M91 86 Q100 93 109 86" stroke="#F3E7D5" stroke-width="5" fill="none" stroke-linecap="round"></path>
+            <path d="M100 92 V 114" stroke="#F3E7D5" stroke-width="5" stroke-linecap="round"></path>
+            <path d="M100 114 Q94 121 87 119 M100 114 Q106 121 113 119" stroke="#F3E7D5" stroke-width="4.5" fill="none" stroke-linecap="round"></path>
+            <path d="M44 74 Q52 70 60 74" stroke="#F3E7D5" stroke-width="5" fill="none" stroke-linecap="round"></path>
+            <path d="M140 74 Q148 70 156 74" stroke="#F3E7D5" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          </svg>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1">
+      <div style="font-size: 18px; color: #5b4232">B. 초코 카피바라</div>
+      <div style="font-size: 13px; color: #8a715c; font-family: 'Apple SD Gothic Neo', sans-serif; line-height: 1.5">카피바라 유지 + 진한 털색으로 대비 해결. 표정선은 크림색 반전.</div>
+    </div>
+  </div>
+
+  <div style="background: #FFFFFF; border-radius: 16px; padding: 16px 18px; display: flex; align-items: center; gap: 18px">
+    <div style="display: flex; gap: 8px">
+      <sc-for list="{{tiles}}" as="tile" hint-placeholder-count="5">
+        <div style="width: 68px; height: 68px; border-radius: 12px; background: {{tile}}; display: flex; align-items: center; justify-content: center">
+          <svg viewBox="0 0 200 170" width="54" height="46">
+            <ellipse cx="64" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"></ellipse>
+            <ellipse cx="136" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"></ellipse>
+            <rect x="26" y="24" width="148" height="134" rx="58" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"></rect>
+            <ellipse cx="64" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"></ellipse>
+            <ellipse cx="136" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"></ellipse>
+            <rect x="26" y="24" width="148" height="134" rx="58" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"></rect>
+            <ellipse cx="100" cy="100" rx="30" ry="46" fill="#C08A57"></ellipse>
+            <path d="M91 86 Q100 93 109 86" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+            <path d="M100 92 V 114" stroke="#5A4531" stroke-width="5" stroke-linecap="round"></path>
+            <path d="M100 114 Q94 121 87 119 M100 114 Q106 121 113 119" stroke="#5A4531" stroke-width="4.5" fill="none" stroke-linecap="round"></path>
+            <path d="M44 74 Q52 70 60 74" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+            <path d="M140 74 Q148 70 156 74" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"></path>
+          </svg>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 3px; flex-grow: 1">
+      <div style="font-size: 18px; color: #5b4232">C. 스티커 카피바라 (흰 테두리)</div>
+      <div style="font-size: 13px; color: #8a715c; font-family: 'Apple SD Gothic Neo', sans-serif; line-height: 1.5">원래 색 유지 + 이모티콘식 흰 보더로 어떤 배경에서도 분리. 원작 고양이도 실은 이 기법을 쓴다.</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":760,"height":640}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { tiles: ['#F6CE7E', '#A8CDEB', '#F2A7B8', '#B7D8A8', '#C9BCE9'] };
+  }
+}
+</script>
+</body>
+</html>
