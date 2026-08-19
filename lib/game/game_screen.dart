@@ -38,6 +38,10 @@ class _GameScreenState extends State<GameScreen> {
   /// 드래그 X 칠하기: 시작 칸이 정한 동작(X 깔기 / X 지우기)을 유지.
   bool? _dragMarking;
 
+  /// 자체 더블탭 판정용 — 마지막 탭의 칸과 시각.
+  (int, int)? _lastTapCell;
+  int _lastTapMs = 0;
+
   /// 떠오르는 안내 텍스트들(힌트 등).
   final List<_FloatText> _floats = [];
   int _floatId = 0;
@@ -306,10 +310,9 @@ class _GameScreenState extends State<GameScreen> {
           final side = constraints.biggest.shortestSide;
           final cell = (side - (n - 1) * _gap) / n;
           return GestureDetector(
-            onTapUp: (d) => _onTap(_cellAt(d.localPosition, cell)),
-            onDoubleTapDown: (d) =>
-                _onDoubleTap(_cellAt(d.localPosition, cell)),
-            onDoubleTap: () {}, // onDoubleTapDown을 쓰기 위한 등록
+            // 기본 onDoubleTap을 쓰면 싱글탭이 300ms 지연된다(더블탭 판별 대기).
+            // 첫 탭에서 X를 즉시 넣고, 같은 칸 빠른 재탭을 직접 더블탭으로 판정.
+            onTapUp: (d) => _onTapInstant(_cellAt(d.localPosition, cell)),
             onLongPressStart: (d) =>
                 _onLongPress(_cellAt(d.localPosition, cell)),
             onPanStart: (d) => _onPanStart(_cellAt(d.localPosition, cell)),
@@ -385,9 +388,10 @@ class _GameScreenState extends State<GameScreen> {
     } else if (state == cellMark) {
       child = const FractionallySizedBox(
         key: ValueKey('x'),
-        widthFactor: 0.6,
-        child: FittedBox(
-          child: Icon(Icons.close, color: Colors.white),
+        widthFactor: 0.66,
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: CustomPaint(painter: _XPainter()),
         ),
       );
     } else {
@@ -405,11 +409,25 @@ class _GameScreenState extends State<GameScreen> {
 
   // ── 입력 ────────────────────────────────────────────────────────────
 
-  void _onTap((int, int)? cell) {
+  void _onTapInstant((int, int)? cell) {
     if (cell == null || _errorCell != null) return;
     final (r, c) = cell;
     final state = board.stateAt(r, c);
     if (state == cellCapy) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final isDouble = _lastTapCell == cell && now - _lastTapMs < 280;
+    _lastTapCell = cell;
+    _lastTapMs = now;
+
+    if (isDouble) {
+      // 첫 탭이 만든 X/빈칸 변화를 되돌리고 카피 배치로 해석한다.
+      setState(() =>
+          state == cellMark ? board.clearCell(r, c) : board.setMark(r, c));
+      _attemptPlace(r, c);
+      return;
+    }
+    // 싱글탭: 즉시 X 토글 — 반응 지연 0.
     HapticFeedback.selectionClick();
     setState(() =>
         state == cellBlank ? board.setMark(r, c) : board.clearCell(r, c));
@@ -451,9 +469,7 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _onDoubleTap((int, int)? cell) {
-    if (cell == null || _errorCell != null) return;
-    final (r, c) = cell;
+  void _attemptPlace(int r, int c) {
     if (board.stateAt(r, c) == cellCapy) return;
 
     final result = board.tryPlace(r, c);
@@ -747,6 +763,25 @@ class _GameScreenState extends State<GameScreen> {
   }
 }
 
+/// 두껍고 둥근 X — 아이콘 폰트보다 크고 진하게.
+class _XPainter extends CustomPainter {
+  const _XPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = size.width * 0.24
+      ..strokeCap = StrokeCap.round;
+    final d = size.width * 0.14;
+    canvas.drawLine(Offset(d, d), Offset(size.width - d, size.height - d), paint);
+    canvas.drawLine(Offset(size.width - d, d), Offset(d, size.height - d), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _XPainter old) => false;
+}
+
 /// 배치된 카피 토큰 — 등장 팝(기쁨 표정) 후 무심 복귀, 이따금 깜빡인다.
 class _CapyToken extends StatefulWidget {
   const _CapyToken({super.key});
@@ -756,8 +791,10 @@ class _CapyToken extends StatefulWidget {
 }
 
 class _CapyTokenState extends State<_CapyToken>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _pop;
+  late final AnimationController _idle;
+  final double _phase = math.Random().nextDouble() * 2 * math.pi;
   Timer? _timer;
   bool _happy = true;
   bool _blink = false;
@@ -768,6 +805,11 @@ class _CapyTokenState extends State<_CapyToken>
     _pop = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 450))
       ..forward();
+    // 가만히 있어도 산다 — 숨쉬기 + 살짝 갸웃. 위상을 랜덤으로 틀어
+    // 여러 마리가 같은 박자로 움직이지 않게 한다.
+    _idle = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2400))
+      ..repeat();
     _timer = Timer(const Duration(milliseconds: 700), () {
       if (!mounted) return;
       setState(() => _happy = false);
@@ -793,6 +835,7 @@ class _CapyTokenState extends State<_CapyToken>
   void dispose() {
     _timer?.cancel();
     _pop.dispose();
+    _idle.dispose();
     super.dispose();
   }
 
@@ -805,7 +848,21 @@ class _CapyTokenState extends State<_CapyToken>
             : capyToken;
     return ScaleTransition(
       scale: CurvedAnimation(parent: _pop, curve: Curves.elasticOut),
-      child: SvgPicture.string(art),
+      child: AnimatedBuilder(
+        animation: _idle,
+        builder: (context, child) {
+          final t = _idle.value * 2 * math.pi + _phase;
+          return Transform.rotate(
+            angle: math.sin(t) * 0.045,
+            child: Transform.scale(
+              scaleY: 1 + math.sin(t * 1.3) * 0.025,
+              alignment: Alignment.bottomCenter,
+              child: child,
+            ),
+          );
+        },
+        child: SvgPicture.string(art),
+      ),
     );
   }
 }
