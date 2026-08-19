@@ -78,3 +78,57 @@ const capyStartled = '''
 <circle cx="148" cy="72" r="4.5" fill="#5A4531"/>
 </svg>
 ''';
+
+/// 토큰 — 눈 감은 변형(깜빡임 애니메이션용).
+const capyTokenBlink = '''
+<svg viewBox="0 0 200 170" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="64" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<ellipse cx="136" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<rect x="26" y="24" width="148" height="134" rx="58" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<ellipse cx="64" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<ellipse cx="136" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<rect x="26" y="24" width="148" height="134" rx="58" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<ellipse cx="100" cy="100" rx="30" ry="46" fill="#C08A57"/>
+<path d="M91 86 Q100 93 109 86" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M100 92 V 114" stroke="#5A4531" stroke-width="5" stroke-linecap="round"/>
+<path d="M100 114 Q94 121 87 119 M100 114 Q106 121 113 119" stroke="#5A4531" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+<path d="M44 76 Q52 79 60 76" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M140 76 Q148 79 156 76" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+</svg>
+''';
+
+/// 토큰 — 기쁨 변형(정답 배치 직후 잠깐).
+const capyTokenHappy = '''
+<svg viewBox="0 0 200 170" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="64" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<ellipse cx="136" cy="28" rx="12" ry="10" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<rect x="26" y="24" width="148" height="134" rx="58" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="17"/>
+<ellipse cx="64" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<ellipse cx="136" cy="28" rx="12" ry="10" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<rect x="26" y="24" width="148" height="134" rx="58" fill="#DCAE79" stroke="#5A4531" stroke-width="5.5"/>
+<ellipse cx="100" cy="100" rx="30" ry="46" fill="#C08A57"/>
+<path d="M91 86 Q100 93 109 86" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M100 92 V 110" stroke="#5A4531" stroke-width="5" stroke-linecap="round"/>
+<path d="M88 112 Q100 124 112 112" stroke="#5A4531" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+<path d="M44 78 Q52 68 60 78" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+<path d="M140 78 Q148 68 156 78" stroke="#5A4531" stroke-width="5" fill="none" stroke-linecap="round"/>
+<ellipse cx="42" cy="92" rx="8" ry="5" fill="#EFA192" opacity="0.7"/>
+<ellipse cx="158" cy="92" rx="8" ry="5" fill="#EFA192" opacity="0.7"/>
+</svg>
+''';
+
+/// 목숨 아이콘 — 귤.
+const gyulIcon = '''
+<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<circle cx="20" cy="23" r="14" fill="#F49E36" stroke="#5A4531" stroke-width="3.5"/>
+<circle cx="15" cy="18" r="3.2" fill="#F8C078"/>
+<ellipse cx="30" cy="10" rx="6.5" ry="3.2" fill="#7FA65A" transform="rotate(24 30 10)"/>
+</svg>
+''';
+
+/// 목숨 아이콘 — 빈 귤(잃은 목숨).
+const gyulIconEmpty = '''
+<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<circle cx="20" cy="23" r="14" fill="#EBDDC9" stroke="#C9B8A2" stroke-width="3.5"/>
+</svg>
+''';

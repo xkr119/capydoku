@@ -57,4 +57,13 @@ class Progress {
 
   int clearsOn(int dateKey) => _prefs.getInt('log.$dateKey') ?? 0;
   int get totalSeconds => _prefs.getInt('time.total') ?? 0;
+
+  /// 첫 판 조작 안내를 봤는가.
+  bool get coachDone => _prefs.getBool('coach.done') ?? false;
+  Future<void> markCoachDone() async => _prefs.setBool('coach.done', true);
+
+  /// 누적 점수 — 홈 상단에 보여줄 자산 감각.
+  int get totalScore => _prefs.getInt('score.total') ?? 0;
+  Future<void> addScore(int s) async =>
+      _prefs.setInt('score.total', totalScore + s);
 }

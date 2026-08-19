@@ -39,18 +39,26 @@ void main() {
   });
 
   test('레벨 커브: 크기 경계와 난이도 단조 증가(구간 내 표본)', () {
-    expect(Levels.sizeOf(1), 5);
-    expect(Levels.sizeOf(8), 5);
-    expect(Levels.sizeOf(9), 6);
-    expect(Levels.sizeOf(21), 7);
-    expect(Levels.sizeOf(36), 8);
-    expect(Levels.sizeOf(51), 9);
+    expect(Levels.sizeOf(1), 4);
+    expect(Levels.sizeOf(2), 4);
+    expect(Levels.sizeOf(3), 5);
+    expect(Levels.sizeOf(7), 6);
+    expect(Levels.sizeOf(13), 7);
+    expect(Levels.sizeOf(21), 8);
+    expect(Levels.sizeOf(33), 9);
     expect(Levels.sizeOf(999), 9);
     // 같은 구간 안에서 초반보다 후반이 쉬울 수는 없다 (표본 비교)
-    final early = Levels.puzzleOf(9).difficulty;
-    final late_ = Levels.puzzleOf(19).difficulty;
+    final early = Levels.puzzleOf(7).difficulty;
+    final late_ = Levels.puzzleOf(12).difficulty;
     expect(early, lessThanOrEqualTo(late_));
     // 결정성
     expect(Levels.puzzleOf(12).solution, Levels.puzzleOf(12).solution);
+  });
+
+  test('X 힌트: 미완성 행의 오답 칸을 채운다', () {
+    final p = QueensGenerator.generate(n: 5, seed: 7);
+    final b = BoardState(p);
+    final filled = b.revealRowXs();
+    expect(filled, 4); // 5칸 중 정답 1칸 빼고 전부
   });
 }

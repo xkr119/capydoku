@@ -91,7 +91,14 @@ class BoardState {
     }
   }
 
-  /// 힌트: 아직 못 찾은 정답 한 자리를 알려준다. 없으면 null.
+  /// 스타터 카피: 첫 행의 정답을 미리 놓아준다(자동 X 없이).
+  /// Meowdoku가 초반 레벨에 쓰는 온보딩 장치 — "이렇게 놓는 거구나"를
+  /// 시작하자마자 보여준다.
+  void placeStarter() {
+    cells[0][puzzle.solution[0]] = cellCapy;
+  }
+
+  /// 카피 힌트: 아직 못 찾은 정답 한 자리를 알려준다. 없으면 null.
   (int, int)? hintCell() {
     for (var r = 0; r < n; r++) {
       if (cells[r][puzzle.solution[r]] != cellCapy) {
@@ -99,5 +106,22 @@ class BoardState {
       }
     }
     return null;
+  }
+
+  /// X 힌트: 미완성 행 하나를 골라 그 행의 오답 칸을 전부 X로 채운다.
+  /// 채운 칸 수를 돌려준다(0이면 보여줄 게 없던 것).
+  int revealRowXs() {
+    for (var r = 0; r < n; r++) {
+      if (cells[r][puzzle.solution[r]] == cellCapy) continue;
+      var filled = 0;
+      for (var c = 0; c < n; c++) {
+        if (c != puzzle.solution[r] && cells[r][c] == cellBlank) {
+          cells[r][c] = cellMark;
+          filled++;
+        }
+      }
+      if (filled > 0) return filled;
+    }
+    return 0;
   }
 }
