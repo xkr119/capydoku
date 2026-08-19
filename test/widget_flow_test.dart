@@ -35,11 +35,13 @@ void main() {
     await tester.tapAt(target);
     await tester.pump(const Duration(milliseconds: 60));
     await tester.tapAt(target);
-    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 300));
 
-    // 배치 성공의 증거: 카운터 2/n + 점수 플로트
-    expect(find.text('2'), findsWidgets);
+    // 배치 성공의 증거: 점수 비행체(+N)가 떠 있다
     expect(find.textContaining('+'), findsOneWidget);
+    // 비행이 끝나면 카운터에 합산된다
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(find.text('2'), findsWidgets);
 
     // 오답 더블탭 = 귤 하나 소모 (배치 안 됨)
     final wrongC = (puzzle.solution[2] + 2) % n;

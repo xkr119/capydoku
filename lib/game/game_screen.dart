@@ -38,9 +38,18 @@ class _GameScreenState extends State<GameScreen> {
   /// 드래그 X 칠하기: 시작 칸이 정한 동작(X 깔기 / X 지우기)을 유지.
   bool? _dragMarking;
 
-  /// 떠오르는 점수 텍스트들.
+  /// 떠오르는 안내 텍스트들(힌트 등).
   final List<_FloatText> _floats = [];
   int _floatId = 0;
+
+  /// 점수 비행체들 — 칸에서 "빵" 커졌다가 상단 점수로 날아가 합산된다.
+  final List<_ScoreFly> _flies = [];
+  int _flyId = 0;
+  int _pendingScore = 0;
+
+  final _rootKey = GlobalKey();
+  final _scoreKey = GlobalKey();
+  final _boardKey = GlobalKey();
 
   bool _showCoach = false;
 
@@ -70,7 +79,7 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       backgroundColor: Palette.bg,
       body: SafeArea(
-        child: Stack(children: [
+        child: Stack(key: _rootKey, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
             child: Column(children: [
@@ -91,9 +100,47 @@ class _GameScreenState extends State<GameScreen> {
             ]),
           ),
           if (_showCoach) _coachOverlay(),
+          // 점수 비행 레이어 — 어떤 UI보다 위에 뜬다.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Stack(clipBehavior: Clip.none, children: [
+                for (final f in _flies)
+                  _ScoreFlyWidget(
+                    key: ValueKey('fly-${f.id}'),
+                    fly: f,
+                    onDone: () => setState(() {
+                      _flies.remove(f);
+                      _pendingScore -= f.gained;
+                      score += f.gained;
+                    }),
+                  ),
+              ]),
+            ),
+          ),
         ]),
       ),
     );
+  }
+
+  /// (r,c) 칸 중앙에서 점수 카운터로 날아가는 점수를 만든다.
+  void _spawnScoreFly(int r, int c, int gained) {
+    final root = _rootKey.currentContext?.findRenderObject() as RenderBox?;
+    final boardBox = _boardKey.currentContext?.findRenderObject() as RenderBox?;
+    final scoreBox = _scoreKey.currentContext?.findRenderObject() as RenderBox?;
+    if (root == null || boardBox == null || scoreBox == null) {
+      score += gained;
+      return;
+    }
+    final n = board.n;
+    final gridSide = boardBox.size.width - 16; // 컨테이너 패딩 8×2
+    final cellSize = (gridSide - (n - 1) * _gap) / n;
+    final local = Offset(8 + c * (cellSize + _gap) + cellSize / 2,
+        8 + r * (cellSize + _gap) + cellSize / 2);
+    final start = root.globalToLocal(boardBox.localToGlobal(local));
+    final end = root.globalToLocal(
+        scoreBox.localToGlobal(scoreBox.size.center(Offset.zero)));
+    _pendingScore += gained;
+    setState(() => _flies.add(_ScoreFly(_flyId++, start, end, gained)));
   }
 
   // ── 상단 ────────────────────────────────────────────────────────────
@@ -116,8 +163,9 @@ class _GameScreenState extends State<GameScreen> {
             style: TextStyle(
                 fontSize: 15, color: Palette.brownSoft, height: 1.1)),
         TweenAnimationBuilder<int>(
+          key: _scoreKey,
           tween: IntTween(begin: 0, end: score),
-          duration: const Duration(milliseconds: 400),
+          duration: const Duration(milliseconds: 350),
           builder: (context, v, _) => Text('$v',
               style: const TextStyle(
                   fontSize: 22, color: Palette.brown, height: 1.1)),
@@ -242,6 +290,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget _board() {
     final n = board.n;
     return Container(
+      key: _boardKey,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Palette.card,
@@ -320,27 +369,38 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _cellContent(int r, int c, int state, bool isError) {
+    // X·카피가 스르륵 나타나고 사라지도록 스위처로 감싼다.
+    final Widget child;
     if (isError) {
-      return FractionallySizedBox(
-          widthFactor: 0.8, child: SvgPicture.string(capyStartled));
-    }
-    switch (state) {
-      case cellCapy:
-        return FractionallySizedBox(
+      child = FractionallySizedBox(
+          key: const ValueKey('err'),
           widthFactor: 0.8,
-          child: _CapyToken(key: ValueKey('capy-$r-$c')),
-        );
-      case cellMark:
-        return FractionallySizedBox(
-          widthFactor: 0.42,
-          child: FittedBox(
-            child:
-                Icon(Icons.close, color: Colors.white.withValues(alpha: 0.95)),
-          ),
-        );
-      default:
-        return const SizedBox.shrink();
+          child: SvgPicture.string(capyStartled));
+    } else if (state == cellCapy) {
+      child = FractionallySizedBox(
+        key: ValueKey('capy-$r-$c'),
+        widthFactor: 0.8,
+        child: _CapyToken(key: ValueKey('capytoken-$r-$c')),
+      );
+    } else if (state == cellMark) {
+      child = const FractionallySizedBox(
+        key: ValueKey('x'),
+        widthFactor: 0.6,
+        child: FittedBox(
+          child: Icon(Icons.close, color: Colors.white),
+        ),
+      );
+    } else {
+      child = const SizedBox.shrink(key: ValueKey('blank'));
     }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) =>
+          ScaleTransition(scale: anim, child: child),
+      child: child,
+    );
   }
 
   // ── 입력 ────────────────────────────────────────────────────────────
@@ -399,11 +459,8 @@ class _GameScreenState extends State<GameScreen> {
     final result = board.tryPlace(r, c);
     if (result == PlaceResult.ok) {
       HapticFeedback.mediumImpact();
-      final gained = 100 + board.n * 25;
-      setState(() {
-        score += gained;
-        _floats.add(_FloatText(_floatId++, r, c, '+$gained'));
-      });
+      setState(() {});
+      _spawnScoreFly(r, c, 100 + board.n * 25);
       widget.progress.saveBoard(widget.level, board.cells);
       if (board.isSolved) _onSolved();
       return;
@@ -445,6 +502,7 @@ class _GameScreenState extends State<GameScreen> {
       board.tryPlace(r, c);
       _floats.add(_FloatText(_floatId++, r, c, '여기!'));
     });
+    _spawnScoreFly(r, c, 50);
     HapticFeedback.mediumImpact();
     widget.progress.saveBoard(widget.level, board.cells);
     if (board.isSolved) _onSolved();
@@ -608,6 +666,10 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _onSolved() async {
     _watch.stop();
     HapticFeedback.mediumImpact();
+    // 아직 날아가는 중인 점수까지 정산.
+    score += _pendingScore;
+    _pendingScore = 0;
+    _flies.clear();
     final bonus = 500 + board.hearts * 200 + (capyHints + xHints) * 50;
     score += bonus;
     final now = DateTime.now();
@@ -754,6 +816,62 @@ class _FloatText {
   final int col;
   final String text;
   _FloatText(this.id, this.row, this.col, this.text);
+}
+
+class _ScoreFly {
+  final int id;
+  final Offset start;
+  final Offset end;
+  final int gained;
+  _ScoreFly(this.id, this.start, this.end, this.gained);
+}
+
+/// 점수 비행: 칸에서 "빵" 커졌다가(0~0.35) 점수 카운터로 슈룩 날아간다.
+class _ScoreFlyWidget extends StatelessWidget {
+  final _ScoreFly fly;
+  final VoidCallback onDone;
+
+  const _ScoreFlyWidget({super.key, required this.fly, required this.onDone});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 950),
+      onEnd: onDone,
+      builder: (context, t, _) {
+        final Offset pos;
+        final double scale;
+        if (t < 0.35) {
+          final k = Curves.easeOutBack.transform(t / 0.35);
+          pos = fly.start;
+          scale = 0.4 + 1.2 * k; // 빵!
+        } else {
+          final k = Curves.easeInCubic.transform((t - 0.35) / 0.65);
+          pos = Offset.lerp(fly.start, fly.end, k)!;
+          scale = 1.6 - 0.9 * k; // 날아가며 작아진다
+        }
+        return Positioned(
+          left: pos.dx - 60,
+          top: pos.dy - 20,
+          width: 120,
+          child: Transform.scale(
+            scale: scale,
+            child: Center(
+              child: Text('+${fly.gained}',
+                  style: const TextStyle(
+                      fontSize: 24,
+                      color: Color(0xFFE8830C),
+                      shadows: [
+                        Shadow(color: Colors.white, blurRadius: 8),
+                        Shadow(color: Colors.white, blurRadius: 14),
+                      ])),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// 위로 떠오르며 사라지는 점수 텍스트.

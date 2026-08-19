@@ -74,21 +74,9 @@ class BoardState {
     if (puzzle.solution[r] != c) return PlaceResult.wrongSpot;
 
     cells[r][c] = cellCapy;
-    _autoMarkAround(r, c);
+    // 자동 X는 넣지 않는다 — X를 직접 그려가는 것이 이 게임의 촉감이다
+    // (사용자 결정, Meowdoku 실플레이 관찰).
     return PlaceResult.ok;
-  }
-
-  /// 놓인 카피가 배제하는 칸들에 X를 자동으로 깐다 — 이 장르 표준 QoL.
-  void _autoMarkAround(int r, int c) {
-    for (var rr = 0; rr < n; rr++) {
-      for (var cc = 0; cc < n; cc++) {
-        if (cells[rr][cc] != cellBlank) continue;
-        final sameLine = rr == r || cc == c;
-        final sameRegion = puzzle.regions[rr][cc] == puzzle.regions[r][c];
-        final touching = (rr - r).abs() <= 1 && (cc - c).abs() <= 1;
-        if (sameLine || sameRegion || touching) cells[rr][cc] = cellMark;
-      }
-    }
   }
 
   /// 스타터 카피: 첫 행의 정답을 미리 놓아준다(자동 X 없이).
