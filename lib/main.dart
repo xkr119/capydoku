@@ -8,6 +8,11 @@ import 'core/progress.dart';
 import 'game/game_screen.dart';
 import 'game/levels.dart';
 
+/// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
+/// 다음 레벨이 pushReplacement로 이어지면 홈의 await는 첫 교체 때 끝나버려
+/// 마지막 복귀를 놓친다 — 실제로 레벨 표시가 안 갱신되는 버그가 있었다.
+final routeObserver = RouteObserver<ModalRoute<void>>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -23,6 +28,7 @@ class CapydokuApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Capydoku',
+      navigatorObservers: [routeObserver],
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Jua',
@@ -60,14 +66,30 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with RouteAware {
   Progress get progress => widget.progress;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  /// 위에 쌓였던 화면이 사라지고 홈이 다시 보일 때 — 레벨·점수 갱신.
+  @override
+  void didPopNext() => setState(() {});
 
   Future<void> _play(int level) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => GameScreen(level: level, progress: progress),
     ));
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override
