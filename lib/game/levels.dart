@@ -5,15 +5,16 @@ library;
 import '../engine/queens.dart';
 
 class Levels {
-  /// 크기 해금 지점들 — Meowdoku처럼 빠르게 커진다(레벨 8이면 벌써 8×8 근처).
-  /// 초반에 판이 쑥쑥 커지는 감각이 곧 성장 감각이다.
+  /// 크기 해금 지점들 — 초반에 빠르게 커지고 10×10에서 고정된다
+  /// (Meowdoku 관찰 반영). 커지는 감각이 곧 성장 감각이다.
   static const segments = [
-    (1, 4),   // 레벨 1~2: 4×4 (튜토리얼 겸)
-    (3, 5),   // 3~6: 5×5
-    (7, 6),   // 7~12: 6×6
-    (13, 7),  // 13~20: 7×7
-    (21, 8),  // 21~32: 8×8
-    (33, 9),  // 33~: 9×9 무한
+    (1, 4),   // 레벨 1: 4×4 (튜토리얼 겸)
+    (2, 5),   // 2~3: 5×5
+    (4, 6),   // 4~6: 6×6
+    (7, 7),   // 7~9: 7×7
+    (10, 8),  // 10~13: 8×8
+    (14, 9),  // 14~17: 9×9
+    (18, 10), // 18~: 10×10 무한
   ];
 
   static int sizeOf(int level) {
@@ -50,10 +51,21 @@ class Levels {
     // 마지막(무한) 구간은 15레벨에 걸쳐 최고 난도에 도달한 뒤 유지.
     final span = next != null ? next - start : 15;
     final t = ((level - start) / span).clamp(0.0, 0.99);
+    // 큰 보드는 생성이 느려(10×10 ≈ 200ms/개) 후보 수를 줄인다.
+    final count = size >= 9 ? 4 : (size == 8 ? 6 : 8);
     final candidates = [
-      for (var k = 0; k < 8; k++)
+      for (var k = 0; k < count; k++)
         QueensGenerator.generate(n: size, seed: level * 100 + k),
     ]..sort((a, b) => a.difficulty.compareTo(b.difficulty));
-    return candidates[(t * 8).floor()];
+    // "찍기 같다" 방지: 초반 레벨과 각 구간의 앞쪽 절반은 한 수 읽기가
+    // 필요 없는(단순 소거만으로 풀리는) 판을 우선한다.
+    if (level < 10 || t < 0.5) {
+      final zero = [for (final c in candidates) if (c.lookaheads == 0) c];
+      if (zero.isNotEmpty) {
+        final i = (t * zero.length).floor().clamp(0, zero.length - 1);
+        return zero[i];
+      }
+    }
+    return candidates[(t * count).floor().clamp(0, count - 1)];
   }
 }

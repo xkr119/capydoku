@@ -41,17 +41,17 @@ void main() {
 
   test('레벨 커브: 크기 경계와 난이도 단조 증가(구간 내 표본)', () {
     expect(Levels.sizeOf(1), 4);
-    expect(Levels.sizeOf(2), 4);
-    expect(Levels.sizeOf(3), 5);
-    expect(Levels.sizeOf(7), 6);
-    expect(Levels.sizeOf(13), 7);
-    expect(Levels.sizeOf(21), 8);
-    expect(Levels.sizeOf(33), 9);
-    expect(Levels.sizeOf(999), 9);
-    // 같은 구간 안에서 초반보다 후반이 쉬울 수는 없다 (표본 비교)
-    final early = Levels.puzzleOf(7).difficulty;
-    final late_ = Levels.puzzleOf(12).difficulty;
-    expect(early, lessThanOrEqualTo(late_));
+    expect(Levels.sizeOf(2), 5);
+    expect(Levels.sizeOf(4), 6);
+    expect(Levels.sizeOf(7), 7);
+    expect(Levels.sizeOf(10), 8);
+    expect(Levels.sizeOf(14), 9);
+    expect(Levels.sizeOf(18), 10);
+    expect(Levels.sizeOf(999), 10);
+    // 초반 레벨은 한 수 읽기 없이 풀린다 — "찍기 같다" 방지선
+    for (var l = 1; l <= 6; l++) {
+      expect(Levels.puzzleOf(l).lookaheads, 0, reason: 'level $l');
+    }
     // 결정성
     expect(Levels.puzzleOf(12).solution, Levels.puzzleOf(12).solution);
   });

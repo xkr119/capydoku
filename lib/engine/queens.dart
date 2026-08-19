@@ -21,7 +21,12 @@ class QueensPuzzle {
   /// 논리 솔버가 몇 바퀴 돌았는가 + 고급 규칙 사용 횟수 — 난이도 지표.
   final int difficulty;
 
-  QueensPuzzle(this.n, this.seed, this.solution, this.regions, this.difficulty);
+  /// 한 수 읽기(규칙 3)를 몇 번 썼는가. 0이면 단순 규칙만으로 풀린다 —
+  /// 초보자에게 "찍기 같다"는 느낌을 주지 않는 판.
+  final int lookaheads;
+
+  QueensPuzzle(this.n, this.seed, this.solution, this.regions, this.difficulty,
+      this.lookaheads);
 }
 
 /// 결정적 난수. dart:math Random을 안 쓰는 이유는 네모로직과 같다 —
@@ -65,10 +70,10 @@ class QueensGenerator {
       if (solution == null) continue;
       final regions = _growRegions(n, solution, rng);
       if (_countSolutions(n, regions, limit: 2) != 1) continue;
-      final difficulty = LogicSolver.solve(n, regions);
+      final (difficulty, lookaheads) = LogicSolver.solveDetailed(n, regions);
       if (difficulty < 0) continue; // 논리만으로 안 풀리면 탈락
       lastAttempts = attempt;
-      return QueensPuzzle(n, seed, solution, regions, difficulty);
+      return QueensPuzzle(n, seed, solution, regions, difficulty, lookaheads);
     }
   }
 
@@ -205,7 +210,11 @@ class QueensGenerator {
 /// 사람이 쓰는 논리 규칙만으로 푸는 솔버. 성공하면 난이도 점수(≥0),
 /// 이 규칙들로 못 풀면 -1 (그 퍼즐은 사람에게 찍기를 강요하므로 폐기).
 class LogicSolver {
-  static int solve(int n, List<List<int>> regions) {
+  static int solve(int n, List<List<int>> regions) =>
+      solveDetailed(n, regions).$1;
+
+  /// (난이도, 한수읽기 횟수). 못 풀면 (-1, 0).
+  static (int, int) solveDetailed(int n, List<List<int>> regions) {
     // cand[r][c]: 아직 퀸이 올 수 있는 칸인가.
     final cand = List.generate(n, (_) => List<bool>.filled(n, true));
     final placedRow = List<int>.filled(n, -1); // row → col
@@ -242,14 +251,14 @@ class LogicSolver {
 
     while (placedCount < n) {
       passes++;
-      if (passes > 200) return -1;
+      if (passes > 200) return (-1, lookaheads);
       var changed = false;
 
       // 규칙 1: 행/열/영역에 후보가 하나뿐이면 확정.
       for (var r = 0; r < n; r++) {
         if (placedRow[r] != -1) continue;
         final cs = [for (var c = 0; c < n; c++) if (cand[r][c]) c];
-        if (cs.isEmpty) return -1;
+        if (cs.isEmpty) return (-1, lookaheads);
         if (cs.length == 1) {
           placeQueen(r, cs[0]);
           changed = true;
@@ -263,7 +272,7 @@ class LogicSolver {
             if (regions[r][c] == id && cand[r][c]) cells.add(r * n + c);
           }
         }
-        if (cells.isEmpty) return -1;
+        if (cells.isEmpty) return (-1, lookaheads);
         if (cells.length == 1) {
           placeQueen(cells[0] ~/ n, cells[0] % n);
           changed = true;
@@ -277,7 +286,7 @@ class LogicSolver {
       for (var c = 0; c < n; c++) {
         if (colHasQueen[c]) continue;
         final rs = [for (var r = 0; r < n; r++) if (cand[r][c]) r];
-        if (rs.isEmpty) return -1;
+        if (rs.isEmpty) return (-1, lookaheads);
         if (rs.length == 1 && placedRow[rs[0]] == -1) {
           placeQueen(rs[0], c);
           changed = true;
@@ -335,9 +344,9 @@ class LogicSolver {
           }
         }
       }
-      if (!changed) return -1; // 이 규칙들로는 진전 없음 → 폐기
+      if (!changed) return (-1, lookaheads); // 이 규칙들로는 진전 없음 → 폐기
     }
-    return passes + lookaheads * 3;
+    return (passes + lookaheads * 3, lookaheads);
   }
 
   /// (r,c)에 놓으면 즉시 모순인가 — 한 수만 내다본다.

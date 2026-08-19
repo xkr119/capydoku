@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -8,6 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../art/capy_art.dart';
 import '../core/palette.dart';
 import '../core/progress.dart';
+import '../engine/queens.dart';
 import 'board_state.dart';
 import 'levels.dart';
 
@@ -25,8 +27,12 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
+/// compute()용 최상위 함수 — 큰 보드 생성을 UI 스레드 밖에서.
+QueensPuzzle _puzzleOfIsolate(int level) => Levels.puzzleOf(level);
+
 class _GameScreenState extends State<GameScreen> {
   late BoardState board;
+  bool _ready = false;
   final _watch = Stopwatch();
   int capyHints = 3;
   int xHints = 3;
@@ -65,8 +71,13 @@ class _GameScreenState extends State<GameScreen> {
     _showCoach = !widget.progress.coachDone;
   }
 
-  void _newBoard({bool restore = false}) {
-    final puzzle = Levels.puzzleOf(widget.level);
+  Future<void> _newBoard({bool restore = false}) async {
+    setState(() => _ready = false);
+    // 10×10은 생성이 수백 ms — 아이솔레이트에서 만들어 프레임을 지킨다.
+    final puzzle = Levels.sizeOf(widget.level) >= 9
+        ? await compute(_puzzleOfIsolate, widget.level)
+        : Levels.puzzleOf(widget.level);
+    if (!mounted) return;
     final saved = restore ? widget.progress.loadBoard(widget.level) : null;
     board =
         saved != null ? BoardState.restore(puzzle, saved) : BoardState(puzzle);
@@ -76,10 +87,24 @@ class _GameScreenState extends State<GameScreen> {
     xHints = 3;
     score = 0;
     if (!restore) widget.progress.saveBoard(widget.level, board.cells);
+    setState(() => _ready = true);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_ready) {
+      return Scaffold(
+        backgroundColor: Palette.bg,
+        body: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            SvgPicture.string(capyGyul, width: 120),
+            const SizedBox(height: 14),
+            const Text('판을 준비하는 중...',
+                style: TextStyle(fontSize: 16, color: Palette.brownSoft)),
+          ]),
+        ),
+      );
+    }
     return Scaffold(
       backgroundColor: Palette.bg,
       body: SafeArea(
@@ -360,14 +385,18 @@ class _GameScreenState extends State<GameScreen> {
   Widget _cell(int r, int c) {
     final state = board.stateAt(r, c);
     final isError = _errorCell == (r, c);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      decoration: BoxDecoration(
-        color: Palette.regions[board.puzzle.regions[r][c]],
-        borderRadius: BorderRadius.circular(10),
-        border: isError ? Border.all(color: Palette.heart, width: 3) : null,
+    // 상태가 바뀔 때마다 key가 바뀌어 타일이 통 튀는 탄성 애니메이션.
+    return _TileBounce(
+      key: ValueKey('tile-$r-$c-$state'),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: Palette.regions[board.puzzle.regions[r][c]],
+          borderRadius: BorderRadius.circular(10),
+          border: isError ? Border.all(color: Palette.heart, width: 3) : null,
+        ),
+        child: Center(child: _cellContent(r, c, state, isError)),
       ),
-      child: Center(child: _cellContent(r, c, state, isError)),
     );
   }
 
@@ -564,7 +593,7 @@ class _GameScreenState extends State<GameScreen> {
         ],
       ),
     );
-    if (ok == true) setState(() => _newBoard());
+    if (ok == true) _newBoard();
   }
 
   // ── 하단 ────────────────────────────────────────────────────────────
@@ -753,13 +782,30 @@ class _GameScreenState extends State<GameScreen> {
     );
     if (!mounted) return;
     if (retry == true) {
-      setState(() => _newBoard());
+      _newBoard();
       _watch
         ..reset()
         ..start();
     } else {
       Navigator.of(context).pop();
     }
+  }
+}
+
+/// 상태가 바뀐 타일이 통 튀는 탄성.
+class _TileBounce extends StatelessWidget {
+  final Widget child;
+  const _TileBounce({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.88, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutBack,
+      builder: (context, v, child) => Transform.scale(scale: v, child: child),
+      child: child,
+    );
   }
 }
 

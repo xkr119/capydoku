@@ -21,5 +21,6 @@ class Palette {
     Color(0xFF9FD8CE), // 티일
     Color(0xFFF2B49B), // 코랄
     Color(0xFFCBD59A), // 올리브
+    Color(0xFFA9BDDB), // 청회색 — 10×10용
   ];
 }

@@ -18,6 +18,7 @@ void main() {
       home: GameScreen(level: 1, progress: progress),
     ));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100)); // 보드 비동기 준비
 
     // 레벨 1 (4×4) 정답 첫 칸의 화면 좌표를 계산한다.
     final puzzle = Levels.puzzleOf(1);
