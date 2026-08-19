@@ -58,6 +58,11 @@ class Progress {
   int clearsOn(int dateKey) => _prefs.getInt('log.$dateKey') ?? 0;
   int get totalSeconds => _prefs.getInt('time.total') ?? 0;
 
+  /// 오늘 번 점수 — 카피 리그 정산용 (자정 리셋은 dateKey가 해준다).
+  int dailyScore(int dateKey) => _prefs.getInt('day.$dateKey') ?? 0;
+  Future<void> addDailyScore(int dateKey, int s) async =>
+      _prefs.setInt('day.$dateKey', dailyScore(dateKey) + s);
+
   /// 첫 판 조작 안내를 봤는가.
   bool get coachDone => _prefs.getBool('coach.done') ?? false;
   Future<void> markCoachDone() async => _prefs.setBool('coach.done', true);

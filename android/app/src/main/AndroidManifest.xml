@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 광고 로딩용. 퍼즐 자체는 완전 오프라인으로 동작한다. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Capydoku"
         android:name="${applicationName}"
@@ -27,6 +29,11 @@
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <!-- AdMob 앱 ID. 지금은 구글 테스트 ID — 출시 전 실제 ID로 교체.
+             lib/core/ads.dart의 AdIds와 반드시 함께 바꿀 것. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

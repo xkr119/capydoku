@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'art/capy_motion.dart';
+import 'core/ads.dart';
 import 'core/palette.dart';
 import 'core/progress.dart';
 import 'game/game_screen.dart';
+import 'game/league.dart';
+import 'game/league_screen.dart';
 import 'game/levels.dart';
 
 /// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
@@ -16,6 +19,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final progress = await Progress.load();
+  // 광고 초기화는 첫 화면을 막지 않는다.
+  Ads.init();
   runApp(CapydokuApp(progress: progress));
 }
 
@@ -83,6 +88,16 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   /// 위에 쌓였던 화면이 사라지고 홈이 다시 보일 때 — 레벨·점수 갱신.
   @override
   void didPopNext() => setState(() {});
+
+  String _leagueLabel() {
+    final now = DateTime.now();
+    final dateKey = now.year * 10000 + now.month * 100 + now.day;
+    final dayFrac =
+        (now.hour * 3600 + now.minute * 60 + now.second) / 86400.0;
+    final rank =
+        League.rankOf(dateKey, dayFrac, progress.dailyScore(dateKey));
+    return '🏆 카피 리그 · 오늘 $rank위';
+  }
 
   Future<void> _play(int level) async {
     await Navigator.of(context).push(MaterialPageRoute(
@@ -160,6 +175,27 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                         ? '레벨 $current 이어서'
                         : '레벨 $current',
                     style: const TextStyle(fontSize: 22)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.tonal(
+                onPressed: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => LeagueScreen(progress: progress),
+                  ));
+                  if (mounted) setState(() {});
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFE9C7),
+                  foregroundColor: Palette.brown,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999)),
+                ),
+                child: Text(_leagueLabel(),
+                    style: const TextStyle(fontSize: 17)),
               ),
             ),
             const SizedBox(height: 10),

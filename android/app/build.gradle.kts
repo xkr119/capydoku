@@ -30,6 +30,15 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+
+            // R8이 리플렉션 대상(WorkManager 등, 광고 SDK가 유발)을 지우면
+            // 시작 즉시 죽는다 — photo_tidy·nemologic에서 겪은 사고.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }

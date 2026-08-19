@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:capydoku/core/progress.dart';
 import 'package:capydoku/game/game_screen.dart';
+import 'package:capydoku/game/win_celebration.dart';
 import 'package:capydoku/game/levels.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,11 +60,14 @@ void main() {
   testWidgets('완성 연출이 크래시 없이 렌더된다', (tester) async {
     await tester.pumpWidget(const MaterialApp(
       home: WinCelebration(
-          level: 3, score: 1234, elapsed: Duration(seconds: 83)),
+          level: 3,
+          score: 1234,
+          elapsed: Duration(seconds: 83),
+          leagueLine: '오늘 3위'),
     ));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('완성!'), findsOneWidget);
     expect(find.text('레벨 4'), findsOneWidget);
+    expect(find.text('오늘 3위'), findsOneWidget);
   });
 }

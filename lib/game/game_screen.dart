@@ -4,14 +4,19 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../art/capy_art.dart';
 import '../art/capy_motion.dart';
 import '../core/palette.dart';
+import '../core/ads.dart';
 import '../core/progress.dart';
 import '../engine/queens.dart';
 import 'board_state.dart';
+import 'capy_says.dart';
+import 'league.dart';
+import 'win_celebration.dart';
 import 'levels.dart';
 
 /// 퍼즐 한 판. 레벨 번호가 퍼즐을 결정하므로 화면은 상태를 저장하지 않는다.
@@ -31,9 +36,14 @@ class GameScreen extends StatefulWidget {
 /// compute()용 최상위 함수 — 큰 보드 생성을 UI 스레드 밖에서.
 QueensPuzzle _puzzleOfIsolate(int level) => Levels.puzzleOf(level);
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen>
+    with SingleTickerProviderStateMixin {
   late BoardState board;
   bool _ready = false;
+
+  /// 판 등장 연출 — 타일이 좌상단부터 다다다닥 깔린다.
+  late final AnimationController _intro = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 900));
   final _watch = Stopwatch();
   int capyHints = 3;
   int xHints = 3;
@@ -65,6 +75,8 @@ class _GameScreenState extends State<GameScreen> {
   final _scoreKey = GlobalKey();
   final _boardKey = GlobalKey();
 
+  BannerAd? _banner;
+
   bool _showCoach = false;
 
   @override
@@ -73,6 +85,32 @@ class _GameScreenState extends State<GameScreen> {
     _newBoard(restore: true);
     _watch.start();
     _showCoach = !widget.progress.coachDone;
+    _loadBanner();
+  }
+
+  /// 배너는 레벨 4부터 — 초반 몰입(온보딩)은 광고 없이.
+  void _loadBanner() {
+    if (widget.level < 4 || !Ads.ready) return;
+    final banner = BannerAd(
+      adUnitId: AdIds.banner,
+      size: AdSize.banner,
+      request: const AdRequest(),
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (mounted) setState(() {});
+        },
+        onAdFailedToLoad: (ad, _) => ad.dispose(),
+      ),
+    );
+    banner.load();
+    _banner = banner;
+  }
+
+  @override
+  void dispose() {
+    _banner?.dispose();
+    _intro.dispose();
+    super.dispose();
   }
 
   Future<void> _newBoard({bool restore = false}) async {
@@ -92,6 +130,7 @@ class _GameScreenState extends State<GameScreen> {
     score = 0;
     if (!restore) widget.progress.saveBoard(widget.level, board.cells);
     setState(() => _ready = true);
+    _intro.forward(from: 0);
   }
 
   @override
@@ -132,6 +171,14 @@ class _GameScreenState extends State<GameScreen> {
               ),
               const SizedBox(height: 12),
               _controls(),
+              if (_banner != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: _banner!.size.width.toDouble(),
+                  height: _banner!.size.height.toDouble(),
+                  child: AdWidget(ad: _banner!),
+                ),
+              ],
             ]),
           ),
           if (_showCoach) _coachOverlay(),
@@ -390,6 +437,14 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _cell(int r, int c) {
+    final n = board.n;
+    // 좌상단부터 대각선 파도로 등장 — (r+c) 순서, 짧고 탱글하게.
+    final wave = (r + c) / (2 * n - 2);
+    final anim = CurvedAnimation(
+      parent: _intro,
+      curve: Interval(wave * 0.55, wave * 0.55 + 0.4,
+          curve: Curves.easeOutBack),
+    );
     final state = board.stateAt(r, c);
     final isError = _errorCell == (r, c);
     final preview = _xPreview;
@@ -397,7 +452,9 @@ class _GameScreenState extends State<GameScreen> {
     final isTarget = preview != null && preview.$2.contains((r, c));
     final dimmed = preview != null && !isSource && !isTarget;
     // 상태가 바뀔 때마다 key가 바뀌어 타일이 통 튀는 탄성 애니메이션.
-    return _TileBounce(
+    return ScaleTransition(
+      scale: anim,
+      child: _TileBounce(
       key: ValueKey('tile-$r-$c-$state'),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -429,6 +486,7 @@ class _GameScreenState extends State<GameScreen> {
               : _cellContent(r, c, state, isError),
         ),
       ),
+    ),
     );
   }
 
@@ -571,7 +629,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _useCapyHint() {
     if (capyHints <= 0) {
-      _adRechargeStub();
+      _rechargeWithAd(() => capyHints += 3);
       return;
     }
     final cell = board.hintCell();
@@ -590,7 +648,7 @@ class _GameScreenState extends State<GameScreen> {
 
   void _useXHint() {
     if (xHints <= 0) {
-      _adRechargeStub();
+      _rechargeWithAd(() => xHints += 3);
       return;
     }
     final capy = board.bestHintCapy();
@@ -638,15 +696,12 @@ class _GameScreenState extends State<GameScreen> {
     ));
   }
 
-  /// 리워드 광고 충전 자리 — 광고 SDK를 붙일 때 실제 충전으로 교체한다.
-  void _adRechargeStub() {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: Palette.brown,
-      behavior: SnackBarBehavior.floating,
-      content: const Text('광고 보고 충전 — 출시 버전에서 열려요!',
-          style: TextStyle(fontFamily: 'Apple SD Gothic Neo')),
-      duration: const Duration(seconds: 2),
-    ));
+  /// 리워드 광고를 보고 [onReward]로 충전한다.
+  void _rechargeWithAd(VoidCallback onReward) {
+    final shown = Ads.showRewarded(() {
+      if (mounted) setState(onReward);
+    });
+    if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
   }
 
   Future<void> _confirmReset() async {
@@ -849,9 +904,26 @@ class _GameScreenState extends State<GameScreen> {
     final bonus = 500 + board.hearts * 200 + (capyHints + xHints) * 50;
     score += bonus;
     final now = DateTime.now();
-    await widget.progress.logClear(
-        now.year * 10000 + now.month * 100 + now.day,
-        _watch.elapsed.inSeconds);
+    final dateKey = now.year * 10000 + now.month * 100 + now.day;
+    final dayFrac =
+        (now.hour * 3600 + now.minute * 60 + now.second) / 86400.0;
+    // 카피 리그: 이 판 점수를 넣기 전후 순위 비교 → 변동 문구.
+    final before = widget.progress.dailyScore(dateKey);
+    final rankBefore = League.rankOf(dateKey, dayFrac, before);
+    await widget.progress.addDailyScore(dateKey, score);
+    final rankAfter = League.rankOf(dateKey, dayFrac, before + score);
+    String leagueLine;
+    if (rankAfter < rankBefore) {
+      final overtaken = League.standings(dateKey, dayFrac, before + score)
+          .skip(rankAfter)
+          .firstOrNull;
+      leagueLine = overtaken != null
+          ? '\'${overtaken.name}\'를 제쳤어요! 오늘 $rankAfter위'
+          : '오늘 $rankAfter위로 올라섰어요!';
+    } else {
+      leagueLine = '카피 리그 오늘 $rankAfter위';
+    }
+    await widget.progress.logClear(dateKey, _watch.elapsed.inSeconds);
     await widget.progress.addScore(score);
     await widget.progress.markCleared(widget.level);
     if (!mounted) return;
@@ -863,11 +935,14 @@ class _GameScreenState extends State<GameScreen> {
         level: widget.level,
         score: score,
         elapsed: _watch.elapsed,
+        leagueLine: leagueLine,
       ),
       transitionsBuilder: (context, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
     ));
     if (!mounted) return;
+    // 전면 광고: 판 사이에만, 7판마다.
+    Ads.maybeShowAfterClear();
     if (goNext == true) {
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) =>
@@ -895,9 +970,11 @@ class _GameScreenState extends State<GameScreen> {
           const Text('귤이 없어요...',
               style: TextStyle(fontSize: 22, color: Palette.brown)),
           const SizedBox(height: 4),
-          const Text('괜찮아요, 카피는 서두르지 않아요',
-              style: TextStyle(
+          Text(CapySays.failCommentFor(widget.level),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
                   fontSize: 13,
+                  height: 1.5,
                   color: Palette.brownSoft,
                   fontFamily: 'Apple SD Gothic Neo')),
         ]),
@@ -905,9 +982,15 @@ class _GameScreenState extends State<GameScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: const Text('홈으로')),
-          // 리워드 광고 자리 — 광고 SDK를 붙이면 귤 3개 충전으로 교체.
           OutlinedButton.icon(
-              onPressed: _adRechargeStub,
+              onPressed: () {
+                final shown = Ads.showRewarded(() {
+                  if (!mounted) return;
+                  setState(() => board.hearts = 3);
+                  Navigator.pop(context, null); // 다이얼로그 닫고 계속
+                });
+                if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
+              },
               icon: const Icon(Icons.play_circle_outline, size: 18),
               label: const Text('귤 3개 받기')),
           FilledButton(
@@ -917,6 +1000,7 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
     if (!mounted) return;
+    if (retry == null) return; // 광고로 귤 회복 — 판 그대로 계속
     if (retry == true) {
       _newBoard();
       _watch
@@ -1188,168 +1272,4 @@ class _RuleDiagram extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RuleDiagram old) => old.rule != rule;
-}
-
-/// 완성 전면 연출 — 햇살 광선 + 색종이 + 온천캐피 등장.
-class WinCelebration extends StatefulWidget {
-  final int level;
-  final int score;
-  final Duration elapsed;
-
-  const WinCelebration(
-      {super.key,
-      required this.level,
-      required this.score,
-      required this.elapsed});
-
-  @override
-  State<WinCelebration> createState() => _WinCelebrationState();
-}
-
-class _WinCelebrationState extends State<WinCelebration>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 6))
-      ..repeat();
-    HapticFeedback.mediumImpact();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final mm = widget.elapsed.inMinutes;
-    final ss = (widget.elapsed.inSeconds % 60).toString().padLeft(2, '0');
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Stack(children: [
-        // 광선 + 색종이
-        Positioned.fill(
-          child: AnimatedBuilder(
-            animation: _ctrl,
-            builder: (context, _) => CustomPaint(
-                painter: _CelebrationPainter(_ctrl.value, widget.level)),
-          ),
-        ),
-        SafeArea(
-          child: Center(
-            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 700),
-                curve: Curves.elasticOut,
-                builder: (context, t, child) =>
-                    Transform.scale(scale: t, child: child),
-                child: SteamOverlay(
-                  child: CapyIdle(
-                    sway: 0.012,
-                    breathe: 0.015,
-                    bob: 5,
-                    period: const Duration(milliseconds: 3200),
-                    child: Image.asset('assets/mascot/capy_onsen3d.png',
-                        width: 300),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text('완성!',
-                  style: TextStyle(fontSize: 40, color: Colors.white)),
-              const SizedBox(height: 6),
-              Text('점수 ${widget.score} · $mm:$ss · 온천 타임',
-                  style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontFamily: 'Apple SD Gothic Neo')),
-              const SizedBox(height: 30),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFF49E36),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 64, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999)),
-                ),
-                child: Text('레벨 ${widget.level + 1}',
-                    style: const TextStyle(fontSize: 20)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text('홈으로',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8))),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
-/// 회전하는 햇살 + 떨어지는 색종이.
-class _CelebrationPainter extends CustomPainter {
-  final double t;
-  final int seed;
-  _CelebrationPainter(this.t, this.seed);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height * 0.36);
-    // 햇살
-    final ray = Paint()..color = const Color(0xFFF6CE7E).withValues(alpha: 0.18);
-    const rays = 12;
-    for (var i = 0; i < rays; i++) {
-      final a = i * 2 * math.pi / rays + t * 2 * math.pi / 6;
-      final path = Path()
-        ..moveTo(center.dx, center.dy)
-        ..lineTo(center.dx + math.cos(a - 0.09) * size.height,
-            center.dy + math.sin(a - 0.09) * size.height)
-        ..lineTo(center.dx + math.cos(a + 0.09) * size.height,
-            center.dy + math.sin(a + 0.09) * size.height)
-        ..close();
-      canvas.drawPath(path, ray);
-    }
-    // 색종이 — 시드 고정 난수라 매 프레임 같은 궤적을 그린다.
-    final rng = math.Random(seed);
-    const colors = [
-      Color(0xFFF49E36),
-      Color(0xFFA8CDEB),
-      Color(0xFFF2A7B8),
-      Color(0xFFB7D8A8),
-      Color(0xFFC9BCE9),
-    ];
-    for (var i = 0; i < 42; i++) {
-      final x0 = rng.nextDouble() * size.width;
-      final speed = 0.4 + rng.nextDouble() * 0.8;
-      final phase = rng.nextDouble();
-      final color = colors[rng.nextInt(colors.length)];
-      final w = 5 + rng.nextDouble() * 5;
-      final y = ((t * speed * 3 + phase) % 1.2) * size.height;
-      final sway = math.sin((t * 6 + phase) * 2 * math.pi) * 14;
-      final angle = (t * 4 + phase) * 2 * math.pi;
-      canvas.save();
-      canvas.translate(x0 + sway, y);
-      canvas.rotate(angle);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset.zero, width: w, height: w * 0.6),
-            const Radius.circular(1.5)),
-        Paint()..color = color,
-      );
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CelebrationPainter old) => old.t != t;
 }

@@ -10,17 +10,17 @@ class Palette {
   static const brownSoft = Color(0xFF8A715C);
   static const heart = Color(0xFFE8554D);
 
-  /// 색영역 파스텔 — 최대 9×9까지.
+  /// 색영역 — 레퍼런스(Meowdoku) 톤의 진한 색감. 최대 10×10.
   static const regions = [
-    Color(0xFFF6CE7E), // 버터
-    Color(0xFFA8CDEB), // 하늘
-    Color(0xFFF2A7B8), // 로즈
-    Color(0xFFB7D8A8), // 세이지
-    Color(0xFFC9BCE9), // 라일락
-    Color(0xFFD9A385), // 클레이
-    Color(0xFF9FD8CE), // 티일
-    Color(0xFFF2B49B), // 코랄
-    Color(0xFFCBD59A), // 올리브
-    Color(0xFFA9BDDB), // 청회색 — 10×10용
+    Color(0xFFF09A50), // 주황
+    Color(0xFF3E9268), // 진초록
+    Color(0xFF9ED173), // 연두
+    Color(0xFFAB7350), // 갈색
+    Color(0xFF8E7FDB), // 보라
+    Color(0xFFF292DD), // 핑크
+    Color(0xFFC96F94), // 장미
+    Color(0xFFF6D97F), // 연노랑
+    Color(0xFFC2A62E), // 머스타드
+    Color(0xFF4FA8A0), // 청록
   ];
 }
