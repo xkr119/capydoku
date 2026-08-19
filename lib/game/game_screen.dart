@@ -1249,13 +1249,15 @@ class _WinCelebrationState extends State<WinCelebration>
                 curve: Curves.elasticOut,
                 builder: (context, t, child) =>
                     Transform.scale(scale: t, child: child),
-                child: CapyIdle(
-                  sway: 0.012,
-                  breathe: 0.015,
-                  bob: 5,
-                  period: const Duration(milliseconds: 3200),
-                  child: Image.asset('assets/mascot/capy_onsen3d.png',
-                      width: 300),
+                child: SteamOverlay(
+                  child: CapyIdle(
+                    sway: 0.012,
+                    breathe: 0.015,
+                    bob: 5,
+                    period: const Duration(milliseconds: 3200),
+                    child: Image.asset('assets/mascot/capy_onsen3d.png',
+                        width: 300),
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
