@@ -648,8 +648,12 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Palette.card,
-        title: const Text('처음부터 다시 풀까요?',
-            style: TextStyle(color: Palette.brown, fontSize: 20)),
+        title: Column(mainAxisSize: MainAxisSize.min, children: [
+          Image.asset('assets/mascot/capy_startled3d.png', height: 110),
+          const SizedBox(height: 10),
+          const Text('처음부터 다시 풀까요?',
+              style: TextStyle(color: Palette.brown, fontSize: 20)),
+        ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -875,9 +879,9 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: Palette.card,
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          SvgPicture.string(capyStartled, width: 110),
+          Image.asset('assets/mascot/capy_cry.png', height: 150),
           const SizedBox(height: 12),
-          const Text('귤을 다 먹었어요',
+          const Text('귤이 없어요...',
               style: TextStyle(fontSize: 22, color: Palette.brown)),
           const SizedBox(height: 4),
           const Text('괜찮아요, 카피는 서두르지 않아요',
@@ -1249,8 +1253,8 @@ class _WinCelebrationState extends State<WinCelebration>
                 curve: Curves.elasticOut,
                 builder: (context, t, child) =>
                     Transform.scale(scale: t, child: child),
-                child:
-                    Image.asset('assets/mascot/capy_gyul.png', height: 280),
+                child: Image.asset('assets/mascot/capy_onsen3d.png',
+                    width: 300),
               ),
               const SizedBox(height: 18),
               const Text('완성!',
