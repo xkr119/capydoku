@@ -12,6 +12,8 @@ import '../art/capy_motion.dart';
 import '../core/palette.dart';
 import '../core/ads.dart';
 import '../core/progress.dart';
+import '../core/sfx.dart';
+import '../pet/pet.dart';
 import '../engine/queens.dart';
 import 'board_state.dart';
 import 'capy_says.dart';
@@ -551,6 +553,7 @@ class _GameScreenState extends State<GameScreen>
     }
     // 싱글탭: 즉시 X 토글 — 반응 지연 0.
     HapticFeedback.selectionClick();
+    Sfx.tap();
     setState(() =>
         state == cellBlank ? board.setMark(r, c) : board.clearCell(r, c));
     widget.progress.saveBoard(widget.level, board.cells);
@@ -597,6 +600,7 @@ class _GameScreenState extends State<GameScreen>
     final result = board.tryPlace(r, c);
     if (result == PlaceResult.ok) {
       HapticFeedback.mediumImpact();
+      Sfx.place();
       setState(() {});
       _spawnScoreFly(r, c, 100 + board.n * 25);
       widget.progress.saveBoard(widget.level, board.cells);
@@ -608,6 +612,7 @@ class _GameScreenState extends State<GameScreen>
 
   Future<void> _onMistake(int r, int c, PlaceResult result) async {
     HapticFeedback.heavyImpact();
+    Sfx.wrong();
     setState(() {
       board.hearts--;
       _errorCell = (r, c);
@@ -897,6 +902,7 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _onSolved() async {
     _watch.stop();
     HapticFeedback.mediumImpact();
+    Sfx.win();
     // 아직 날아가는 중인 점수까지 정산.
     score += _pendingScore;
     _pendingScore = 0;
@@ -926,6 +932,18 @@ class _GameScreenState extends State<GameScreen>
     await widget.progress.logClear(dateKey, _watch.elapsed.inSeconds);
     await widget.progress.addScore(score);
     await widget.progress.markCleared(widget.level);
+    // 돌봄 보상: 당근(판 크기 비례) + 7판마다 황금귤. 클리어 자체가 기분 업.
+    await widget.progress.addWin();
+    final pet = Pet.load(widget.progress.prefs);
+    final carrotsEarned = 1 + board.n ~/ 8;
+    final specialEarned = widget.progress.totalWins % 7 == 0 ? 1 : 0;
+    pet
+      ..addCarrots(carrotsEarned)
+      ..onClear();
+    if (specialEarned > 0) pet.addSpecials(1);
+    final rewardLine = specialEarned > 0
+        ? '🥕 당근 +$carrotsEarned  ·  ✨ 황금귤 +1'
+        : '🥕 당근 +$carrotsEarned';
     if (!mounted) return;
     final goNext = await Navigator.of(context).push<bool>(PageRouteBuilder(
       opaque: false,
@@ -936,6 +954,7 @@ class _GameScreenState extends State<GameScreen>
         score: score,
         elapsed: _watch.elapsed,
         leagueLine: leagueLine,
+        rewardLine: rewardLine,
       ),
       transitionsBuilder: (context, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),

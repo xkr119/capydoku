@@ -37,6 +37,7 @@ dependencies:
   flutter_svg: ^2.3.0
   shared_preferences: ^2.5.5
   google_mobile_ads: ^9.1.0
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +60,7 @@ flutter:
 
   assets:
     - assets/mascot/
+    - assets/sfx/
 
   fonts:
     - family: Jua

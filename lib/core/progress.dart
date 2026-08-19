@@ -10,6 +10,13 @@ class Progress {
 
   Progress(this._prefs);
 
+  /// Pet 등 다른 모듈이 같은 저장소를 쓴다.
+  SharedPreferences get prefs => _prefs;
+
+  /// 총 클리어 수 — 황금귤 보상 주기(7판) 계산용.
+  int get totalWins => _prefs.getInt('wins.total') ?? 0;
+  Future<void> addWin() async => _prefs.setInt('wins.total', totalWins + 1);
+
   static Future<Progress> load() async =>
       Progress(await SharedPreferences.getInstance());
 

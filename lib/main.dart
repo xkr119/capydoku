@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,21 +7,19 @@ import 'art/capy_motion.dart';
 import 'core/ads.dart';
 import 'core/palette.dart';
 import 'core/progress.dart';
+import 'core/sfx.dart';
 import 'game/game_screen.dart';
 import 'game/league.dart';
 import 'game/league_screen.dart';
-import 'game/levels.dart';
+import 'pet/pet.dart';
 
 /// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
-/// 다음 레벨이 pushReplacement로 이어지면 홈의 await는 첫 교체 때 끝나버려
-/// 마지막 복귀를 놓친다 — 실제로 레벨 표시가 안 갱신되는 버그가 있었다.
 final routeObserver = RouteObserver<ModalRoute<void>>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   final progress = await Progress.load();
-  // 광고 초기화는 첫 화면을 막지 않는다.
   Ads.init();
   runApp(CapydokuApp(progress: progress));
 }
@@ -62,6 +62,7 @@ class CapydokuApp extends StatelessWidget {
   }
 }
 
+/// 홈 = 카피 돌보기 화면. 퍼즐은 당근을 버는 수단이고, 당근은 카피를 키운다.
 class HomeScreen extends StatefulWidget {
   final Progress progress;
   const HomeScreen({super.key, required this.progress});
@@ -72,6 +73,21 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with RouteAware {
   Progress get progress => widget.progress;
+  late Pet pet;
+
+  /// 먹이 직후 기쁨 표정 유지 타이머.
+  Timer? _happyTimer;
+  bool _flashHappy = false;
+
+  /// 쓰다듬기 하트 플로트.
+  final List<int> _hearts = [];
+  int _heartId = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    pet = Pet.load(progress.prefs);
+  }
 
   @override
   void didChangeDependencies() {
@@ -82,12 +98,19 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
   @override
   void dispose() {
     routeObserver.unsubscribe(this);
+    _happyTimer?.cancel();
     super.dispose();
   }
 
-  /// 위에 쌓였던 화면이 사라지고 홈이 다시 보일 때 — 레벨·점수 갱신.
   @override
-  void didPopNext() => setState(() {});
+  void didPopNext() => setState(() => pet = Pet.load(progress.prefs));
+
+  Future<void> _play(int level) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => GameScreen(level: level, progress: progress),
+    ));
+    if (mounted) setState(() => pet = Pet.load(progress.prefs));
+  }
 
   String _leagueLabel() {
     final now = DateTime.now();
@@ -99,27 +122,56 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
     return '🏆 카피 리그 · 오늘 $rank위';
   }
 
-  Future<void> _play(int level) async {
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => GameScreen(level: level, progress: progress),
-    ));
-    if (mounted) setState(() {});
+  void _feed(bool special) {
+    final ok = special ? pet.feedSpecial() : pet.feedCarrot();
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: Palette.brown,
+        behavior: SnackBarBehavior.floating,
+        content: Text(special ? '황금귤이 없어요 — 7판마다 하나!' : '당근이 없어요 — 퍼즐을 풀면 얻어요!',
+            style: const TextStyle(fontFamily: 'Apple SD Gothic Neo')),
+        duration: const Duration(seconds: 2),
+      ));
+      return;
+    }
+    Sfx.munch();
+    HapticFeedback.mediumImpact();
+    _happyTimer?.cancel();
+    setState(() => _flashHappy = true);
+    _happyTimer = Timer(const Duration(milliseconds: 1100), () {
+      if (mounted) setState(() => _flashHappy = false);
+    });
+  }
+
+  void _touchPet() {
+    if (pet.touch()) {
+      Sfx.pet();
+      HapticFeedback.selectionClick();
+      final id = _heartId++;
+      setState(() => _hearts.add(id));
+      Timer(const Duration(milliseconds: 900), () {
+        if (mounted) setState(() => _hearts.remove(id));
+      });
+    } else {
+      HapticFeedback.selectionClick();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final current = progress.currentLevel;
-    final size = Levels.sizeOf(current);
-    final next = Levels.nextUnlock(current);
+    final stage = Pet.stageOf(current);
+    final next = Pet.nextStage(current);
+    final art = _flashHappy ? 'assets/mascot/capy_gyul.png' : pet.artAsset;
+
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
-          child: Column(children: [
-            // ── 상단: 누적 점수 ──
-            Row(children: [
-              const Spacer(),
-              Container(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+          children: [
+            // ── 상단: 점수 ──
+            Center(
+              child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                 decoration: BoxDecoration(
@@ -136,37 +188,117 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       size: 20, color: Color(0xFFF49E36)),
                   const SizedBox(width: 6),
                   Text('${progress.totalScore}',
-                      style: const TextStyle(
-                          fontSize: 18, color: Palette.brown)),
+                      style:
+                          const TextStyle(fontSize: 18, color: Palette.brown)),
                 ]),
               ),
-              const Spacer(),
-            ]),
+            ),
+            const SizedBox(height: 10),
 
-            // ── 중앙: 로고 ──
-            const Spacer(flex: 2),
-            CapyIdle(
-                child:
-                    Image.asset('assets/mascot/capy_gyul.png', height: 250)),
-            const SizedBox(height: 18),
-            const Text('Capydoku',
-                style: TextStyle(fontSize: 42, color: Palette.brown, height: 1.0)),
+            // ── 카피: 단계·말풍선·본체 ──
+            Center(
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFE9C7),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('${stage.name} · 레벨 $current',
+                    style:
+                        const TextStyle(fontSize: 14, color: Palette.brown)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(pet.statusLine,
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      color: Palette.brownSoft,
+                      fontFamily: 'Apple SD Gothic Neo')),
+            ),
             const SizedBox(height: 6),
-            Text('카피바라 논리 퍼즐',
-                style: TextStyle(
-                    fontSize: 14,
-                    color: Palette.brownSoft,
-                    fontFamily: 'Apple SD Gothic Neo')),
-            const Spacer(flex: 3),
+            SizedBox(
+              height: 250,
+              child: Stack(alignment: Alignment.center, children: [
+                GestureDetector(
+                  onTap: _touchPet,
+                  child: CapyIdle(
+                    child: Transform.scale(
+                      scaleX: pet.widthScale,
+                      child: Image.asset(art,
+                          height: 230 * stage.scale,
+                          gaplessPlayback: true),
+                    ),
+                  ),
+                ),
+                for (final id in _hearts)
+                  _HeartFloat(key: ValueKey('h$id')),
+              ]),
+            ),
+            Center(
+              child: Text(
+                  '${pet.weightKg(current).toStringAsFixed(1)}kg · ${pet.shapeLabel}',
+                  style: const TextStyle(
+                      fontSize: 15, color: Palette.brownSoft)),
+            ),
+            const SizedBox(height: 12),
 
-            // ── 하단: 시작 ──
+            // ── 게이지 ──
+            _gauge('포만감', pet.satiety, const Color(0xFFF49E36),
+                Icons.restaurant),
+            const SizedBox(height: 8),
+            _gauge('기분', pet.mood, const Color(0xFFE8837E),
+                Icons.favorite),
+            const SizedBox(height: 12),
+
+            // ── 먹이 ──
+            Row(children: [
+              Expanded(
+                  child: _feedButton(
+                      '🥕 당근', pet.carrots, () => _feed(false))),
+              const SizedBox(width: 10),
+              Expanded(
+                  child: _feedButton(
+                      '✨ 황금귤', pet.specials, () => _feed(true))),
+            ]),
+            const SizedBox(height: 14),
+
+            // ── 성장 유도 ──
+            if (next != null)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Palette.card,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child:
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${next.$1.name}까지 ${next.$2}판!',
+                      style: const TextStyle(
+                          fontSize: 15, color: Palette.brown)),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: current / next.$1.minLevel,
+                      minHeight: 8,
+                      color: const Color(0xFFF49E36),
+                      backgroundColor: Palette.bg,
+                    ),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 14),
+
+            // ── 게임 ──
             SizedBox(
               width: double.infinity,
               child: FilledButton(
                 onPressed: () => _play(current),
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFFF49E36),
-                  padding: const EdgeInsets.symmetric(vertical: 17),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999)),
                 ),
@@ -174,7 +306,7 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                     progress.hasBoard(current)
                         ? '레벨 $current 이어서'
                         : '레벨 $current',
-                    style: const TextStyle(fontSize: 22)),
+                    style: const TextStyle(fontSize: 21)),
               ),
             ),
             const SizedBox(height: 10),
@@ -190,40 +322,15 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(0xFFFFE9C7),
                   foregroundColor: Palette.brown,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(999)),
                 ),
                 child: Text(_leagueLabel(),
-                    style: const TextStyle(fontSize: 17)),
+                    style: const TextStyle(fontSize: 16)),
               ),
             ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: null,
-                style: FilledButton.styleFrom(
-                  disabledBackgroundColor:
-                      Palette.brownSoft.withValues(alpha: 0.25),
-                  disabledForegroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999)),
-                ),
-                child: const Text('🔒 데일리 챌린지 (준비 중)',
-                    style: TextStyle(fontSize: 17)),
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (next != null)
-              Text(
-                  '$size×$size 진행 중 · ${Levels.sizeOf(next)}×${Levels.sizeOf(next)} 해금까지 ${next - current}판',
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      color: Palette.brownSoft,
-                      fontFamily: 'Apple SD Gothic Neo')),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               const Icon(Icons.verified_outlined,
                   size: 15, color: Palette.brownSoft),
@@ -234,10 +341,101 @@ class _HomeScreenState extends State<HomeScreen> with RouteAware {
                       color: Palette.brownSoft,
                       fontFamily: 'Apple SD Gothic Neo')),
             ]),
-          ]),
+          ],
         ),
       ),
     );
   }
 
+  Widget _gauge(String label, int value, Color color, IconData icon) {
+    return Row(children: [
+      Icon(icon, size: 17, color: color),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 52,
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 13,
+                color: Palette.brownSoft,
+                fontFamily: 'Apple SD Gothic Neo',
+                fontWeight: FontWeight.w700)),
+      ),
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value / 100),
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeOut,
+            builder: (context, v, _) => LinearProgressIndicator(
+              value: v,
+              minHeight: 10,
+              color: color,
+              backgroundColor: Palette.card,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        width: 32,
+        child: Text('$value',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 14, color: Palette.brown)),
+      ),
+    ]);
+  }
+
+  Widget _feedButton(String label, int count, VoidCallback onTap) {
+    return Material(
+      color: Palette.card,
+      borderRadius: BorderRadius.circular(14),
+      elevation: 1,
+      shadowColor: Palette.brown.withValues(alpha: 0.2),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Text(label,
+                style: const TextStyle(fontSize: 16, color: Palette.brown)),
+            const SizedBox(width: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF49E36),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('$count',
+                  style:
+                      const TextStyle(fontSize: 13, color: Colors.white)),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// 쓰다듬을 때 떠오르는 하트.
+class _HeartFloat extends StatelessWidget {
+  const _HeartFloat({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 850),
+      builder: (context, t, _) => Transform.translate(
+        offset: Offset(30 * (t - 0.5), -70 * t - 20),
+        child: Opacity(
+          opacity: (1 - t).clamp(0.0, 1.0),
+          child: const Icon(Icons.favorite,
+              color: Color(0xFFE8837E), size: 30),
+        ),
+      ),
+    );
+  }
 }

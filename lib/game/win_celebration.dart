@@ -15,12 +15,16 @@ class WinCelebration extends StatefulWidget {
   /// 리그 순위 변동 문구 (예: "'귤카피'를 제쳤어요! 오늘 3위"). null이면 생략.
   final String? leagueLine;
 
+  /// 돌봄 보상 문구 (예: "🥕 당근 +2"). null이면 생략.
+  final String? rewardLine;
+
   const WinCelebration({
     super.key,
     required this.level,
     required this.score,
     required this.elapsed,
     this.leagueLine,
+    this.rewardLine,
   });
 
   @override
@@ -104,6 +108,15 @@ class _WinCelebrationState extends State<WinCelebration>
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.75),
                       fontFamily: 'Apple SD Gothic Neo')),
+              if (widget.rewardLine != null) ...[
+                const SizedBox(height: 8),
+                Text(widget.rewardLine!,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        color: Colors.white,
+                        fontFamily: 'Apple SD Gothic Neo',
+                        fontWeight: FontWeight.w700)),
+              ],
               if (widget.leagueLine != null) ...[
                 const SizedBox(height: 8),
                 Container(
