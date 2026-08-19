@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../art/capy_art.dart';
+import '../art/capy_motion.dart';
 import '../core/palette.dart';
 import '../core/progress.dart';
 import '../engine/queens.dart';
@@ -100,7 +101,9 @@ class _GameScreenState extends State<GameScreen> {
         backgroundColor: Palette.bg,
         body: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Image.asset('assets/mascot/capy_base.png', height: 160),
+            CapyIdle(
+                child:
+                    Image.asset('assets/mascot/capy_base.png', height: 160)),
             const SizedBox(height: 14),
             const Text('판을 준비하는 중...',
                 style: TextStyle(fontSize: 16, color: Palette.brownSoft)),
@@ -435,12 +438,15 @@ class _GameScreenState extends State<GameScreen> {
     if (isError) {
       child = FractionallySizedBox(
           key: const ValueKey('err'),
-          widthFactor: 0.8,
-          child: SvgPicture.string(capyStartled));
+          widthFactor: 0.86,
+          heightFactor: 0.92,
+          child: Image.asset('assets/mascot/capy_startled3d.png',
+              cacheHeight: 240, fit: BoxFit.contain));
     } else if (state == cellCapy) {
       child = FractionallySizedBox(
         key: ValueKey('capy-$r-$c'),
-        widthFactor: 0.8,
+        widthFactor: 0.86,
+        heightFactor: 0.92,
         child: _CapyToken(key: ValueKey('capytoken-$r-$c')),
       );
     } else if (state == cellMark) {
@@ -879,7 +885,12 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: Palette.card,
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Image.asset('assets/mascot/capy_cry.png', height: 150),
+          CapyIdle(
+              sway: 0.02,
+              breathe: 0.01,
+              period: const Duration(milliseconds: 1400),
+              child:
+                  Image.asset('assets/mascot/capy_cry.png', height: 150)),
           const SizedBox(height: 12),
           const Text('귤이 없어요...',
               style: TextStyle(fontSize: 22, color: Palette.brown)),
@@ -968,7 +979,6 @@ class _CapyTokenState extends State<_CapyToken>
   final double _phase = math.Random().nextDouble() * 2 * math.pi;
   Timer? _timer;
   bool _happy = true;
-  bool _blink = false;
 
   @override
   void initState() {
@@ -976,29 +986,13 @@ class _CapyTokenState extends State<_CapyToken>
     _pop = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 450))
       ..forward();
-    // 가만히 있어도 산다 — 숨쉬기 + 살짝 갸웃. 위상을 랜덤으로 틀어
-    // 여러 마리가 같은 박자로 움직이지 않게 한다.
+    // 가만히 있어도 산다 — 숨쉬기 + 살짝 갸웃, 마리마다 박자를 다르게.
     _idle = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2400))
       ..repeat();
-    _timer = Timer(const Duration(milliseconds: 700), () {
-      if (!mounted) return;
-      setState(() => _happy = false);
-      _scheduleBlink();
-    });
-  }
-
-  void _scheduleBlink() {
-    if (!mounted) return;
-    final wait = 2500 + math.Random().nextInt(4000);
-    _timer = Timer(Duration(milliseconds: wait), () {
-      if (!mounted) return;
-      setState(() => _blink = true);
-      _timer = Timer(const Duration(milliseconds: 160), () {
-        if (!mounted) return;
-        setState(() => _blink = false);
-        _scheduleBlink();
-      });
+    // 배치 직후엔 귤 얹은 기쁨 카피 → 이내 무심한 기본 카피로.
+    _timer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _happy = false);
     });
   }
 
@@ -1013,10 +1007,8 @@ class _CapyTokenState extends State<_CapyToken>
   @override
   Widget build(BuildContext context) {
     final art = _happy
-        ? capyTokenHappy
-        : _blink
-            ? capyTokenBlink
-            : capyToken;
+        ? 'assets/mascot/capy_gyul.png'
+        : 'assets/mascot/capy_base.png';
     return ScaleTransition(
       scale: CurvedAnimation(parent: _pop, curve: Curves.elasticOut),
       child: AnimatedBuilder(
@@ -1024,15 +1016,19 @@ class _CapyTokenState extends State<_CapyToken>
         builder: (context, child) {
           final t = _idle.value * 2 * math.pi + _phase;
           return Transform.rotate(
-            angle: math.sin(t) * 0.045,
+            angle: math.sin(t) * 0.05,
             child: Transform.scale(
-              scaleY: 1 + math.sin(t * 1.3) * 0.025,
+              scaleY: 1 + math.sin(t * 1.3) * 0.03,
               alignment: Alignment.bottomCenter,
               child: child,
             ),
           );
         },
-        child: SvgPicture.string(art),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: Image.asset(art,
+              key: ValueKey(art), cacheHeight: 240, fit: BoxFit.contain),
+        ),
       ),
     );
   }
@@ -1253,8 +1249,14 @@ class _WinCelebrationState extends State<WinCelebration>
                 curve: Curves.elasticOut,
                 builder: (context, t, child) =>
                     Transform.scale(scale: t, child: child),
-                child: Image.asset('assets/mascot/capy_onsen3d.png',
-                    width: 300),
+                child: CapyIdle(
+                  sway: 0.012,
+                  breathe: 0.015,
+                  bob: 5,
+                  period: const Duration(milliseconds: 3200),
+                  child: Image.asset('assets/mascot/capy_onsen3d.png',
+                      width: 300),
+                ),
               ),
               const SizedBox(height: 18),
               const Text('완성!',
