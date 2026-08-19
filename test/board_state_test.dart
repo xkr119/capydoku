@@ -56,10 +56,22 @@ void main() {
     expect(Levels.puzzleOf(12).solution, Levels.puzzleOf(12).solution);
   });
 
-  test('X 힌트: 미완성 행의 오답 칸을 채운다', () {
+  test('X 힌트: 카피의 배제 칸(행·열·색·인접)을 정확히 나열한다', () {
     final p = QueensGenerator.generate(n: 5, seed: 7);
     final b = BoardState(p);
-    final filled = b.revealRowXs();
-    expect(filled, 4); // 5칸 중 정답 1칸 빼고 전부
+    expect(b.bestHintCapy(), isNull); // 카피가 없으면 소재도 없다
+    b.tryPlace(0, p.solution[0]);
+    final (r, c) = b.bestHintCapy()!;
+    expect((r, c), (0, p.solution[0]));
+    final ex = b.exclusionsOf(r, c);
+    expect(ex, isNotEmpty);
+    for (final (rr, cc) in ex) {
+      // 정답 자리는 절대 배제 목록에 없어야 한다 (배제는 논리적 확실성)
+      expect(p.solution[rr] == cc && b.stateAt(rr, cc) == cellBlank
+              ? rr == r || cc == c || p.regions[rr][cc] == p.regions[r][c] ||
+                  ((rr - r).abs() <= 1 && (cc - c).abs() <= 1)
+              : true,
+          isTrue);
+    }
   });
 }

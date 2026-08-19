@@ -48,6 +48,9 @@ class _GameScreenState extends State<GameScreen> {
   (int, int)? _lastTapCell;
   int _lastTapMs = 0;
 
+  /// X 힌트 미리보기: (소재 카피, 지울 칸들). 적용을 눌러야 실행된다.
+  ((int, int), List<(int, int)>)? _xPreview;
+
   /// 떠오르는 안내 텍스트들(힌트 등).
   final List<_FloatText> _floats = [];
   int _floatId = 0;
@@ -129,6 +132,7 @@ class _GameScreenState extends State<GameScreen> {
             ]),
           ),
           if (_showCoach) _coachOverlay(),
+          if (_xPreview != null) ..._xPreviewOverlay(),
           // 점수 비행 레이어 — 어떤 UI보다 위에 뜬다.
           Positioned.fill(
             child: IgnorePointer(
@@ -385,17 +389,42 @@ class _GameScreenState extends State<GameScreen> {
   Widget _cell(int r, int c) {
     final state = board.stateAt(r, c);
     final isError = _errorCell == (r, c);
+    final preview = _xPreview;
+    final isSource = preview != null && preview.$1 == (r, c);
+    final isTarget = preview != null && preview.$2.contains((r, c));
+    final dimmed = preview != null && !isSource && !isTarget;
     // 상태가 바뀔 때마다 key가 바뀌어 타일이 통 튀는 탄성 애니메이션.
     return _TileBounce(
       key: ValueKey('tile-$r-$c-$state'),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: Palette.regions[board.puzzle.regions[r][c]],
           borderRadius: BorderRadius.circular(10),
-          border: isError ? Border.all(color: Palette.heart, width: 3) : null,
+          border: isError
+              ? Border.all(color: Palette.heart, width: 3)
+              : isSource || isTarget
+                  ? Border.all(color: Colors.white, width: 2.5)
+                  : null,
         ),
-        child: Center(child: _cellContent(r, c, state, isError)),
+        foregroundDecoration: BoxDecoration(
+          color: dimmed ? Colors.black.withValues(alpha: 0.38) : null,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: isTarget && state == cellBlank
+              ? const FractionallySizedBox(
+                  widthFactor: 0.66,
+                  child: Opacity(
+                    opacity: 0.55,
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: CustomPaint(painter: _XPainter()),
+                    ),
+                  ),
+                )
+              : _cellContent(r, c, state, isError),
+        ),
       ),
     );
   }
@@ -439,7 +468,7 @@ class _GameScreenState extends State<GameScreen> {
   // ── 입력 ────────────────────────────────────────────────────────────
 
   void _onTapInstant((int, int)? cell) {
-    if (cell == null || _errorCell != null) return;
+    if (cell == null || _errorCell != null || _xPreview != null) return;
     final (r, c) = cell;
     final state = board.stateAt(r, c);
     if (state == cellCapy) return;
@@ -464,7 +493,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onPanStart((int, int)? cell) {
-    if (cell == null || _errorCell != null) return;
+    if (cell == null || _errorCell != null || _xPreview != null) return;
     final (r, c) = cell;
     final state = board.stateAt(r, c);
     if (state == cellCapy) return;
@@ -558,11 +587,49 @@ class _GameScreenState extends State<GameScreen> {
       _adRechargeStub();
       return;
     }
-    final filled = board.revealRowXs();
-    if (filled == 0) return;
-    setState(() => xHints--);
+    final capy = board.bestHintCapy();
+    if (capy == null) {
+      _toast('먼저 카피를 한 마리 놓아보세요');
+      return;
+    }
+    final ex = board.exclusionsOf(capy.$1, capy.$2);
+    if (ex.isEmpty) {
+      _toast('지금은 지울 칸이 없어요');
+      return;
+    }
+    HapticFeedback.selectionClick();
+    setState(() => _xPreview = (capy, ex));
+  }
+
+  /// 프리뷰 적용 — X가 30ms 간격으로 스르륵 깔린다.
+  void _applyXPreview() {
+    final preview = _xPreview;
+    if (preview == null) return;
+    setState(() {
+      _xPreview = null;
+      xHints--;
+    });
     HapticFeedback.mediumImpact();
-    widget.progress.saveBoard(widget.level, board.cells);
+    final cells = preview.$2;
+    for (final (i, cell) in cells.indexed) {
+      Timer(Duration(milliseconds: 40 * i), () {
+        if (!mounted) return;
+        setState(() => board.setMark(cell.$1, cell.$2));
+        if (i == cells.length - 1) {
+          widget.progress.saveBoard(widget.level, board.cells);
+        }
+      });
+    }
+  }
+
+  void _toast(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: Palette.brown,
+      behavior: SnackBarBehavior.floating,
+      content:
+          Text(msg, style: const TextStyle(fontFamily: 'Apple SD Gothic Neo')),
+      duration: const Duration(seconds: 2),
+    ));
   }
 
   /// 리워드 광고 충전 자리 — 광고 SDK를 붙일 때 실제 충전으로 교체한다.
@@ -662,6 +729,60 @@ class _GameScreenState extends State<GameScreen> {
               color: Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo')),
     ]);
+  }
+
+  /// X 힌트 미리보기 오버레이 — 설명 카드(위) + 적용/취소(아래).
+  List<Widget> _xPreviewOverlay() {
+    return [
+      Positioned(
+        left: 20,
+        right: 20,
+        top: 96,
+        child: Material(
+          color: Palette.card,
+          borderRadius: BorderRadius.circular(16),
+          elevation: 6,
+          shadowColor: Palette.brown.withValues(alpha: 0.4),
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(18, 14, 18, 14),
+            child: Text(
+              '이 카피의 행·열·같은 색·인접 칸에는\n다른 카피가 올 수 없어요 — 제외!',
+              style: TextStyle(
+                  fontSize: 15,
+                  height: 1.45,
+                  color: Palette.brown,
+                  fontFamily: 'Apple SD Gothic Neo',
+                  fontWeight: FontWeight.w700),
+            ),
+          ),
+        ),
+      ),
+      Positioned(
+        left: 40,
+        right: 40,
+        bottom: 20,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _applyXPreview,
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF49E36),
+                padding: const EdgeInsets.symmetric(vertical: 15),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+              ),
+              child: const Text('적용', style: TextStyle(fontSize: 20)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => setState(() => _xPreview = null),
+            child: const Text('취소',
+                style: TextStyle(color: Palette.brownSoft, fontSize: 15)),
+          ),
+        ]),
+      ),
+    ];
   }
 
   // ── 첫 판 안내 ──────────────────────────────────────────────────────

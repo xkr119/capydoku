@@ -96,20 +96,35 @@ class BoardState {
     return null;
   }
 
-  /// X 힌트: 미완성 행 하나를 골라 그 행의 오답 칸을 전부 X로 채운다.
-  /// 채운 칸 수를 돌려준다(0이면 보여줄 게 없던 것).
-  int revealRowXs() {
+  /// (r,c)의 카피가 배제하는, 아직 빈 칸 목록 — 행·열·같은 색·인접.
+  List<(int, int)> exclusionsOf(int r, int c) {
+    final out = <(int, int)>[];
+    for (var rr = 0; rr < n; rr++) {
+      for (var cc = 0; cc < n; cc++) {
+        if (cells[rr][cc] != cellBlank) continue;
+        final sameLine = rr == r || cc == c;
+        final sameRegion = puzzle.regions[rr][cc] == puzzle.regions[r][c];
+        final touching = (rr - r).abs() <= 1 && (cc - c).abs() <= 1;
+        if (sameLine || sameRegion || touching) out.add((rr, cc));
+      }
+    }
+    return out;
+  }
+
+  /// X 힌트의 소재: 아직 지울 칸이 가장 많이 남은 카피. 없으면 null.
+  (int, int)? bestHintCapy() {
+    (int, int)? best;
+    var bestCount = 0;
     for (var r = 0; r < n; r++) {
-      if (cells[r][puzzle.solution[r]] == cellCapy) continue;
-      var filled = 0;
       for (var c = 0; c < n; c++) {
-        if (c != puzzle.solution[r] && cells[r][c] == cellBlank) {
-          cells[r][c] = cellMark;
-          filled++;
+        if (cells[r][c] != cellCapy) continue;
+        final count = exclusionsOf(r, c).length;
+        if (count > bestCount) {
+          bestCount = count;
+          best = (r, c);
         }
       }
-      if (filled > 0) return filled;
     }
-    return 0;
+    return best;
   }
 }
