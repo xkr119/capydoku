@@ -198,6 +198,27 @@ class _HomeScreenState extends State<HomeScreen>
   /// 다음에 먹이를 받을 차례. 막내부터 돌아간다.
   int _feedTurn = 0;
 
+  /// [i]번 식구가 지금 물고 있는 것.
+  ///
+  /// **날아가는 동안은 따로 띄우고, 입에 닿은 뒤로는 리그 안에서 그린다.**
+  /// 그래야 앞발이 감싸고 주둥이가 덮어 "쥐고 베어 무는" 그림이 된다.
+  HeldFood? _heldBy(int i) {
+    for (final m in _flying) {
+      if (m.who != i) continue;
+      final t = m.ctrl.value;
+      if (t < _Morsel.flightEnd) continue;
+      final chewT =
+          ((t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd)).clamp(0.0, 1.0);
+      final bites = (chewT / 0.78 * 3).clamp(0.0, 3.0);
+      return HeldFood(
+        watermelon: m.special,
+        eaten: (bites / 3 * 1.02).clamp(0.0, 1.0),
+        wobble: math.sin(chewT * math.pi * 22) * (1 - chewT),
+      );
+    }
+    return null;
+  }
+
   /// 바구니에서 먹이 하나를 꺼내 던진다.
   ///
   /// [targets]는 (식구 인덱스, 그 식구의 입). 당근은 한 명, 수박은 온 가족이
@@ -220,6 +241,7 @@ class _HomeScreenState extends State<HomeScreen>
         special: special,
         from: from,
         to: to,
+        who: who,
         // 날아가는 0.5초 + 먹는 5초. 먹이가 씹히는 내내 화면에 남아 있어야
         // 사용자가 "내가 준 걸 먹고 있다"를 본다.
         ctrl: AnimationController(
@@ -468,6 +490,7 @@ class _HomeScreenState extends State<HomeScreen>
                         skin: m.skin,
                         seed: i * 37 + 5,
                         happy: pet.mood >= 65,
+                        foodOf: () => _heldBy(i),
                       ),
                     ],
                   ),
@@ -512,6 +535,8 @@ class _HomeScreenState extends State<HomeScreen>
               animation: m.ctrl,
               builder: (context, _) {
                 final t = m.ctrl.value;
+                // 입에 닿은 뒤로는 리그가 그린다(_heldBy).
+                if (t >= _Morsel.flightEnd) return const SizedBox.shrink();
                 final flight = (t / _Morsel.flightEnd).clamp(0.0, 1.0);
                 // 리그의 저작 리듬(세 번 몰아 씹기)에 맞춰 한 입씩 뭉텅
                 // 사라진다. 고르게 줄면 녹아 없어지는 것처럼 보인다.
@@ -755,12 +780,17 @@ class _Morsel {
   final int id;
   final bool special;
   final Offset from, to;
+
+  /// 이 먹이를 받는 식구(=lineup 인덱스).
+  final int who;
+
   final AnimationController ctrl;
   _Morsel({
     required this.id,
     required this.special,
     required this.from,
     required this.to,
+    required this.who,
     required this.ctrl,
   });
 }

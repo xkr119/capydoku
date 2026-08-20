@@ -206,8 +206,42 @@ def build(spec: Spec):
     return coords
 
 
+# 퍼즐 칸에 쓸 얼굴을 어느 단계에서 뽑을지.
+# 원본 카피(capy_base)는 얼굴이 둥글고 납작해 "빵떡" 소리를 들었다.
+# 청소년은 주둥이가 제대로 나와 있으면서도 아직 귀엽다.
+FACE_FROM = 's3'
+
+
+def face_set():
+    """타일용 얼굴 조각(h_*.png)을 한 단계의 머리에서 잘라 낸다."""
+    src = f'{OUT}/stage{FACE_FROM[1]}'
+    parts = {n: Image.open(f'{src}/{n}.png').convert('RGBA')
+             for n in ('head', 'jaw', 'lidl', 'lidr')}
+    box = parts['head'].split()[3].getbbox()
+    W, H = box[2] - box[0], box[3] - box[1]
+    spec = next(x for x in SPECS if x.name == FACE_FROM)
+    # 스펙 좌표는 660×760 기준, 조각은 OUT_H로 줄어 있으므로 배율을 맞춘다.
+    k = parts['head'].height / 760.0
+    for n, im in parts.items():
+        path = f'{OUT}/h_{n}.png'
+        im.crop(box).save(path, optimize=True)
+        print(f'{path}  {os.path.getsize(path) // 1024}KB')
+    print('\n// CapySkins._coords / _mouth 의 face 항목')
+    print(f"'face': [{(spec.head_cx * k - box[0]) / W:.4f}, "
+          f"{(spec.chin_y * k - box[1]) / H:.4f}, "
+          f"{spec.eye_r * LID_RISE_K * k / H:.4f}, "
+          f"{spec.jaw[3] * 0.85 * k / H:.4f}, "
+          f"{(spec.eyes[0][0] * k - box[0]) / W:.4f}, "
+          f"{(spec.eyes[1][0] * k - box[0]) / W:.4f}, "
+          f"{(spec.eyes[0][1] * k - box[1]) / H:.4f}],")
+    print(f"faceAspect = {W} / {H};  "
+          f"mouth 'face': [{(spec.jaw[0] * k - box[0]) / W:.4f}, "
+          f"{(spec.jaw[1] * k - box[1]) / H:.4f}]")
+
+
 def main():
     out = {s.name: build(s) for s in SPECS}
+    face_set()
     with open('build/stage_rig.json', 'w') as f:
         json.dump(out, f, indent=1)
 

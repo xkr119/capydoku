@@ -172,13 +172,20 @@ class WatermelonPainter extends CustomPainter {
       ..arcTo(Rect.fromCircle(center: c, radius: rr), math.pi, -math.pi, false)
       ..close();
 
+    // 베어 문 만큼 위에서부터 사라진다. 껍질(아래 호)이 끝까지 남는다.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTRB(
+        0, c.dy + r * 0.92 * eaten, w, h));
+
     canvas.drawPath(halfDisc(r), Paint()..color = const Color(0xFF3C7A32));
     canvas.drawPath(halfDisc(r * 0.90), Paint()..color = const Color(0xFF8CC663));
     canvas.drawPath(halfDisc(r * 0.82), Paint()..color = const Color(0xFFF3F0DC));
 
-    // 속살 — 먹을수록 자른 면 쪽에서 줄어든다.
-    final flesh = r * 0.74 * (1 - eaten);
-    if (flesh > 1) {
+    // 속살. 반지름을 줄이면 안 된다 — 그러면 빨간 부분이 안쪽으로 사라져
+    // **껍질이 자라나는** 것처럼 보인다(실제로 그렇게 보였다).
+    // 사람은 자른 면(위)부터 베어 먹고 껍질이 마지막에 남는다.
+    final flesh = r * 0.74;
+    {
       canvas.drawPath(
           halfDisc(flesh),
           Paint()
@@ -206,6 +213,7 @@ class WatermelonPainter extends CustomPainter {
       }
       canvas.restore();
     }
+    canvas.restore();   // 베어 문 자리 클립 해제
 
     // 반짝이 셋.
     for (var i = 0; i < 3; i++) {

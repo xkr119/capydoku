@@ -19,6 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show ByteData, rootBundle;
 
+import 'props.dart';
+
 /// 전신 렌더 비율. 리그 위젯의 가로세로는 항상 이 비율을 따른다.
 const double kCapyAspect = 651 / 900;
 
@@ -51,6 +53,13 @@ class CapySkin {
   /// 이 조각들의 가로세로 비율.
   final double aspect;
 
+  /// 입 위치(캔버스 0~1). 물고 있는 먹이를 여기에 놓는다.
+  final double mouthX, mouthY;
+
+  /// 캐릭터가 캔버스 세로를 채우는 비율. 먹이 크기를 여기에 맞춘다 —
+  /// 캔버스 기준으로 잡으면 아기가 제 몸만 한 당근을 든다.
+  final double fill;
+
   const CapySkin({
     this.body,
     this.armL,
@@ -67,6 +76,9 @@ class CapySkin {
     required this.eyeX,
     required this.eyeY,
     required this.aspect,
+    required this.mouthX,
+    required this.mouthY,
+    required this.fill,
   });
 }
 
@@ -92,7 +104,9 @@ class CapySkins {
     'mate':   [0.4970, 0.4553, 0.0424, 0.0403, 0.3970, 0.6061, 0.2566,
                0.3788, 0.5500, 0.6242, 0.5500],
     // 퍼즐 칸에 쓰는 얼굴. 원본 카피에서 뽑았고 성장과 무관하다.
-    'face':   [0.4980, 0.9556, 0.0756, 0.0978, 0.2041, 0.7842, 0.3378],
+    // 퍼즐 칸 얼굴은 청소년 렌더에서 뽑는다 — 원본 카피는 둥글고 납작해
+    // "빵떡" 소리를 들었다. tool/rig_stages.py의 FACE_FROM이 출처다.
+    'face':   [0.5086, 0.6954, 0.0979, 0.1025, 0.3153, 0.6890, 0.2058],
   };
 
   /// 입의 위치(캔버스 좌표 0~1). 캐릭터마다 머리 높이가 달라서 **먹이가
@@ -106,7 +120,18 @@ class CapySkins {
     'stage4': [0.5000, 0.2961],
     'stage5': [0.4879, 0.2500],
     'mate': [0.5000, 0.3618],
-    'face': [0.5000, 0.7000],
+    'face': [0.5021, 0.5251],
+  };
+
+  /// 캐릭터가 캔버스를 채우는 비율(`tool/gen_stages.py`의 HEIGHTS와 같아야 한다).
+  static const _fill = <String, double>{
+    'stage1': 0.50,
+    'stage2': 0.65,
+    'stage3': 0.80,
+    'stage4': 0.91,
+    'stage5': 1.00,
+    'mate': 0.86,
+    'face': 1.00,
   };
 
   /// 조각 캔버스 안에서의 입 위치.
@@ -119,7 +144,7 @@ class CapySkins {
   static const bodyAspect = 660 / 760;
 
   /// 얼굴 조각의 가로세로 비율.
-  static const faceAspect = 512 / 450;
+  static const faceAspect = 294 / 267;
 
   static final Map<String, CapySkin> _ready = {};
   static final Map<String, Future<CapySkin>> _loading = {};
@@ -176,6 +201,9 @@ class CapySkins {
         eyeX: [c[4], c[5]],
         eyeY: c[6],
         aspect: face ? faceAspect : bodyAspect,
+        mouthX: mouthOf(name).dx,
+        mouthY: mouthOf(name).dy,
+        fill: _fill[name] ?? 1.0,
       );
       _loading.remove(key);
       return _ready[key] = skin;
@@ -245,6 +273,25 @@ class CapyPose {
   static const rest = CapyPose();
 }
 
+/// 카피가 지금 입에 물고 있는 것.
+///
+/// **리그 안에서 그린다.** 밖에 따로 띄우면 앞발과 주둥이에 가려지지 않아서
+/// "화면에 붙은 스티커"처럼 보인다. 몸통 다음, 앞발 앞에 그리면 발이 먹이를
+/// 감싸고 머리가 그 위를 덮어 — 쥐고 베어 무는 그림이 된다.
+class HeldFood {
+  /// true면 수박, false면 당근.
+  final bool watermelon;
+
+  /// 0~1. 얼마나 먹었나.
+  final double eaten;
+
+  /// 씹는 리듬에 맞춘 흔들림(-1~1).
+  final double wobble;
+
+  const HeldFood(
+      {required this.watermelon, required this.eaten, this.wobble = 0});
+}
+
 /// 자세 하나를 그린다. 시간에 따른 변화는 [CapyPerformer]가 준다.
 class CapyRig extends StatelessWidget {
   final CapyPose pose;
@@ -255,11 +302,15 @@ class CapyRig extends StatelessWidget {
   /// 어느 캐릭터인가. `stage1`~`stage5`, `mate`, 퍼즐 칸이면 `face`.
   final String skin;
 
+  /// 입에 물고 있는 것. 리그 안에서 그려야 손에 쥔 것처럼 보인다.
+  final HeldFood? food;
+
   const CapyRig({
     super.key,
     required this.pose,
     required this.height,
     required this.skin,
+    this.food,
   });
 
   /// 이 크기로 그릴 때 조각을 몇 픽셀로 디코딩할지.
@@ -276,7 +327,7 @@ class CapyRig extends StatelessWidget {
     return SizedBox(
       width: height * aspect,
       height: height,
-      child: CustomPaint(painter: _RigPainter(s, pose)),
+      child: CustomPaint(painter: _RigPainter(s, pose, food)),
     );
   }
 }
@@ -284,7 +335,8 @@ class CapyRig extends StatelessWidget {
 class _RigPainter extends CustomPainter {
   final CapySkin skin;
   final CapyPose p;
-  _RigPainter(this.skin, this.p);
+  final HeldFood? food;
+  _RigPainter(this.skin, this.p, this.food);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -344,6 +396,13 @@ class _RigPainter extends CustomPainter {
       draw(skin.lidR);
       canvas.restore();
     }
+    // ── 물고 있는 먹이 ──
+    // **아래턱 바로 밑 층**에 그린다. 몸통 뒤에 그리면 머리가 통째로 가리고,
+    // 맨 위에 그리면 화면에 붙인 스티커처럼 보인다. 이 자리라야 아래턱이
+    // 먹이의 윗부분을 덮어 "물고 베어 무는" 그림이 된다.
+    // 머리 묶음 안이라 고개를 돌리면 먹이도 따라 움직인다.
+    if (food != null) _drawFood(canvas, size, food!);
+
     canvas.save();
     canvas.translate(0, p.jawOpen * size.height * skin.jawDrop);
     draw(skin.jaw);
@@ -353,9 +412,37 @@ class _RigPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// 입 앞에 먹이를 놓는다. 크기는 캐릭터의 실제 키에 비례한다 —
+  /// 캔버스 기준으로 잡으면 아기가 제 몸만 한 당근을 든다.
+  void _drawFood(Canvas canvas, Size size, HeldFood f) {
+    final tall = size.height * skin.fill;
+    final fh = tall * (f.watermelon ? 0.30 : 0.34);
+    // 입보다 조금 아래에 둔다. 윗부분만 주둥이에 가려 "베어 문" 그림이 된다.
+    final cx = skin.mouthX * size.width + f.wobble * fh * 0.05;
+    final cy = skin.mouthY * size.height + fh * 0.06;
+
+    canvas.save();
+    canvas.translate(cx, cy);
+    canvas.rotate(f.wobble * 0.06);
+    if (f.watermelon) {
+      // 자른 면이 위(입 쪽). 위에서부터 베어 먹고 껍질이 남는다.
+      canvas.translate(-fh / 2, -fh * 0.18);
+      WatermelonPainter(eaten: f.eaten).paint(canvas, Size(fh, fh));
+    } else {
+      // 당근은 **뿌리(뾰족한 끝)가 위로** 입에 들어가고 잎이 아래로 내려온다.
+      // 잎을 위로 두면 잎사귀를 먹는 그림이 된다.
+      // 세로를 뒤집어 그린다: 로컬 y=h(뿌리 끝)가 화면의 입 높이에 온다.
+      final cw = fh * 0.62;
+      canvas.translate(-cw / 2, fh);
+      canvas.scale(1, -1);
+      CarrotPainter(eaten: f.eaten).paint(canvas, Size(cw, fh));
+    }
+    canvas.restore();
+  }
+
   @override
   bool shouldRepaint(covariant _RigPainter old) =>
-      old.p != p || old.skin != skin;
+      old.p != p || old.skin != skin || old.food != food;
 }
 
 /// 카피가 지금 하고 있는 짓.
@@ -418,6 +505,13 @@ class CapyPerformer extends StatefulWidget {
   /// 어느 캐릭터인가. `stage1`~`stage5`, `mate`, 퍼즐 칸이면 `face`.
   final String skin;
 
+  /// 지금 물고 있는 먹이를 **매 프레임 물어보는** 함수.
+  ///
+  /// 값으로 받으면 부모가 다시 그릴 때만 바뀌는데, 부모는 매 프레임 다시
+  /// 그리지 않는다. 리그는 티커로 매 프레임 다시 그리므로 여기서 물어보면
+  /// 씹히는 진행도가 제때 반영된다.
+  final HeldFood? Function()? foodOf;
+
   /// 여러 마리가 한 몸처럼 같은 동작을 같은 순간에 한다.
   ///
   /// 퍼즐 판 위에서는 이게 맞다. 제각각 움직이면 시선이 흩어져서 아무것도
@@ -432,6 +526,7 @@ class CapyPerformer extends StatefulWidget {
     this.entrance,
     this.happy = false,
     required this.skin,
+    this.foodOf,
     this.synced = false,
   });
 
@@ -861,6 +956,7 @@ class _CapyPerformerState extends State<CapyPerformer>
       pose: synced ? _syncedPoseAt(_t) : _poseAt(_t),
       height: widget.height,
       skin: widget.skin,
+      food: widget.foodOf?.call(),
     );
   }
 }

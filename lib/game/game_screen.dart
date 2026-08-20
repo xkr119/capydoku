@@ -178,7 +178,9 @@ class _GameScreenState extends State<GameScreen>
     }
     return Scaffold(
       backgroundColor: Palette.bg,
+      // 광고가 화면 맨 아래에 닿아야 하므로 아래쪽 SafeArea는 직접 다룬다.
       body: SafeArea(
+        bottom: false,
         child: Stack(key: _rootKey, children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
@@ -197,16 +199,26 @@ class _GameScreenState extends State<GameScreen>
               ),
               const SizedBox(height: 12),
               _controls(),
-              if (_banner != null) ...[
-                const SizedBox(height: 8),
-                SizedBox(
+              // 배너 자리를 비워 둔다. 실제 배너는 화면 맨 아래에 붙는다.
+              if (_banner != null)
+                SizedBox(height: _banner!.size.height.toDouble() + 8),
+            ]),
+          ),
+          // 광고는 화면 **맨 아래에 여백 없이** 붙인다 — 콘텐츠 사이에 끼우면
+          // 게임 화면이 그만큼 좁아지고 광고가 더 눈에 띈다.
+          if (_banner != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Center(
+                child: SizedBox(
                   width: _banner!.size.width.toDouble(),
                   height: _banner!.size.height.toDouble(),
                   child: AdWidget(ad: _banner!),
                 ),
-              ],
-            ]),
-          ),
+              ),
+            ),
           if (_showCoach) _coachOverlay(),
           if (_xPreview != null) ..._xPreviewOverlay(),
           // 점수 비행 레이어 — 어떤 UI보다 위에 뜬다.
@@ -366,7 +378,7 @@ class _GameScreenState extends State<GameScreen>
                       _violatedRule == i ? Palette.heart : Colors.transparent,
                   width: 2,
                 ),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 CustomPaint(
@@ -394,7 +406,8 @@ class _GameScreenState extends State<GameScreen>
 
   // ── 보드 ────────────────────────────────────────────────────────────
 
-  static const _gap = 5.0;
+  /// 타일 사이 간격. 좁을수록 칸이 커져 카피가 크게 보인다.
+  static const _gap = 3.0;
 
   Widget _board() {
     final n = board.n;
@@ -486,7 +499,7 @@ class _GameScreenState extends State<GameScreen>
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: Palette.regions[board.puzzle.regions[r][c]],
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           border: isError
               ? Border.all(color: Palette.heart, width: 3)
               : isSource || isTarget
@@ -495,7 +508,7 @@ class _GameScreenState extends State<GameScreen>
         ),
         foregroundDecoration: BoxDecoration(
           color: dimmed ? Colors.black.withValues(alpha: 0.38) : null,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Center(
           child: isTarget && state == cellBlank
@@ -1127,7 +1140,7 @@ class _CapyToken extends StatelessWidget {
       // 얼굴은 세로보다 가로가 넓다. 높이로만 맞추면 귀가 칸 밖으로 잘린다.
       // 크게 도리질하므로 회전한 뒤에도 칸 안에 있도록 여유를 남긴다.
       final h =
-          math.min(box.maxHeight, box.maxWidth / CapySkins.faceAspect) * 0.87;
+          math.min(box.maxHeight, box.maxWidth / CapySkins.faceAspect) * 0.98;
       return Stack(alignment: Alignment.center, children: [
         PoingIn(
           duration: const Duration(milliseconds: 480),
