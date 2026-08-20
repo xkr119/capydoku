@@ -1186,6 +1186,9 @@ class _GameScreenState extends State<GameScreen>
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         backgroundColor: Palette.card,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28)),
+        contentPadding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           CapyIdle(
               sway: 0.02,
@@ -1204,26 +1207,38 @@ class _GameScreenState extends State<GameScreen>
                   height: 1.5,
                   color: Palette.brownSoft,
                   fontFamily: 'Apple SD Gothic Neo')),
+          const SizedBox(height: 22),
+          // **광고가 맨 위, 가장 크게.** 여기가 이 게임에서 광고를 가장
+          // 자연스럽게 볼 순간이다 — 판을 이어서 풀고 싶은 사람이 스스로
+          // 누른다. 예전엔 AlertDialog의 `actions`에 세 개를 넣어 두었는데,
+          // 가로로 흐르다 줄바꿈되면서 크기도 정렬도 제각각이었고 무엇보다
+          // **광고 버튼이 가운데에 끼여** 눈에 안 들어왔다.
+          _FailButton(
+            label: '하트 3개 받기',
+            icon: Icons.play_circle_fill_rounded,
+            kind: _FailButtonKind.primary,
+            onTap: () {
+              final shown = Ads.showRewarded(() {
+                if (!mounted) return;
+                setState(() => board.hearts = 3);
+                Navigator.pop(context, null); // 다이얼로그 닫고 이어서 푼다
+              });
+              if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
+            },
+          ),
+          const SizedBox(height: 8),
+          _FailButton(
+            label: '다시 풀기',
+            kind: _FailButtonKind.secondary,
+            onTap: () => Navigator.pop(context, true),
+          ),
+          const SizedBox(height: 2),
+          _FailButton(
+            label: '홈으로',
+            kind: _FailButtonKind.quiet,
+            onTap: () => Navigator.pop(context, false),
+          ),
         ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('홈으로')),
-          OutlinedButton.icon(
-              onPressed: () {
-                final shown = Ads.showRewarded(() {
-                  if (!mounted) return;
-                  setState(() => board.hearts = 3);
-                  Navigator.pop(context, null); // 다이얼로그 닫고 계속
-                });
-                if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
-              },
-              icon: const Icon(Icons.play_circle_outline, size: 18),
-              label: const Text('하트 3개 받기')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('다시 풀기')),
-        ],
       ),
     );
     if (!mounted) return;
@@ -1256,7 +1271,6 @@ class _TileBounce extends StatelessWidget {
   }
 }
 
-/// 두껍고 둥근 X — 아이콘 폰트보다 크고 진하게.
 /// 칸에 놓인 카피 — 뾰잉 하고 꽂힌 뒤, 거기서 계속 산다.
 ///
 /// **얼굴만 쓴다.** 칸이 작아 전신을 넣으면 표정이 몇 픽셀이 되고, 그러면
@@ -1458,4 +1472,77 @@ class _RuleDiagram extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RuleDiagram old) => old.rule != rule;
+}
+
+/// 하트가 떨어졌을 때 뜨는 세 갈래.
+///
+/// **세로로 쌓고 폭을 맞춘다.** 예전엔 `AlertDialog`의 `actions`에 넣어
+/// 가로로 흘렸는데, 셋이 한 줄에 안 들어가 제멋대로 줄바꿈되면서 크기도
+/// 정렬도 어긋났다. 무게 차이는 자리와 색으로만 준다.
+enum _FailButtonKind {
+  /// 광고 보고 이어 풀기. **가장 위, 가장 진하게.**
+  primary,
+
+  /// 판을 새로 시작.
+  secondary,
+
+  /// 나가기. 있되 눈에 먼저 띄지 않아야 한다.
+  quiet,
+}
+
+class _FailButton extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+  final _FailButtonKind kind;
+  final VoidCallback onTap;
+
+  const _FailButton({
+    required this.label,
+    required this.kind,
+    required this.onTap,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = kind == _FailButtonKind.primary;
+    final quiet = kind == _FailButtonKind.quiet;
+    final fg = primary
+        ? Colors.white
+        : quiet
+            ? Palette.brownSoft
+            : Palette.brown;
+
+    return SizedBox(
+      width: double.infinity,
+      height: quiet ? 46 : 56,
+      child: Material(
+        color: primary
+            ? const Color(0xFFF2802B)
+            : quiet
+                ? Colors.transparent
+                : Palette.bg,
+        borderRadius: BorderRadius.circular(999),
+        elevation: primary ? 4 : 0,
+        shadowColor: const Color(0x55F2802B),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Center(
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (icon != null) ...[
+                Icon(icon, size: 22, color: fg),
+                const SizedBox(width: 8),
+              ],
+              Text(label,
+                  style: TextStyle(
+                      fontSize: quiet ? 16 : 19,
+                      color: fg,
+                      fontWeight: primary ? FontWeight.w700 : FontWeight.w600)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 }

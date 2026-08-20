@@ -178,13 +178,6 @@ class Pet {
         PetShape.chubby => '통통',
       };
 
-  /// 상태에 맞는 아트. 배고프면 울상, 기분 좋으면 귤 미소, 평소엔 무심.
-  String get artAsset {
-    if (satiety <= 25) return 'assets/mascot/capy_cry.png';
-    if (mood >= 70) return 'assets/mascot/capy_gyul.png';
-    return 'assets/mascot/capy_base.png';
-  }
-
   /// 주인이 지어 준 이름. 이름이 있는 것과 없는 것은 애착이 다르다.
   static const defaultName = '카피';
 
