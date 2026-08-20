@@ -1165,13 +1165,6 @@ class _GameScreenState extends State<GameScreen>
       ..addCarrots(carrotsEarned)
       ..onClear();
     if (specialEarned > 0) pet.addSpecials(1);
-    // 주운 게 있으면 **어디서 온 당근인지 쪼개서** 보여준다. 합만 보여주면
-    // 판에서 주운 보람이 사라진다.
-    final carrotLine = _carrotsFound > 0
-        ? '🥕 주운 당근 $_carrotsFound + 클리어 $clearBonus = $carrotsEarned'
-        : '🥕 당근 +$carrotsEarned';
-    final rewardLine =
-        specialEarned > 0 ? '$carrotLine  ·  🍉 수박 +1' : carrotLine;
     await widget.progress.clearBoardMeta(_slot);
     if (!mounted) return;
     // 불투명한 화면으로 덮는다 — 뒤에 보드가 비치면 판이 안 끝난 것처럼 보인다.
@@ -1181,7 +1174,8 @@ class _GameScreenState extends State<GameScreen>
         level: widget.level,
         score: score,
         elapsed: _watch.elapsed,
-        rewardLine: rewardLine,
+        carrots: carrotsEarned,
+        special: specialEarned > 0,
         dailyStreak: isDaily ? widget.progress.dailyStreak : null,
         skin: Pet.skinOf(widget.progress.currentLevel),
       ),

@@ -62,11 +62,19 @@ void main() {
       home: WinCelebration(
           level: 3,
           score: 1234,
+          carrots: 5,
           elapsed: Duration(seconds: 83),
           skin: 'stage3'),
     ));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('레벨 4'), findsOneWidget);
+    expect(find.text('다음 레벨 4'), findsOneWidget);
+    // 나가는 길도 같은 버튼이어야 한다 — 예전엔 글자만 있는 TextButton이라
+    // 누를 수 있는 줄도 모르게 생겼었다.
+    expect(find.text('홈으로'), findsOneWidget);
+    // 당근은 **번 개수만**. 계산식("주운 3 + 클리어 2 = 5")을 쓰면 정작
+    // 숫자가 안 보인다.
+    expect(find.text('+5'), findsOneWidget);
+    expect(find.text('1:23'), findsOneWidget);
   });
 }

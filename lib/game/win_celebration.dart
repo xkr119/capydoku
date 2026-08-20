@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../art/capy_motion.dart';
 import '../core/settings.dart';
 import '../art/capy_rig.dart';
 import '../art/effects.dart';
@@ -12,9 +11,13 @@ import 'capy_says.dart';
 /// 판을 깬 직후의 보상 화면.
 ///
 /// 불투명하다 — 뒤에 보드가 비쳐 보이면 "아직 게임 중"으로 읽혀서 끝냈다는
-/// 감각이 안 온다. 축하는 세 가지 중 하나가 나온다(레벨로 결정하므로 같은
-/// 판은 늘 같은 축하). 사람은 같은 연출을 세 번 보면 스킵하기 시작한다.
-enum _Celebration { dance, cheer, onsen }
+/// 감각이 안 온다. 축하는 둘 중 하나가 나온다(레벨로 결정하므로 같은 판은
+/// 늘 같은 축하). 사람은 같은 연출만 계속 보면 스킵하기 시작한다.
+///
+/// 한때 김 오르는 온천 그림이 셋째 변형으로 있었다. **정지 그림이라 그 판만
+/// 카피가 아무것도 안 했다** — 세 판에 한 판은 축하가 죽은 셈이었다.
+/// 리그로 그릴 수 없는 연출은 여기에 넣지 말 것.
+enum _Celebration { dance, cheer }
 
 class WinCelebration extends StatefulWidget {
   final int level;
@@ -22,8 +25,12 @@ class WinCelebration extends StatefulWidget {
   final Duration elapsed;
 
 
-  /// 돌봄 보상 문구 (예: "🥕 당근 +2"). null이면 생략.
-  final String? rewardLine;
+  /// 이번 판에서 **번** 당근 개수. 어디서 왔는지(주웠는지 클리어 보상인지)는
+  /// 쪼개지 않는다 — 보상 화면에서 눈에 들어와야 하는 건 숫자 하나다.
+  final int carrots;
+
+  /// 수박도 받았는가. 일곱 판에 한 번 나온다.
+  final bool special;
 
   /// 오늘의 퍼즐을 깬 것이면 연속 일수. null이면 보통 레벨.
   final int? dailyStreak;
@@ -36,7 +43,8 @@ class WinCelebration extends StatefulWidget {
     required this.level,
     required this.score,
     required this.elapsed,
-    this.rewardLine,
+    this.carrots = 0,
+    this.special = false,
     this.dailyStreak,
     required this.skin,
   });
@@ -54,6 +62,9 @@ class _WinCelebrationState extends State<WinCelebration>
   final CapyController _capy = CapyController();
   Timer? _loop;
 
+  /// 카피가 매 프레임 잡은 자세. 제목이 이걸 보고 같이 흔들린다.
+  final ValueNotifier<CapyPose> _pose = ValueNotifier(const CapyPose());
+
   late final _Celebration _kind =
       _Celebration.values[widget.level % _Celebration.values.length];
 
@@ -61,21 +72,29 @@ class _WinCelebrationState extends State<WinCelebration>
   void initState() {
     super.initState();
     Buzz.medium();
-    if (_kind != _Celebration.onsen) {
-      final act =
-          _kind == _Celebration.dance ? CapyAct.dance : CapyAct.cheer;
-      final every = _kind == _Celebration.dance
-          ? const Duration(milliseconds: 3400)
-          : const Duration(milliseconds: 1800);
+    {
       // 축하는 멈추면 안 된다 — 다음 레벨을 누를 때까지 계속 신나 있어야 한다.
-      _capy.play(act);
-      _loop = Timer.periodic(every, (_) => _capy.play(act));
+      //
+      // 첫 동작은 타이머가 아니라 `entrance`로 준다. 여기서 `_capy.play()`를
+      // 부르면 **아무 일도 일어나지 않는다** — 리그 위젯은 아직 만들어지지도
+      // 않아 컨트롤러를 듣고 있지 않다. 그래서 화면이 뜨고 3.4초를 우두커니
+      // 서 있다가 그제야 춤을 췄다.
+      _loop = Timer.periodic(_actLen, (_) => _capy.play(_act));
     }
   }
+
+  /// 반복할 동작과 그 길이. 길이는 `CapyPerformer`의 안무 길이와 같아야
+  /// 한다 — 짧으면 잘리고, 길면 그만큼 멍하니 서 있다.
+  CapyAct get _act =>
+      _kind == _Celebration.dance ? CapyAct.dance : CapyAct.cheer;
+  Duration get _actLen => _kind == _Celebration.dance
+      ? const Duration(milliseconds: 3200)
+      : const Duration(milliseconds: 1400);
 
   @override
   void dispose() {
     _loop?.cancel();
+    _pose.dispose();
     _capy.dispose();
     _ctrl.dispose();
     super.dispose();
@@ -144,16 +163,7 @@ class _WinCelebrationState extends State<WinCelebration>
                                 fontFamily: 'Apple SD Gothic Neo',
                                 fontWeight: FontWeight.w700)),
                       ),
-                    Text(
-                        widget.dailyStreak != null
-                            ? '오늘의 퍼즐 완료!'
-                            : CapySays.titleFor(widget.level),
-                        style: const TextStyle(
-                            fontSize: 38,
-                            color: Colors.white,
-                            shadows: [
-                              Shadow(color: Color(0x66000000), blurRadius: 10)
-                            ])),
+                    _title(h),
                     const SizedBox(height: 8),
                     _hero(h),
                     const SizedBox(height: 14),
@@ -170,17 +180,18 @@ class _WinCelebrationState extends State<WinCelebration>
                             Shadow(color: Color(0x55000000), blurRadius: 6)
                           ]),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 18),
                     _stats(mm, ss),
                     const SizedBox(height: 26),
-                    _nextButton(),
                     // 오늘의 퍼즐은 이어질 다음 판이 없다 — 나가기 하나면 된다.
-                    if (widget.dailyStreak == null)
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        child: const Text('홈으로',
-                            style: TextStyle(color: Colors.white70)),
-                      ),
+                    if (widget.dailyStreak != null)
+                      _button('초원으로', primary: true, next: false)
+                    else ...[
+                      _button('다음 레벨 ${widget.level + 1}',
+                          primary: true, next: true),
+                      const SizedBox(height: 10),
+                      _button('홈으로', primary: false, next: false),
+                    ],
                   ],
                 ),
               ),
@@ -191,27 +202,42 @@ class _WinCelebrationState extends State<WinCelebration>
     );
   }
 
+  /// 제목. 카피가 춤추면 **같이** 흔들린다 — 몸이 기우는 각도 그대로
+  /// 기울고, 좌우로 옮겨 가는 만큼 따라가고, 폴짝 뛰면 조금 딸려 올라간다.
+  /// 글자만 못 박혀 있으면 카피 혼자 신난 것처럼 겉돈다.
+  ///
+  /// 위아래는 절반만 따라간다. 그대로 따라가면 제목이 화면 밖까지 튄다.
+  Widget _title(double screenH) {
+    final text = Text(
+        widget.dailyStreak != null
+            ? '오늘의 퍼즐 완료!'
+            : CapySays.titleFor(widget.level),
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontSize: 38, color: Colors.white, shadows: [
+          Shadow(color: Color(0x66000000), blurRadius: 10)
+        ]));
+    final unit = (screenH * 0.26).clamp(150.0, 250.0);
+    return ValueListenableBuilder<CapyPose>(
+      valueListenable: _pose,
+      builder: (context, p, child) => Transform.translate(
+        offset: Offset(p.shift * unit, -p.hop * unit * 0.5),
+        child: Transform.rotate(angle: p.lean, child: child),
+      ),
+      child: text,
+    );
+  }
+
   /// 축하하는 카피. 종류에 따라 완전히 다른 그림이 된다.
   Widget _hero(double screenH) {
     final size = (screenH * 0.26).clamp(150.0, 250.0);
-    final Widget capy;
-    switch (_kind) {
-      case _Celebration.dance:
-      case _Celebration.cheer:
-        capy = CapyPerformer(
-            height: size, controller: _capy, skin: widget.skin);
-      case _Celebration.onsen:
-        capy = SteamOverlay(
-          child: CapyIdle(
-            sway: 0.012,
-            breathe: 0.015,
-            bob: 5,
-            period: const Duration(milliseconds: 3200),
-            child: Image.asset('assets/mascot/capy_onsen3d.png',
-                width: size * 1.25),
-          ),
-        );
-    }
+    final capy = CapyPerformer(
+        height: size,
+        controller: _capy,
+        // 화면이 뜨는 그 프레임부터 춘다. 컨트롤러로 시키면 리그가 아직
+        // 없어서 첫 동작을 통째로 놓친다.
+        entrance: _act,
+        poseOut: _pose,
+        skin: widget.skin);
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 620),
@@ -222,51 +248,73 @@ class _WinCelebrationState extends State<WinCelebration>
     );
   }
 
+  /// 점수·시간·당근. **크게, 나란히.** 알약 세 개를 흩어 놓았더니 글자가
+  /// 작아 무엇 하나 눈에 안 들어왔다 — 판을 깬 대가는 한눈에 읽혀야 한다.
+  ///
+  /// 당근은 **번 개수만** 적는다. "주운 3 + 클리어 2 = 5"처럼 계산식을 쓰면
+  /// 정작 5가 안 보인다.
   Widget _stats(int mm, String ss) {
-    Widget chip(IconData? icon, String text) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.22),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: Colors.white),
-              const SizedBox(width: 6),
-            ],
-            Text(text,
-                style: const TextStyle(
-                    fontSize: 15,
-                    color: Colors.white,
+    Widget cell(String icon, String value, String label) => Expanded(
+          child: Column(children: [
+            Text(icon, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 34,
+                      height: 1.1,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      shadows: [
+                        Shadow(color: Color(0x55000000), blurRadius: 8)
+                      ])),
+            ),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.75),
                     fontFamily: 'Apple SD Gothic Neo',
                     fontWeight: FontWeight.w700)),
           ]),
         );
 
-    return Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-      chip(Icons.star_rounded, '${widget.score}'),
-      chip(Icons.timer_outlined, '$mm:$ss'),
-      if (widget.rewardLine != null) chip(null, widget.rewardLine!),
-    ]);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Row(children: [
+        cell('⭐️', '${widget.score}', '점수'),
+        cell('⏱', '$mm:$ss', '시간'),
+        cell('🥕', '+${widget.carrots}', '당근'),
+        // 수박은 일곱 판에 한 번뿐이다. 받은 날에만 칸이 하나 는다.
+        if (widget.special) cell('🍉', '+1', '수박'),
+      ]),
+    );
   }
 
-  Widget _nextButton() {
+  /// 다음 레벨과 홈으로. **같은 크기다** — 하나만 크고 하나는 글자만 있으면
+  /// 작은 쪽이 버튼으로 안 보인다. 무게 차이는 색으로만 준다.
+  Widget _button(String label, {required bool primary, required bool next}) {
     return SizedBox(
       width: 260,
       height: 60,
       child: Material(
-        color: Colors.white,
+        color: primary ? Colors.white : Colors.white.withValues(alpha: 0.20),
         borderRadius: BorderRadius.circular(999),
-        elevation: 6,
+        elevation: primary ? 6 : 0,
         shadowColor: Colors.black.withValues(alpha: 0.4),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () => Navigator.pop(context, widget.dailyStreak == null),
+          onTap: () => Navigator.pop(context, next),
           child: Center(
-            child: Text(
-                widget.dailyStreak != null ? '초원으로' : '레벨 ${widget.level + 1}',
-                style: const TextStyle(
-                    fontSize: 22, color: Color(0xFFD9611A))),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 22,
+                    color: primary ? const Color(0xFFD9611A) : Colors.white)),
           ),
         ),
       ),

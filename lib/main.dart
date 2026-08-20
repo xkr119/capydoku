@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -23,11 +24,14 @@ import 'ui/checkin_sheet.dart';
 import 'ui/settings_sheet.dart';
 import 'ui/splash.dart';
 
-/// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프 선택기를 띄운다.
+/// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프·먹이 채우기를 띄운다.
 ///
-/// 성장 단계와 가족 변화는 200판 넘게 걸려서 그냥은 확인할 수가 없다.
-/// **정식 배포 전에 `false`로 바꾸고 `_DebugStageJump`를 지울 것.**
-const bool kDebugStages = true;
+/// 성장 단계와 가족 변화는 200판 넘게 걸려 그냥은 확인할 수가 없어서 넣었다.
+///
+/// 지우지 않고 [kDebugMode]에 묶어 둔다 — 릴리스에서는 상수가 false라
+/// 트리 셰이킹으로 통째로 빠지고, 디버그 빌드에서는 그대로 쓸 수 있다.
+/// 손으로 껐다 켜면 켠 채로 스토어에 올리는 사고가 언젠가 난다.
+const bool kDebugStages = kDebugMode;
 
 /// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
 final routeObserver = RouteObserver<ModalRoute<void>>();
@@ -45,6 +49,9 @@ class CapydokuApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // 디버그 빌드 오른쪽 위 리본. 스토어 스크린샷을 디버그 빌드로 찍다가
+      // 리본째 올리는 사고가 흔하다.
+      debugShowCheckedModeBanner: false,
       title: 'Capydoku',
       navigatorObservers: [routeObserver],
       theme: ThemeData(
@@ -179,6 +186,7 @@ class _HomeScreenState extends State<HomeScreen>
       c.dispose();
     }
     _capy.dispose();
+    _selfPose.dispose();
     super.dispose();
   }
 
@@ -353,6 +361,12 @@ class _HomeScreenState extends State<HomeScreen>
         _ => 1.0,
       };
 
+  /// 쓰다듬을 때마다 다른 말이 나오게 하는 카운터.
+  int _touchSalt = 0;
+
+  /// 주인공이 매 프레임 잡은 자세. 말풍선이 이걸 보고 따라다닌다.
+  final ValueNotifier<CapyPose> _selfPose = ValueNotifier(const CapyPose());
+
   void _touchMember(int i, FamilyMember m) {
     Buzz.select();
     // 쓰다듬기 보상(기분·하트)은 주인공에게만. 아이들은 반응만 한다.
@@ -368,7 +382,9 @@ class _HomeScreenState extends State<HomeScreen>
     }
     Sfx.pet();
     _ctrlFor(i).play(i == 0 ? CapyAct.startle : CapyAct.cheer);
-    _say('${m.label} 카피가 좋아해요!');
+    // 식구마다 제 목소리로 말한다. "짝꿍 카피가 좋아해요!" 같은 안내문은
+    // 누가 말하는 건지도 모르겠고, 몇 번 보면 그냥 배경이 된다.
+    _say(CapySays.touched(m.skin, salt: _touchSalt++));
   }
 
   /// 오늘 도장을 아직 안 찍었으면 도장판을 띄우고 보상을 준다.
@@ -582,6 +598,8 @@ class _HomeScreenState extends State<HomeScreen>
                         seed: i * 37 + 5,
                         happy: pet.mood >= 65,
                         foodOf: () => _heldBy(i),
+                        // 말풍선이 따라다녀야 하는 건 주인공뿐이다.
+                        poseOut: i == 0 ? _selfPose : null,
                       ),
                     ],
                   ),
@@ -598,13 +616,26 @@ class _HomeScreenState extends State<HomeScreen>
             ),
 
           // ── 말풍선: 주인공 머리 위 ──
+          //
+          // **몸을 따라다닌다.** 못 박아 두었더니 카피가 폴짝 뛸 때마다
+          // 머리가 말풍선을 뚫고 올라가 글자를 가렸다. 리그가 몸에 먹인
+          // 변형을 그대로 되먹여서 머리와의 간격을 일정하게 지킨다.
+          // (`squash`는 발을 축으로 세로를 눌러 머리를 끌어내린다.)
           Positioned(
             left: 12,
             right: 12,
             bottom: h - capyTop + 8,
-            child: Align(
-              alignment: Alignment(married ? -0.34 : 0, 1),
-              child: _Bubble(text: _shout ?? pet.statusLine),
+            child: ValueListenableBuilder<CapyPose>(
+              valueListenable: _selfPose,
+              builder: (context, p, child) => Transform.translate(
+                offset: Offset(p.shift * capyH,
+                    -p.hop * capyH + fill * capyH * p.squash * 0.10),
+                child: child,
+              ),
+              child: Align(
+                alignment: Alignment(married ? -0.34 : 0, 1),
+                child: _Bubble(text: _shout ?? pet.statusLine),
+              ),
             ),
           ),
 
@@ -1032,7 +1063,7 @@ class _Bubble extends StatelessWidget {
 }
 
 /// **디버그 전용.** 성장 단계와 가족 변화를 바로 보려고 레벨을 건너뛴다.
-/// 정식 배포 전에 이 위젯과 [kDebugStages], `Progress.debugSetLevel`을 함께 지울 것.
+/// [kDebugStages]가 false면(=릴리스) 아예 만들어지지 않는다.
 class _DebugStageJump extends StatelessWidget {
   final int level;
   final ValueChanged<int> onPick;

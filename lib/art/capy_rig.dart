@@ -536,6 +536,15 @@ class CapyPerformer extends StatefulWidget {
   final double height;
   final CapyController? controller;
 
+  /// 매 프레임 잡은 자세를 밖으로 흘려보낸다. 말풍선처럼 **몸을 따라다녀야
+  /// 하는 것**이 이걸 듣는다 — 카피가 폴짝 뛰면 말풍선도 같이 떠야지,
+  /// 제자리에 있으면 머리가 말풍선을 뚫고 올라간다.
+  ///
+  /// 알림은 **한 프레임 늦다**. 자세는 build 안에서 계산되는데 그 자리에서
+  /// 부모를 다시 그리라고 하면 Flutter가 막는다(이미 그린 위젯이다).
+  /// 60fps에서 한 프레임 차이는 눈에 안 보인다.
+  final ValueNotifier<CapyPose>? poseOut;
+
   /// 같은 화면에 여러 마리가 있어도 동시에 같은 짓을 하지 않도록.
   final int seed;
 
@@ -571,6 +580,7 @@ class CapyPerformer extends StatefulWidget {
     required this.skin,
     this.foodOf,
     this.synced = false,
+    this.poseOut,
   });
 
   @override
@@ -1004,8 +1014,15 @@ class _CapyPerformerState extends State<CapyPerformer>
         if (mounted) setState(() {});
       });
     }
+    final pose = synced ? _syncedPoseAt(_t) : _poseAt(_t);
+    final out = widget.poseOut;
+    if (out != null) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) out.value = pose;
+      });
+    }
     return CapyRig(
-      pose: synced ? _syncedPoseAt(_t) : _poseAt(_t),
+      pose: pose,
       height: widget.height,
       skin: widget.skin,
       food: widget.foodOf?.call(),
