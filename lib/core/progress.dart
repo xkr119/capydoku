@@ -22,7 +22,8 @@ class Progress {
   int get currentLevel => _prefs.getInt('level.current') ?? 1;
 
   /// **디버그 전용.** 성장 단계를 눈으로 확인하려고 레벨을 직접 옮긴다.
-  /// 정식 배포 전에 이 메서드와 홈의 선택기를 함께 지울 것 — `kDebugStages`.
+  /// 호출부가 `kDebugStages`(= `kDebugMode`) 안에만 있어 릴리스에서는
+  /// 트리 셰이킹으로 빠진다.
   Future<void> debugSetLevel(int level) async =>
       _prefs.setInt('level.current', level.clamp(1, 999));
 

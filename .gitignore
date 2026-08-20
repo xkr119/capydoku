@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# 업로드 키 — 절대 커밋 금지 (예시는 android/key.properties.example)
+android/key.properties
+*.jks
+*.keystore

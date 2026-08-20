@@ -552,9 +552,8 @@ nemologic에서 복사해 올 것).
   새 동작이 필요하면 이미지를 만들지 말고 `CapyAct`에 케이스를 하나 추가한다.
 - 리그로 못 하는 자세(누워서 배 긁기, 옆모습)는 **새 원본 렌더**가 필요하고,
   그때는 `rig_parts.py`의 좌표 상수를 그 그림에 맞춰 다시 재야 한다.
-- 스토어 절차 일체.
-- 릴리스 APK가 62MB다(광고 SDK가 대부분). 스토어엔 AAB로 올리면 되지만
-  줄일 여지가 있는지 한 번 볼 것.
+- 릴리스 APK가 66MB, AAB가 67MB다(에셋과 광고 SDK가 대부분). Play 상한은
+  넉넉하지만 줄일 여지가 있는지 한 번 볼 것.
 
 ## 아직 없는 것 (nemologic에서 이식)
 
@@ -562,4 +561,23 @@ nemologic에서 복사해 올 것).
 - 튜토리얼(규칙 칩이 절반은 해주지만 첫 판 인터랙티브 필요)
 - 광고: ads.dart 복사(배너+전면 5판당 1회) + **하트 소진 시 리워드 광고로
   하트 1개 회복** — 네모로직에 없던 고단가 슬롯, 이 게임의 핵심 수익원
-- proguard(광고 붙일 때 nemologic에서 복사), 실기기 확인, 스토어 절차 일체
+- proguard(광고 붙일 때 nemologic에서 복사), 실기기 확인
+
+## 출시
+
+준비물은 `store/`에 전부 있다. 남은 것은 **사람만 할 수 있는 두 가지**뿐이다.
+
+1. **AdMob 실제 ID** — `lib/core/ads.dart`와 `AndroidManifest.xml` **두 곳**.
+   지금은 구글 테스트 ID다.
+2. **업로드 키스토어** — `android/key.properties`(gitignore됨)를
+   `android/key.properties.example`대로 만든다. 없으면 릴리스가 **디버그 키로
+   서명**되고 Play가 거부한다. 있으면 자동으로 그 키를 쓴다.
+
+절차와 콘솔 입력값은 `store/RELEASE.md`. 문구는 `store/listing.md`,
+데이터 안전 답안은 `store/data_safety.md`, 방침은 `store/privacy.md`.
+스크린샷(1080×1920)은 `store/screenshots/`, 아이콘·피처 그래픽은
+`store/graphics/`(`tool/gen_store_graphics.py`가 만든다).
+
+디버그 도구(레벨 점프·먹이 채우기)는 **지우지 않고** `kDebugStages =
+kDebugMode`로 묶어 두었다. 릴리스에서는 트리 셰이킹으로 통째로 빠진다.
+손으로 껐다 켜면 켠 채로 올리는 사고가 언젠가 난다.
