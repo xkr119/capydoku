@@ -253,10 +253,10 @@ class _GameScreenState extends State<GameScreen>
       return;
     }
     final n = board.n;
-    final gridSide = boardBox.size.width - 16; // 컨테이너 패딩 8×2
+    final gridSide = boardBox.size.width - _boardPad * 2;
     final cellSize = (gridSide - (n - 1) * _gap) / n;
-    final local = Offset(8 + c * (cellSize + _gap) + cellSize / 2,
-        8 + r * (cellSize + _gap) + cellSize / 2);
+    final local = Offset(_boardPad + c * (cellSize + _gap) + cellSize / 2,
+        _boardPad + r * (cellSize + _gap) + cellSize / 2);
     final start = root.globalToLocal(boardBox.localToGlobal(local));
     final end = root.globalToLocal(
         scoreBox.localToGlobal(scoreBox.size.center(Offset.zero)));
@@ -378,7 +378,7 @@ class _GameScreenState extends State<GameScreen>
                       _violatedRule == i ? Palette.heart : Colors.transparent,
                   width: 2,
                 ),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 CustomPaint(
@@ -407,16 +407,19 @@ class _GameScreenState extends State<GameScreen>
   // ── 보드 ────────────────────────────────────────────────────────────
 
   /// 타일 사이 간격. 좁을수록 칸이 커져 카피가 크게 보인다.
-  static const _gap = 3.0;
+  static const _gap = 1.5;
+
+  /// 판 테두리와 타일 사이 여백. 여기도 줄여야 칸이 커진다.
+  static const _boardPad = 4.0;
 
   Widget _board() {
     final n = board.n;
     return Container(
       key: _boardKey,
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(_boardPad),
       decoration: BoxDecoration(
         color: Palette.card,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
               color: Palette.brown.withValues(alpha: 0.10),
@@ -499,7 +502,7 @@ class _GameScreenState extends State<GameScreen>
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: Palette.regions[board.puzzle.regions[r][c]],
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(4),
           border: isError
               ? Border.all(color: Palette.heart, width: 3)
               : isSource || isTarget
@@ -508,7 +511,7 @@ class _GameScreenState extends State<GameScreen>
         ),
         foregroundDecoration: BoxDecoration(
           color: dimmed ? Colors.black.withValues(alpha: 0.38) : null,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(4),
         ),
         child: Center(
           child: isTarget && state == cellBlank
