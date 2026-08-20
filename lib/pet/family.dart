@@ -104,4 +104,18 @@ class Family {
     }
     return out;
   }
+
+  /// 먹이를 받을 순서(=[lineup]의 인덱스). **막내부터** 시작해 위로 올라가고
+  /// 마지막이 부모다.
+  ///
+  /// 막내만 계속 먹으면 나머지 식구의 먹는 모습은 영영 못 본다. 연달아 주면
+  /// 차례가 넘어가서 아이를 여럿 키우는 재미가 생긴다.
+  static List<int> feedOrder(List<FamilyMember> lineup) {
+    final kids = [for (var i = 2; i < lineup.length; i++) i];
+    return [
+      ...kids.reversed, // 막내 → 첫째
+      if (lineup.length > 1) 1, // 짝꿍
+      0, // 나
+    ];
+  }
 }

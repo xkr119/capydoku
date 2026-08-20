@@ -195,8 +195,14 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  /// 바구니에서 먹이 하나를 꺼내 카피에게 던진다.
-  void _throwFood(bool special, Offset from, Offset to) {
+  /// 다음에 먹이를 받을 차례. 막내부터 돌아간다.
+  int _feedTurn = 0;
+
+  /// 바구니에서 먹이 하나를 꺼내 던진다.
+  ///
+  /// [targets]는 (식구 인덱스, 그 식구의 입). 당근은 한 명, 수박은 온 가족이
+  /// 받는다 — 7판에 하나 나오는 귀한 것이니 다같이 먹는 그림이어야 한다.
+  void _throwFood(bool special, Offset from, List<(int, Offset)> targets) {
     final ok = special ? pet.feedSpecial() : pet.feedCarrot();
     if (!ok) {
       _shakeOf(special).forward(from: 0);
@@ -206,44 +212,53 @@ class _HomeScreenState extends State<HomeScreen>
     }
     Buzz.light();
     _shakeOf(special).forward(from: 0);
+    if (!special) _feedTurn++; // 다음 당근은 다음 식구 차례
 
-    final m = _Morsel(
-      id: _morselId++,
-      special: special,
-      from: from,
-      to: to,
-      // 날아가는 0.5초 + 먹는 5초. 먹이가 씹히는 내내 화면에 남아 있어야
-      // 사용자가 "내가 준 걸 먹고 있다"를 본다.
-      ctrl: AnimationController(
-          vsync: this, duration: const Duration(milliseconds: 5500)),
-    );
-    // 날아가는 구간이 끝나면 입에 물린 채로 조금씩 없어진다 —
-    // 그냥 사라지면 "먹었다"가 아니라 "삭제됐다"로 보인다.
-    var bitten = false;
-    var lastBite = -1;
-    m.ctrl.addListener(() {
-      final t = m.ctrl.value;
-      if (t < _Morsel.flightEnd) return;
-      if (!bitten) {
-        bitten = true;
-        _capy.play(special ? CapyAct.feast : CapyAct.eat);
-      }
-      // 한 입 베어 물 때마다 소리와 진동 — 5초를 무음으로 두면 길기만 하다.
-      final chewT = (t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd);
-      final bite = (chewT / 0.78 * 3).floor();
-      if (bite != lastBite && bite < 3) {
-        lastBite = bite;
-        Sfx.munch();
-        Buzz.medium();
-      }
-    });
-    setState(() => _flying.add(m));
+    for (final (idx, (who, to)) in targets.indexed) {
+      final m = _Morsel(
+        id: _morselId++,
+        special: special,
+        from: from,
+        to: to,
+        // 날아가는 0.5초 + 먹는 5초. 먹이가 씹히는 내내 화면에 남아 있어야
+        // 사용자가 "내가 준 걸 먹고 있다"를 본다.
+        ctrl: AnimationController(
+            vsync: this, duration: const Duration(milliseconds: 5500)),
+      );
+      // 날아가는 구간이 끝나면 입에 물린 채로 조금씩 없어진다 —
+      // 그냥 사라지면 "먹었다"가 아니라 "삭제됐다"로 보인다.
+      var bitten = false;
+      var lastBite = -1;
+      m.ctrl.addListener(() {
+        final t = m.ctrl.value;
+        if (t < _Morsel.flightEnd) return;
+        if (!bitten) {
+          bitten = true;
+          _ctrlFor(who).play(special ? CapyAct.feast : CapyAct.eat);
+        }
+        // 한 입 베어 물 때마다 소리와 진동. 여럿이 동시에 먹을 때는 첫
+        // 조각만 소리를 낸다 — 다섯 배로 겹치면 소음이 된다.
+        if (idx != 0) return;
+        final chewT = (t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd);
+        final bite = (chewT / 0.78 * 3).floor();
+        if (bite != lastBite && bite < 3) {
+          lastBite = bite;
+          Sfx.munch();
+          Buzz.medium();
+        }
+      });
+      setState(() => _flying.add(m));
+      _startMorsel(m, who, special);
+    }
+  }
+
+  void _startMorsel(_Morsel m, int who, bool special) {
     m.ctrl.forward().then((_) {
       if (!mounted) return;
       setState(() => _flying.remove(m));
       m.ctrl.dispose();
       // 특별 먹이는 다 먹고 나서도 한참 신이 나 있다.
-      _capy.play(special ? CapyAct.dance : CapyAct.cheer);
+      _ctrlFor(who).play(special ? CapyAct.dance : CapyAct.cheer);
     });
   }
 
@@ -378,15 +393,27 @@ class _HomeScreenState extends State<HomeScreen>
         // 그 안에서 입 높이는 캐릭터마다 다르다(아기는 아래, 어른은 위).
         // 예전엔 원본 카피 기준 값 하나를 모든 단계에 써서, 아기 머리 위
         // 허공에서 당근이 씹혔다.
-        final selfSkin = Pet.skinOf(current);
-        final selfBox = capyH * CapySkins.bodyAspect;   // 캔버스 가로
-        final mo = CapySkins.mouthOf(selfSkin);
-        // Align(x)로 놓인 자식의 중심은 w/2 + x*(w-childW)/2 에 온다.
-        final selfCx = w / 2 + lineup.first.x * (w - selfBox) / 2;
-        final mouth = Offset(
-          selfCx + (mo.dx - 0.5) * selfBox,
-          feetY - capyH * (1 - mo.dy),
-        );
+        /// 식구 하나의 입이 화면 어디인지. 조각마다 입 높이가 다르고
+        /// 앞줄은 조금 아래에 서 있으므로 둘 다 반영한다.
+        Offset mouthOfMember(FamilyMember m) {
+          final box = capyH * m.scale * CapySkins.bodyAspect;
+          final cx = w / 2 + m.x * (w - box) / 2;
+          final mm = CapySkins.mouthOf(m.skin);
+          final top = feetY - capyH * m.scale + (m.front ? capyH * 0.07 : 0);
+          return Offset(cx + (mm.dx - 0.5) * box,
+              top + capyH * m.scale * mm.dy);
+        }
+
+        final mouths = [for (final m in lineup) mouthOfMember(m)];
+        final order = Family.feedOrder(lineup);
+        // 당근은 차례가 돌아온 한 명, 수박은 온 가족.
+        List<(int, Offset)> receivers(bool special) {
+          if (special) {
+            return [for (var i = 0; i < lineup.length; i++) (i, mouths[i])];
+          }
+          final who = order[_feedTurn % order.length];
+          return [(who, mouths[who])];
+        }
         // 먹이도 덩치에 맞춘다 — 아기에게 어른만 한 당근은 우스꽝스럽다.
         final foodScale = 0.52 + fill * 0.55;
 
@@ -551,7 +578,7 @@ class _HomeScreenState extends State<HomeScreen>
             top: basketCenter.dy - foodSize / 2,
             child: _FoodSpot(
               count: pet.carrots,
-              onTap: () => _throwFood(false, basketCenter, mouth),
+              onTap: () => _throwFood(false, basketCenter, receivers(false)),
               child: AnimatedBuilder(
                 animation: _jostle,
                 builder: (context, _) => CarrotBasket(
@@ -566,7 +593,7 @@ class _HomeScreenState extends State<HomeScreen>
             top: gyulCenter.dy - foodSize / 2,
             child: _FoodSpot(
               count: pet.specials,
-              onTap: () => _throwFood(true, gyulCenter, mouth),
+              onTap: () => _throwFood(true, gyulCenter, receivers(true)),
               // 귤은 그림 안에 후광·잎 여백이 있어 같은 숫자로 그리면
               // 바구니보다 작아 보인다. 눈에 같아 보이도록 키워 그린다.
               child: AnimatedBuilder(
@@ -651,13 +678,27 @@ class _HomeScreenState extends State<HomeScreen>
             Positioned(
               top: safeTop + 100,
               right: 14,
-              child: _DebugStageJump(
-                level: current,
-                onPick: (lv) async {
-                  await progress.debugSetLevel(lv);
-                  if (mounted) setState(() {});
-                },
-              ),
+              child: Row(children: [
+                _RoundIcon(
+                  icon: Icons.restaurant_rounded,
+                  onTap: () {
+                    // 디버그: 먹이 채우기. 먹는 연출을 확인하려고 매번
+                    // 한 판씩 깨고 있을 수는 없다.
+                    pet
+                      ..addCarrots(5)
+                      ..addSpecials(2);
+                    setState(() {});
+                  },
+                ),
+                const SizedBox(width: 6),
+                _DebugStageJump(
+                  level: current,
+                  onPick: (lv) async {
+                    await progress.debugSetLevel(lv);
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ]),
             ),
 
           // ── 하단: 성장 게이지 · 레벨 진행 · 오늘의 퍼즐 ──
