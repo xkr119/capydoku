@@ -693,10 +693,13 @@ class _GameScreenState extends State<GameScreen>
   Widget _cellContent(int r, int c, int state, bool isError) {
     // X·카피가 스르륵 나타나고 사라지도록 스위처로 감싼다.
     final Widget child;
-    if (isError) {
+    if (isError || state == cellWrong) {
       // **빨간 X.** 예전엔 놀란 카피 얼굴을 띄웠는데, 틀린 칸에 카피가 있는
       // 것으로 읽혀서 "놓였다"와 "놓으면 안 된다"가 같은 그림이 됐다.
       // 여기는 카피가 못 오는 자리라는 뜻이니 X가 맞다.
+      //
+      // 틀린 순간의 반짝임(`isError`)과 그 뒤로 남는 표시가 **같은 그림**이다 —
+      // 반짝하고 다른 게 남으면 무슨 일이 일어난 건지 이어지지 않는다.
       child = const XMark(
           key: ValueKey('err'), factor: 0.82, color: Color(0xFFE8554D));
     } else if (state == cellCapy) {
@@ -741,7 +744,8 @@ class _GameScreenState extends State<GameScreen>
     if (cell == null || _errorCell != null || _xPreview != null) return;
     final (r, c) = cell;
     final state = board.stateAt(r, c);
-    if (state == cellCapy) return;
+    // 놓인 카피와 **틀려서 못 박힌 칸**은 더 못 건드린다.
+    if (state == cellCapy || state == cellWrong) return;
 
     final now = DateTime.now().millisecondsSinceEpoch;
     final isDouble = _lastTapCell == cell && now - _lastTapMs < 280;
@@ -767,7 +771,8 @@ class _GameScreenState extends State<GameScreen>
     if (cell == null || _errorCell != null || _xPreview != null) return;
     final (r, c) = cell;
     final state = board.stateAt(r, c);
-    if (state == cellCapy) return;
+    // 놓인 카피와 **틀려서 못 박힌 칸**은 더 못 건드린다.
+    if (state == cellCapy || state == cellWrong) return;
     _dragMarking = state == cellBlank; // 빈 칸에서 시작 = X 깔기, X에서 시작 = 지우기
     _applyDrag(r, c);
   }
@@ -779,7 +784,8 @@ class _GameScreenState extends State<GameScreen>
 
   void _applyDrag(int r, int c) {
     final state = board.stateAt(r, c);
-    if (state == cellCapy) return;
+    // 놓인 카피와 **틀려서 못 박힌 칸**은 더 못 건드린다.
+    if (state == cellCapy || state == cellWrong) return;
     final want = _dragMarking! ? cellMark : cellBlank;
     if (state == want) return;
     Buzz.select();
@@ -834,9 +840,11 @@ class _GameScreenState extends State<GameScreen>
     _shake.forward(from: 0);
     setState(() {
       board.hearts--;
-      // 여기서 콤보가 끊긴다 — 이 판에서 못 받게 된 당근은 상단 "0/N"의
-      // N이 아니라 앞으로 채울 수 있는 칸으로만 줄어든다.
       _combo = 0;
+      // **그 자리를 빨간 X로 못 박는다.** 하트를 치르고 얻은 정보이므로
+      // 화면에 남아야 하고, 남아 있어야 같은 자리를 또 눌러 또 잃는 일이
+      // 없다. 되돌리는 길은 없다.
+      board.setWrong(r, c);
       _errorCell = (r, c);
       _violatedRule = switch (result) {
         PlaceResult.wrongRegion => 0,

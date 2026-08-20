@@ -481,12 +481,25 @@ class _HomeScreenState extends State<HomeScreen>
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  void _touchMember(int i, FamilyMember m) {
+  /// 이 자리의 식구가 누구인가. **조각 이름만으로는 못 가른다** — 다 자란
+  /// 첫째와 아빠는 같은 그림을 쓴다. 자리(index)가 곧 역할이다.
+  CapyRole _roleOf(int i, int members) {
+    if (i == 0) return members > 1 ? CapyRole.dad : CapyRole.solo;
+    if (i == 1) return CapyRole.mom;
+    return CapyRole.child;
+  }
+
+  void _touchMember(int i, FamilyMember m, int members) {
     Buzz.select();
+    // 만진 식구가 **자기 목소리로** 대답한다. 아빠·엄마·아이가 같은 말을
+    // 하면 다섯이 한 사람처럼 들린다.
+    final line = CapySays.touched(m.skin, _roleOf(i, members),
+        salt: _touchSalt++);
     // 쓰다듬기 보상(기분·하트)은 주인공에게만. 아이들은 반응만 한다.
     if (i == 0 && pet.touch()) {
       Sfx.pet();
       _capy.play(CapyAct.cheer);
+      _say(line);
       final id = _heartId++;
       setState(() => _hearts.add(id));
       Timer(const Duration(milliseconds: 900), () {
@@ -495,10 +508,10 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
     Sfx.pet();
-    _ctrlFor(i).play(i == 0 ? CapyAct.startle : CapyAct.cheer);
-    // 식구마다 제 목소리로 말한다. "짝꿍 카피가 좋아해요!" 같은 안내문은
-    // 누가 말하는 건지도 모르겠고, 몇 번 보면 그냥 배경이 된다.
-    _say(CapySays.touched(m.skin, salt: _touchSalt++));
+    // **만진 그 식구만 움직인다.** 손잡이가 식구마다 하나씩이라 아빠를
+    // 누르면 아빠가, 아기를 누르면 아기가 반응한다.
+    _ctrlFor(i).play(i.isEven ? CapyAct.cheer : CapyAct.wiggle);
+    _say(line);
   }
 
   /// 오늘 도장을 아직 안 찍었으면 도장판을 띄우고 보상을 준다.
@@ -710,7 +723,7 @@ class _HomeScreenState extends State<HomeScreen>
                 child: GestureDetector(
                   // **만진 식구가 반응해야 한다.** 예전엔 어디를 눌러도
                   // 주인공만 움직여서 가족이 인형처럼 보였다.
-                  onTap: () => _touchMember(i, m),
+                  onTap: () => _touchMember(i, m, lineup.length),
                   behavior: HitTestBehavior.opaque,
                   // 살이 붙은 만큼 늘여 그린다. **발을 축으로** 늘여야
                   // 바닥에서 뜨거나 파묻히지 않는다.

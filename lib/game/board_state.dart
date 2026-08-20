@@ -8,6 +8,12 @@ const int cellBlank = 0;
 const int cellMark = 1; // X 표시
 const int cellCapy = 2;
 
+/// **틀려서 하트를 하나 잃은 칸.** 빨간 X로 남고 다시 못 고른다.
+///
+/// 예전엔 800ms 반짝하고 사라져서 빈칸으로 돌아갔다. 값을 치르고 얻은
+/// 정보인데 화면에 안 남으니, 같은 자리를 또 눌러 하트를 또 잃을 수 있었다.
+const int cellWrong = 3;
+
 /// 카피를 놓았을 때의 결과.
 enum PlaceResult {
   ok,
@@ -54,6 +60,9 @@ class BoardState {
 
   void setMark(int r, int c) => cells[r][c] = cellMark;
   void clearCell(int r, int c) => cells[r][c] = cellBlank;
+
+  /// 틀린 자리로 못 박는다. 되돌릴 수 없다 — 하트를 치른 자리다.
+  void setWrong(int r, int c) => cells[r][c] = cellWrong;
 
   /// (r,c)에 카피 배치 시도. 정답이면 놓고 주변에 X를 자동으로 깐다.
   /// 아니면 놓지 않고 이유를 돌려준다 — 하트 차감은 호출자 몫.
