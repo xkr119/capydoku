@@ -374,7 +374,21 @@ class _HomeScreenState extends State<HomeScreen>
         final capyTop = feetY - capyH * fill;
         final married = Family.married(current);
         final lineup = Family.lineup(current, Pet.skinOf(current));
-        final mouth = Offset(w / 2, feetY - capyH * 0.59);
+        // 먹이가 날아갈 곳 = **지금 단계 캐릭터의 입**. 캔버스는 모두 같지만
+        // 그 안에서 입 높이는 캐릭터마다 다르다(아기는 아래, 어른은 위).
+        // 예전엔 원본 카피 기준 값 하나를 모든 단계에 써서, 아기 머리 위
+        // 허공에서 당근이 씹혔다.
+        final selfSkin = Pet.skinOf(current);
+        final selfBox = capyH * CapySkins.bodyAspect;   // 캔버스 가로
+        final mo = CapySkins.mouthOf(selfSkin);
+        // Align(x)로 놓인 자식의 중심은 w/2 + x*(w-childW)/2 에 온다.
+        final selfCx = w / 2 + lineup.first.x * (w - selfBox) / 2;
+        final mouth = Offset(
+          selfCx + (mo.dx - 0.5) * selfBox,
+          feetY - capyH * (1 - mo.dy),
+        );
+        // 먹이도 덩치에 맞춘다 — 아기에게 어른만 한 당근은 우스꽝스럽다.
+        final foodScale = 0.52 + fill * 0.55;
 
         // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다.
         const foodSize = 68.0;
@@ -486,12 +500,15 @@ class _HomeScreenState extends State<HomeScreen>
                 // 입에 물린 뒤엔 씹는 리듬에 맞춰 까딱거린다.
                 final wobble =
                     math.sin(chewT * math.pi * 22) * 4 * (1 - chewed);
+                final fw = 52 * foodScale;
                 return Positioned(
-                  left: p.dx - 26 + wobble,
-                  top: p.dy - lift - 30,
+                  left: p.dx - fw / 2 + wobble,
+                  // 먹이의 **윗부분**이 입에 걸리게 둔다. 중심을 입에 맞추면
+                  // 위로 뻗은 잎이 눈을 덮는다.
+                  top: p.dy - lift - fw * 0.18,
                   child: SizedBox(
-                    width: 52,
-                    height: 60,
+                    width: fw,
+                    height: fw * 1.15,
                     child: Stack(
                       clipBehavior: Clip.none,
                       alignment: Alignment.center,
@@ -501,15 +518,15 @@ class _HomeScreenState extends State<HomeScreen>
                               wobble * 0.03,
                           child: m.special
                               ? SizedBox(
-                                  width: 52,
-                                  height: 52,
+                                  width: fw,
+                                  height: fw,
                                   child: CustomPaint(
                                       painter:
                                           WatermelonPainter(eaten: chewed)),
                                 )
                               : SizedBox(
-                                  width: 52 * 0.62,
-                                  height: 52,
+                                  width: fw * 0.62,
+                                  height: fw,
                                   child: CustomPaint(
                                       painter: CarrotPainter(eaten: chewed)),
                                 ),

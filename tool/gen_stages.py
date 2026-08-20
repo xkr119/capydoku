@@ -116,6 +116,22 @@ def drop_shadow(img: Image.Image) -> Image.Image:
         for y in range(0, bottom + 1):
             kp[x, y] = ap[x, y]
 
+    # 다리 **사이**의 그림자는 그 세로줄의 가장 아래 몸 픽셀(발)보다 위에
+    # 있어서 위의 자르기로는 안 없어진다. 실측해 보면 남은 자국은 채도 0~13에
+    # 밝기 250 근처이고 털·발은 채도 50~88이다. 아래쪽에서만 이 기준으로
+    # 한 번 더 훑는다(회색 주둥이는 위쪽이라 안 건드린다).
+    box = img.split()[3].getbbox()
+    if box:
+        low = box[1] + int((box[3] - box[1]) * 0.70)
+        kp2 = keep.load()
+        for y in range(low, H):
+            for x in range(W):
+                if kp2[x, y] == 0:
+                    continue
+                r, g, b = px[x, y]
+                if max(r, g, b) - min(r, g, b) < 22 and max(r, g, b) > 150:
+                    kp2[x, y] = 0
+
     # 세로줄마다 자르면 단면이 톱니처럼 되므로 살짝 흐린다.
     return _with_alpha(img, keep.filter(ImageFilter.GaussianBlur(1.1)))
 
