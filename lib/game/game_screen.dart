@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../art/capy_art.dart';
 import '../art/capy_motion.dart';
+import '../art/capy_rig.dart';
+import '../art/effects.dart';
 import '../core/palette.dart';
 import '../core/ads.dart';
 import '../core/progress.dart';
@@ -503,11 +504,13 @@ class _GameScreenState extends State<GameScreen>
           child: Image.asset('assets/mascot/head_startled.png',
               cacheHeight: 240, fit: BoxFit.contain));
     } else if (state == cellCapy) {
-      child = FractionallySizedBox(
+      child = SizedBox.expand(
         key: ValueKey('capy-$r-$c'),
-        widthFactor: 0.86,
-        heightFactor: 0.92,
-        child: _CapyToken(key: ValueKey('capytoken-$r-$c')),
+        child: _CapyToken(
+          key: ValueKey('capytoken-$r-$c'),
+          tint: Palette.regions[board.puzzle.regions[r][c]],
+          seed: r * 31 + c,
+        ),
       );
     } else if (state == cellMark) {
       child = const FractionallySizedBox(
@@ -522,11 +525,17 @@ class _GameScreenState extends State<GameScreen>
       child = const SizedBox.shrink(key: ValueKey('blank'));
     }
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 160),
       switchInCurve: Curves.easeOutBack,
       switchOutCurve: Curves.easeIn,
-      transitionBuilder: (child, anim) =>
-          ScaleTransition(scale: anim, child: child),
+      transitionBuilder: (child, anim) {
+        // 카피는 스스로 뾰잉하며 등장한다 — 여기서 또 키우면 두 번 튄다.
+        final k = child.key;
+        if (k is ValueKey<String> && k.value.startsWith('capy-')) {
+          return FadeTransition(opacity: anim, child: child);
+        }
+        return ScaleTransition(scale: anim, child: child);
+      },
       child: child,
     );
   }
@@ -945,10 +954,9 @@ class _GameScreenState extends State<GameScreen>
         ? '🥕 당근 +$carrotsEarned  ·  ✨ 황금귤 +1'
         : '🥕 당근 +$carrotsEarned';
     if (!mounted) return;
+    // 불투명한 화면으로 덮는다 — 뒤에 보드가 비치면 판이 안 끝난 것처럼 보인다.
     final goNext = await Navigator.of(context).push<bool>(PageRouteBuilder(
-      opaque: false,
-      barrierColor: Colors.black54,
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 320),
       pageBuilder: (context, a1, a2) => WinCelebration(
         level: widget.level,
         score: score,
@@ -1067,114 +1075,37 @@ class _XPainter extends CustomPainter {
   bool shouldRepaint(covariant _XPainter old) => false;
 }
 
-/// 배치된 카피 토큰 — 등장 팝(기쁨 표정) 후 무심 복귀, 이따금 깜빡인다.
-class _CapyToken extends StatefulWidget {
-  const _CapyToken({super.key});
+/// 칸에 놓인 카피 — 뾰잉 하고 꽂힌 뒤, 거기서 계속 산다.
+///
+/// 등장은 한 번뿐이지만 그 뒤로도 두리번거리고 깜빡이고 숨을 쉰다.
+/// 보드 위에 카피가 여럿 놓이면 각자 다른 박자로 움직인다([seed]).
+class _CapyToken extends StatelessWidget {
+  /// 칸의 색 — 터질 때 같은 색 링이 함께 퍼진다.
+  final Color tint;
+  final int seed;
 
-  @override
-  State<_CapyToken> createState() => _CapyTokenState();
-}
-
-class _CapyTokenState extends State<_CapyToken>
-    with TickerProviderStateMixin {
-  late final AnimationController _pop;
-  late final AnimationController _idle;
-  late final AnimationController _act; // 두리번·끄덕 등 단발 행동
-  final math.Random _rng = math.Random();
-  final double _phase = math.Random().nextDouble() * 2 * math.pi;
-  Timer? _timer;
-  bool _happy = true;
-  int _action = 0; // 0 없음, 1 왼쪽 두리번, 2 오른쪽 두리번, 3 끄덕
-
-  @override
-  void initState() {
-    super.initState();
-    _pop = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 450))
-      ..forward();
-    _idle = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 2400))
-      ..repeat();
-    _act = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
-    // 배치 직후엔 귤 얹은 기쁨 얼굴 → 이내 무심으로.
-    _timer = Timer(const Duration(milliseconds: 900), () {
-      if (!mounted) return;
-      setState(() => _happy = false);
-      _scheduleAction();
-    });
-  }
-
-  /// 3.5~7초마다 무작위 행동 — 살아있는 카피는 가만히 있지 않는다.
-  void _scheduleAction() {
-    _timer = Timer(
-        Duration(milliseconds: 3500 + _rng.nextInt(3500)), () async {
-      if (!mounted) return;
-      setState(() => _action = 1 + _rng.nextInt(3));
-      await _act.forward(from: 0);
-      if (!mounted) return;
-      setState(() => _action = 0);
-      _scheduleAction();
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pop.dispose();
-    _idle.dispose();
-    _act.dispose();
-    super.dispose();
-  }
+  const _CapyToken({super.key, required this.tint, required this.seed});
 
   @override
   Widget build(BuildContext context) {
-    final art = _happy
-        ? 'assets/mascot/head_happy.png'
-        : 'assets/mascot/head_base.png';
-    return ScaleTransition(
-      scale: CurvedAnimation(parent: _pop, curve: Curves.elasticOut),
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_idle, _act]),
-        builder: (context, child) {
-          final t = _idle.value * 2 * math.pi + _phase;
-          // 기본 숨쉬기 + 미세 갸웃
-          var angle = math.sin(t) * 0.04;
-          var dx = 0.0;
-          var dy = 0.0;
-          // 행동: 갔다가 돌아오는 사인 반주기
-          final a = math.sin(_act.value * math.pi);
-          switch (_action) {
-            case 1: // 왼쪽 두리번
-              angle -= 0.22 * a;
-              dx = -0.06 * a;
-            case 2: // 오른쪽 두리번
-              angle += 0.22 * a;
-              dx = 0.06 * a;
-            case 3: // 끄덕
-              dy = 0.07 * a;
-          }
-          return FractionalTranslation(
-            translation: Offset(dx, dy),
-            child: Transform.rotate(
-              angle: angle,
-              child: Transform.scale(
-                scaleY: 1 + math.sin(t * 1.3) * 0.03,
-                alignment: Alignment.bottomCenter,
-                child: child,
-              ),
-            ),
-          );
-        },
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          child: Image.asset(art,
-              key: ValueKey(art), cacheHeight: 240, fit: BoxFit.contain),
+    return LayoutBuilder(builder: (context, box) {
+      final h = box.maxHeight * 0.94;
+      return Stack(alignment: Alignment.bottomCenter, children: [
+        Padding(
+          padding: EdgeInsets.only(bottom: box.maxHeight * 0.03),
+          child: PoingIn(
+            duration: const Duration(milliseconds: 480),
+            child: CapyPerformer(
+                height: h, seed: seed, entrance: CapyAct.cheer),
+          ),
         ),
-      ),
-    );
+        // 반짝이는 카피 앞에서 터진다 — 뒤에 두면 몸에 가려 안 보인다.
+        Positioned.fill(child: PoingBurst(tint: tint)),
+      ]);
+    });
   }
 }
+
 
 class _FloatText {
   final int id;
@@ -1210,12 +1141,13 @@ class _ScoreFlyWidget extends StatelessWidget {
         final double scale;
         if (t < 0.35) {
           final k = Curves.easeOutBack.transform(t / 0.35);
-          pos = fly.start;
-          scale = 0.4 + 1.2 * k; // 빵!
+          // 칸 위쪽으로 떠오르며 커진다 — 카피 얼굴을 덮으면 정작 주인공이 안 보인다.
+          pos = fly.start - Offset(0, 26 * k);
+          scale = 0.4 + 0.75 * k;
         } else {
           final k = Curves.easeInCubic.transform((t - 0.35) / 0.65);
-          pos = Offset.lerp(fly.start, fly.end, k)!;
-          scale = 1.6 - 0.9 * k; // 날아가며 작아진다
+          pos = Offset.lerp(fly.start - const Offset(0, 26), fly.end, k)!;
+          scale = 1.15 - 0.5 * k; // 날아가며 작아진다
         }
         return Positioned(
           left: pos.dx - 60,

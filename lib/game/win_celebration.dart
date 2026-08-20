@@ -1,12 +1,21 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../art/capy_motion.dart';
+import '../art/capy_rig.dart';
+import '../art/effects.dart';
 import 'capy_says.dart';
 
-/// 완성 전면 연출 — 햇살 + 색종이 + 온천캐피(김) + 카피의 나른한 한마디 + 리그 순위.
+/// 판을 깬 직후의 보상 화면.
+///
+/// 불투명하다 — 뒤에 보드가 비쳐 보이면 "아직 게임 중"으로 읽혀서 끝냈다는
+/// 감각이 안 온다. 축하는 세 가지 중 하나가 나온다(레벨로 결정하므로 같은
+/// 판은 늘 같은 축하). 사람은 같은 연출을 세 번 보면 스킵하기 시작한다.
+enum _Celebration { dance, cheer, onsen }
+
 class WinCelebration extends StatefulWidget {
   final int level;
   final int score;
@@ -33,19 +42,36 @@ class WinCelebration extends StatefulWidget {
 
 class _WinCelebrationState extends State<WinCelebration>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
+  late final AnimationController _ctrl =
+      AnimationController(vsync: this, duration: const Duration(seconds: 6))
+        ..repeat();
+
+  final CapyController _capy = CapyController();
+  Timer? _loop;
+
+  late final _Celebration _kind =
+      _Celebration.values[widget.level % _Celebration.values.length];
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(seconds: 6))
-      ..repeat();
     HapticFeedback.mediumImpact();
+    if (_kind != _Celebration.onsen) {
+      final act =
+          _kind == _Celebration.dance ? CapyAct.dance : CapyAct.cheer;
+      final every = _kind == _Celebration.dance
+          ? const Duration(milliseconds: 3400)
+          : const Duration(milliseconds: 1800);
+      // 축하는 멈추면 안 된다 — 다음 레벨을 누를 때까지 계속 신나 있어야 한다.
+      _capy.play(act);
+      _loop = Timer.periodic(every, (_) => _capy.play(act));
+    }
   }
 
   @override
   void dispose() {
+    _loop?.cancel();
+    _capy.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -54,9 +80,30 @@ class _WinCelebrationState extends State<WinCelebration>
   Widget build(BuildContext context) {
     final mm = widget.elapsed.inMinutes;
     final ss = (widget.elapsed.inSeconds % 60).toString().padLeft(2, '0');
+    final h = MediaQuery.sizeOf(context).height;
+
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      // 뒤가 비치지 않는다. 이 화면은 "끝났다"를 말해야 한다.
+      backgroundColor: const Color(0xFF3E2A1E),
       body: Stack(children: [
+        // ── 따뜻한 저녁 하늘 ──
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFFFCE73),
+                  Color(0xFFF7A24A),
+                  Color(0xFFD9713C),
+                  Color(0xFF7E4326),
+                ],
+                stops: [0, 0.38, 0.68, 1],
+              ),
+            ),
+          ),
+        ),
         Positioned.fill(
           child: AnimatedBuilder(
             animation: _ctrl,
@@ -64,104 +111,159 @@ class _WinCelebrationState extends State<WinCelebration>
                 painter: CelebrationPainter(_ctrl.value, widget.level)),
           ),
         ),
+        const Positioned.fill(
+            child: DriftingMotes(count: 20, color: Color(0xFFFFF0C4))),
+
         SafeArea(
           child: Center(
-            child:
-                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Text(CapySays.titleFor(widget.level),
-                  style: const TextStyle(
-                      fontSize: 38,
-                      color: Color(0xFFF6CE7E),
-                      shadows: [Shadow(color: Colors.black45, blurRadius: 8)])),
-              const SizedBox(height: 10),
-              TweenAnimationBuilder<double>(
-                tween: Tween(begin: 0, end: 1),
-                duration: const Duration(milliseconds: 700),
-                curve: Curves.elasticOut,
-                builder: (context, t, child) =>
-                    Transform.scale(scale: t, child: child),
-                child: SteamOverlay(
-                  child: CapyIdle(
-                    sway: 0.012,
-                    breathe: 0.015,
-                    bob: 5,
-                    period: const Duration(milliseconds: 3200),
-                    child: Image.asset('assets/mascot/capy_onsen3d.png',
-                        width: 280),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                CapySays.commentFor(widget.level, widget.score),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
-                    color: Colors.white.withValues(alpha: 0.95),
-                    fontFamily: 'Apple SD Gothic Neo',
-                    fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 10),
-              Text('점수 ${widget.score} · $mm:$ss',
-                  style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontFamily: 'Apple SD Gothic Neo')),
-              if (widget.rewardLine != null) ...[
-                const SizedBox(height: 8),
-                Text(widget.rewardLine!,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        color: Colors.white,
-                        fontFamily: 'Apple SD Gothic Neo',
-                        fontWeight: FontWeight.w700)),
-              ],
-              if (widget.leagueLine != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(widget.leagueLine!,
+            child: SingleChildScrollView(
+              // 폭을 못 박아 둔다 — 느슨한 제약이면 칩 줄이 안 접히고 잘려 나간다.
+              child: SizedBox(
+                width: MediaQuery.sizeOf(context).width - 40,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(CapySays.titleFor(widget.level),
+                        style: const TextStyle(
+                            fontSize: 38,
+                            color: Colors.white,
+                            shadows: [
+                              Shadow(color: Color(0x66000000), blurRadius: 10)
+                            ])),
+                    const SizedBox(height: 8),
+                    _hero(h),
+                    const SizedBox(height: 14),
+                    Text(
+                      CapySays.commentFor(widget.level, widget.score),
+                      textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontSize: 14.5,
-                          color: Color(0xFFFFE2A8),
+                          fontSize: 16,
+                          height: 1.5,
+                          color: Colors.white,
                           fontFamily: 'Apple SD Gothic Neo',
-                          fontWeight: FontWeight.w700)),
+                          fontWeight: FontWeight.w700,
+                          shadows: [
+                            Shadow(color: Color(0x55000000), blurRadius: 6)
+                          ]),
+                    ),
+                    const SizedBox(height: 12),
+                    _stats(mm, ss),
+                    if (widget.leagueLine != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(widget.leagueLine!,
+                            style: const TextStyle(
+                                fontSize: 14.5,
+                                color: Color(0xFFFFE8B0),
+                                fontFamily: 'Apple SD Gothic Neo',
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                    const SizedBox(height: 26),
+                    _nextButton(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('홈으로',
+                          style: TextStyle(color: Colors.white70)),
+                    ),
+                  ],
                 ),
-              ],
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFF49E36),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 64, vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999)),
-                ),
-                child: Text('레벨 ${widget.level + 1}',
-                    style: const TextStyle(fontSize: 20)),
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text('홈으로',
-                    style:
-                        TextStyle(color: Colors.white.withValues(alpha: 0.8))),
-              ),
-            ]),
+            ),
           ),
         ),
       ]),
     );
   }
+
+  /// 축하하는 카피. 종류에 따라 완전히 다른 그림이 된다.
+  Widget _hero(double screenH) {
+    final size = (screenH * 0.26).clamp(150.0, 250.0);
+    final Widget capy;
+    switch (_kind) {
+      case _Celebration.dance:
+      case _Celebration.cheer:
+        capy = CapyPerformer(height: size, controller: _capy);
+      case _Celebration.onsen:
+        capy = SteamOverlay(
+          child: CapyIdle(
+            sway: 0.012,
+            breathe: 0.015,
+            bob: 5,
+            period: const Duration(milliseconds: 3200),
+            child: Image.asset('assets/mascot/capy_onsen3d.png',
+                width: size * 1.25),
+          ),
+        );
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 620),
+      curve: const PoingCurve(),
+      builder: (context, t, child) => Transform.scale(
+          scale: t, alignment: Alignment.bottomCenter, child: child),
+      child: SizedBox(height: size * 1.08, child: Center(child: capy)),
+    );
+  }
+
+  Widget _stats(int mm, String ss) {
+    Widget chip(IconData? icon, String text) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: Colors.white),
+              const SizedBox(width: 6),
+            ],
+            Text(text,
+                style: const TextStyle(
+                    fontSize: 15,
+                    color: Colors.white,
+                    fontFamily: 'Apple SD Gothic Neo',
+                    fontWeight: FontWeight.w700)),
+          ]),
+        );
+
+    return Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
+      chip(Icons.star_rounded, '${widget.score}'),
+      chip(Icons.timer_outlined, '$mm:$ss'),
+      if (widget.rewardLine != null) chip(null, widget.rewardLine!),
+    ]);
+  }
+
+  Widget _nextButton() {
+    return SizedBox(
+      width: 260,
+      height: 60,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        elevation: 6,
+        shadowColor: Colors.black.withValues(alpha: 0.4),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: () => Navigator.pop(context, true),
+          child: Center(
+            child: Text('레벨 ${widget.level + 1}',
+                style: const TextStyle(
+                    fontSize: 22, color: Color(0xFFD9611A))),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-/// 회전하는 햇살 + 떨어지는 색종이.
+/// 회전하는 햇살 + 반짝이 + 떨어지는 색종이.
 class CelebrationPainter extends CustomPainter {
   final double t;
   final int seed;
@@ -170,39 +272,39 @@ class CelebrationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height * 0.36);
-    final ray = Paint()..color = const Color(0xFFF6CE7E).withValues(alpha: 0.18);
+    final ray = Paint()..color = Colors.white.withValues(alpha: 0.13);
     const rays = 12;
     for (var i = 0; i < rays; i++) {
       final a = i * 2 * math.pi / rays + t * 2 * math.pi / 6;
-      final path = Path()
-        ..moveTo(center.dx, center.dy)
-        ..lineTo(center.dx + math.cos(a - 0.09) * size.height,
-            center.dy + math.sin(a - 0.09) * size.height)
-        ..lineTo(center.dx + math.cos(a + 0.09) * size.height,
-            center.dy + math.sin(a + 0.09) * size.height)
-        ..close();
-      canvas.drawPath(path, ray);
+      canvas.drawPath(
+        Path()
+          ..moveTo(center.dx, center.dy)
+          ..lineTo(center.dx + math.cos(a - 0.09) * size.height,
+              center.dy + math.sin(a - 0.09) * size.height)
+          ..lineTo(center.dx + math.cos(a + 0.09) * size.height,
+              center.dy + math.sin(a + 0.09) * size.height)
+          ..close(),
+        ray,
+      );
     }
     // 반짝이 별 — 스포트라이트 주변에서 커졌다 작아진다.
-    final starPaint = Paint()..color = const Color(0xFFFFE9B0);
     final rngStar = math.Random(seed + 5);
     for (var i = 0; i < 14; i++) {
       final ang = rngStar.nextDouble() * 2 * math.pi;
       final dist = 90 + rngStar.nextDouble() * 130;
       final phase = rngStar.nextDouble();
       final tw = (math.sin((t * 4 + phase) * 2 * math.pi) + 1) / 2;
-      final r = 1.5 + tw * 3.5;
       final pos = center + Offset(math.cos(ang), math.sin(ang)) * dist;
-      canvas.drawCircle(pos, r, starPaint..color =
-          const Color(0xFFFFE9B0).withValues(alpha: 0.35 + tw * 0.5));
+      canvas.drawCircle(pos, 1.5 + tw * 3.5,
+          Paint()..color = const Color(0xFFFFF3C8).withValues(alpha: 0.35 + tw * 0.5));
     }
     final rng = math.Random(seed);
     const colors = [
-      Color(0xFFF49E36),
-      Color(0xFFA8CDEB),
-      Color(0xFFF2A7B8),
-      Color(0xFFB7D8A8),
-      Color(0xFFC9BCE9),
+      Color(0xFFFFFFFF),
+      Color(0xFFFFE08A),
+      Color(0xFFFFB0C4),
+      Color(0xFFB7E3A8),
+      Color(0xFFBFD4F2),
     ];
     for (var i = 0; i < 42; i++) {
       final x0 = rng.nextDouble() * size.width;
@@ -212,10 +314,9 @@ class CelebrationPainter extends CustomPainter {
       final w = 5 + rng.nextDouble() * 5;
       final y = ((t * speed * 3 + phase) % 1.2) * size.height;
       final sway = math.sin((t * 6 + phase) * 2 * math.pi) * 14;
-      final angle = (t * 4 + phase) * 2 * math.pi;
       canvas.save();
       canvas.translate(x0 + sway, y);
-      canvas.rotate(angle);
+      canvas.rotate((t * 4 + phase) * 2 * math.pi);
       canvas.drawRRect(
         RRect.fromRectAndRadius(
             Rect.fromCenter(center: Offset.zero, width: w, height: w * 0.6),
