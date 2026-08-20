@@ -60,17 +60,30 @@ class Pet {
     );
     final nowMin = DateTime.now().millisecondsSinceEpoch ~/ 60000;
     final last = p.getInt('pet.tick') ?? nowMin;
-    final hours = ((nowMin - last) / 60).floor();
-    if (hours > 0) {
-      // 시간 단위 순차 정산 — "배부른 채로 보낸 시간"이 체중에 정확히 반영된다.
-      for (var h = 0; h < hours && h < 26 * 7; h++) {
+
+    // **안 온 시간에 비례해 배가 고파지고 기분이 가라앉는다.**
+    //
+    // 15분을 한 칸으로 센다. 예전엔 한 시간이 한 칸이라 잠깐 나갔다 오면
+    // 게이지가 꿈쩍도 안 했고, 그러면 "줄어들긴 하나?" 싶어진다 —
+    // 채우는 맛은 줄어드는 게 보일 때만 생긴다.
+    const stepMin = 15;
+    final steps = (nowMin - last) ~/ stepMin;
+    if (steps > 0) {
+      // 일주일치까지만 정산한다. 한 달 만에 켰다고 체중이 바닥까지 갈
+      // 이유는 없고, 무엇보다 루프가 길어진다.
+      final n = steps.clamp(0, 4 * 24 * 7);
+      // 체중은 시간 단위로 — "배부른 채로 보낸 시간"이 정확히 반영된다.
+      for (var h = 0; h < n ~/ 4; h++) {
         if (pet.satiety >= 70) pet.weightDeltaPm += 7;
         if (pet.satiety <= 25) pet.weightDeltaPm -= 7;
-        pet.satiety -= 4;
-        pet.mood -= 2;
-        pet._clamp();
       }
-      p.setInt('pet.tick', last + hours * 60);
+      // 15분에 포만감 1(=시간당 4), 30분에 기분 1(=시간당 2).
+      pet.satiety -= n;
+      pet.mood -= n ~/ 2;
+      pet._clamp();
+      // **쓴 만큼만 시계를 옮긴다.** 지금 시각으로 맞춰 버리면 15분이 안 된
+      // 나머지가 매번 버려져서, 자주 들락거리면 영영 안 줄어든다.
+      p.setInt('pet.tick', last + steps * stepMin);
     } else if (p.getInt('pet.tick') == null) {
       p.setInt('pet.tick', nowMin);
     }

@@ -149,14 +149,15 @@ def main():
     bg = background(SIZE)
     bg.save(f'{OUT}/icon_bg.png')
 
-    # 얼굴은 크게, **왼쪽 아래 구석에서** 올라온다. 오른쪽 위로 판이 남아
-    # "퍼즐 게임"으로도 읽힌다. 턱과 왼뺨은 모서리 밖으로 넘겨 잘라 낸다.
-    rising(bg, SIZE, 1.32, 0.42, 0.26).convert('RGB').save(f'{OUT}/icon.png')
+    # **얼굴은 가운데, 사방으로 판이 보이게.** 한때 구석에서 크게 올라오게
+    # 했더니 얼굴이 판을 다 덮어 **타일이 하나만 보였다** — 그러면 그냥
+    # 동물 사진이지 퍼즐 게임 아이콘이 아니다. 레퍼런스도 얼굴을 가운데
+    # 두고 뒤로 색영역이 여러 개 보이게 잡는다.
+    rising(bg, SIZE, 0.78, 0.50, 0.22).convert('RGB').save(f'{OUT}/icon.png')
 
-    # 적응형 전경: 바깥 1/4이 잘려 나가므로 얼굴을 조금 줄이고 가운데로
-    # 당긴다. 그래도 같은 방향에서 올라오는 실루엣은 유지한다.
+    # 적응형 전경: 바깥 1/4이 잘려 나가므로 조금 더 줄여 가운데 66% 안에.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 1.00, 0.45, 0.27).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.62, 0.50, 0.26).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')

@@ -295,8 +295,16 @@ class HeldFood {
   /// 날아오는 당근도 **이 각도로 착지해야** 입에 닿는 순간 각이 안 튄다.
   static const carrotTilt = -0.48;
 
-  const HeldFood(
-      {required this.watermelon, required this.eaten, this.wobble = 0});
+  /// **입이 아니라 가슴에 안는다.** 먹는 그림이 아니라 "선물을 들고 있다"로
+  /// 읽혀야 할 때(출석 화면) 쓴다. 앞발도 함께 앞으로 모인다.
+  final bool hug;
+
+  const HeldFood({
+    required this.watermelon,
+    required this.eaten,
+    this.wobble = 0,
+    this.hug = false,
+  });
 }
 
 /// 자세 하나를 그린다. 시간에 따른 변화는 [CapyPerformer]가 준다.
@@ -384,9 +392,13 @@ class _RigPainter extends CustomPainter {
     // 앞발은 보통 몸통 바로 위 층이다. **먹이를 물고 있을 때만 맨 앞으로
     // 올린다** — 그래야 앞발이 먹이를 앞에서 받쳐 "쥐고 먹는" 그림이 된다.
     // 뒤에 두면 앞발이 먹이에 가려서 그냥 입에 달라붙은 먹이로 보인다.
+    // 안고 있으면 앞발을 가슴 앞으로 모은다. 자세(`CapyPose`)가 아니라
+    // 여기서 더하는 이유는, 안는 건 **무엇을 들었느냐**의 문제라 동작
+    // 하나하나에 넣어 둘 값이 아니어서다.
+    final hugL = food?.hug == true ? -0.46 : 0.0;
     void arms() {
-      arm(skin.armL, 0, p.armL, p.armLY);
-      arm(skin.armR, 1, p.armR, p.armRY);
+      arm(skin.armL, 0, p.armL + hugL, p.armLY - (hugL != 0 ? 0.035 : 0));
+      arm(skin.armR, 1, p.armR - hugL, p.armRY - (hugL != 0 ? 0.035 : 0));
     }
 
     if (food == null) arms();
@@ -445,10 +457,20 @@ class _RigPainter extends CustomPainter {
     // **앞발은 먹이에 끝내 닿지 못한다**(어깨를 축으로 도는 조각이라
     // 한계가 있다). 그래서 먹이를 키워 그 틈을 메운다 — 먹이가 크면
     // 손이 먹이의 아래쪽을 받치는 것처럼 읽힌다. 0.34/0.38에서 키웠다.
-    final fh = tall * (f.watermelon ? kFeastSize : kFoodSize);
-    // 입보다 조금 아래에 둔다. 윗부분만 주둥이에 가려 "베어 문" 그림이 된다.
-    final cx = skin.mouthX * size.width + f.wobble * fh * 0.05;
-    final cy = skin.mouthY * size.height + fh * 0.06;
+    // 안고 있을 때는 크게. 선물은 한눈에 무엇인지 보여야 하고, 가슴팍은
+    // 입보다 넓어서 커도 얼굴을 안 가린다.
+    final fh = tall *
+        (f.hug
+            ? (f.watermelon ? 0.34 : 0.32)
+            : (f.watermelon ? kFeastSize : kFoodSize));
+    // 안으면 가슴 한가운데(목 밑동에서 조금 아래), 먹으면 입.
+    // 입보다 조금 아래에 두면 윗부분만 주둥이에 가려 "베어 문" 그림이 된다.
+    final cx = (f.hug ? 0.5 : skin.mouthX) * size.width + f.wobble * fh * 0.05;
+    // 안을 때는 **가슴 한가운데에 세로 중심을 맞춘다.** 위쪽 끝만 맞추면
+    // 큰 먹이가 발밑까지 늘어져 땅에 심어 놓은 것처럼 보인다.
+    final cy = f.hug
+        ? (skin.pivotY + 0.19) * size.height - fh * 0.5
+        : skin.mouthY * size.height + fh * 0.06;
 
     canvas.save();
     canvas.translate(cx, cy);
@@ -470,9 +492,12 @@ class _RigPainter extends CustomPainter {
       // 세로를 뒤집어 그린다: 로컬 y=h(뿌리 끝)가 화면의 입 높이에 온다.
       // 문 자리를 축으로 기울여야 당근만 비스듬해지고 입은 제자리에 있다.
       final cw = fh * 0.62;
-      canvas.rotate(HeldFood.carrotTilt);
+      // 베어 무는 각도는 **먹을 때**의 것이다. 안고 있을 땐 곧게 세운다.
+      canvas.rotate(f.hug ? 0 : HeldFood.carrotTilt);
       canvas.translate(-cw / 2, fh - CarrotPainter.gone(fh, f.eaten));
-      canvas.scale(1, -1);
+      // 안고 있을 땐 뒤집지 않는다 — 잎이 위로 와야 당근으로 읽힌다.
+      canvas.scale(1, f.hug ? 1 : -1);
+      if (f.hug) canvas.translate(0, -fh);
       CarrotPainter(eaten: f.eaten).paint(canvas, Size(cw, fh));
     }
     canvas.restore();

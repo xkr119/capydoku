@@ -176,7 +176,8 @@ class _CheckinSceneState extends State<CheckinScene>
                       happy: true,
                       foodOf: () => _awake
                           ? null
-                          : HeldFood(watermelon: _isLast, eaten: 0),
+                          : HeldFood(
+                              watermelon: _isLast, eaten: 0, hug: true),
                     ),
                   ],
                 ),
@@ -336,15 +337,15 @@ class _StampRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = DateTime.now();
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.80),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         for (var i = 1; i <= Progress.checkinDays; i++) ...[
-          if (i > 1) const SizedBox(width: 4),
+          if (i > 1) const SizedBox(width: 3),
           _Stamp(
             day: i,
             label: _weekdays[
@@ -383,14 +384,14 @@ class _Stamp extends StatelessWidget {
     final carrots = Progress.checkinCarrots[day - 1];
     final cell = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       SizedBox(
-        height: 28,
+        height: 32,
         child: last
-            ? const Watermelon(size: 28)
-            : const Center(child: Carrot(size: 24)),
+            ? const Watermelon(size: 32)
+            : const Center(child: Carrot(size: 28)),
       ),
       Text(last ? '수박' : '$carrots',
           style: TextStyle(
-              fontSize: 11.5,
+              fontSize: 12.5,
               height: 1.1,
               color: current ? Palette.brown : Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo')),
@@ -428,8 +429,8 @@ class _Stamp extends StatelessWidget {
               fontWeight: current ? FontWeight.w800 : FontWeight.w600)),
       const SizedBox(height: 3),
       Container(
-        width: 44,
-        height: 58,
+        width: 48,
+        height: 64,
         decoration: BoxDecoration(
           color: current ? const Color(0xFFFFF3E0) : Palette.bg,
           borderRadius: BorderRadius.circular(9),
