@@ -16,7 +16,11 @@ class SettingsSheet extends StatefulWidget {
   /// 이름은 한 번 짓고 거의 안 바꾸는 것이라 설정 안이 제자리다.
   final Future<void> Function()? onRename;
 
-  const SettingsSheet({super.key, this.onRename});
+  /// 규칙 설명 다시 보기. **어디서 열든 있어야 한다** — 판을 풀다가 헷갈리는
+  /// 일이 더 많고, 그때 홈까지 나가라고 하면 아무도 안 본다.
+  final Future<void> Function()? onHelp;
+
+  const SettingsSheet({super.key, this.onRename, this.onHelp});
 
   @override
   State<SettingsSheet> createState() => _SettingsSheetState();
@@ -32,6 +36,24 @@ class _SettingsSheetState extends State<SettingsSheet> {
       title: const Text('설정',
           style: TextStyle(fontSize: 20, color: Palette.brown)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (widget.onHelp != null)
+          ListTile(
+            onTap: () async {
+              Navigator.pop(context);
+              await widget.onHelp!();
+            },
+            leading:
+                const Icon(Icons.help_outline_rounded, color: Color(0xFFF2802B)),
+            title: const Text('설명',
+                style: TextStyle(fontSize: 16, color: Palette.brown)),
+            subtitle: const Text('규칙과 조작법 다시 보기',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Palette.brownSoft,
+                    fontFamily: 'Apple SD Gothic Neo')),
+            trailing: const Icon(Icons.chevron_right_rounded,
+                color: Palette.brownSoft),
+          ),
         if (widget.onRename != null)
           ListTile(
             onTap: () async {

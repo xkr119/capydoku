@@ -193,9 +193,21 @@ class Progress {
   Future<void> addDailyScore(int dateKey, int s) async =>
       _prefs.setInt('day.$dateKey', dailyScore(dateKey) + s);
 
-  /// 첫 판 조작 안내를 봤는가.
-  bool get coachDone => _prefs.getBool('coach.done') ?? false;
-  Future<void> markCoachDone() async => _prefs.setBool('coach.done', true);
+  // ── 안내 ──────────────────────────────────────────────────────────
+
+  /// 규칙 설명을 봤는가. 안 봤으면 **판을 열기 전에** 보여준다.
+  bool get rulesSeen => _prefs.getBool('tut.rules') ?? false;
+  Future<void> markRulesSeen() async => _prefs.setBool('tut.rules', true);
+
+  /// 초원 화면 안내를 봤는가. 첫 판을 깨고 돌아온 뒤에 한 번 보여준다.
+  bool get homeTourSeen => _prefs.getBool('tut.home') ?? false;
+  Future<void> markHomeTourSeen() async => _prefs.setBool('tut.home', true);
+
+  /// **디버그 전용.** 안내를 처음부터 다시 보려고 표식을 지운다.
+  Future<void> debugResetTutorial() async {
+    await _prefs.remove('tut.rules');
+    await _prefs.remove('tut.home');
+  }
 
   /// 누적 점수 — 홈 상단에 보여줄 자산 감각.
   int get totalScore => _prefs.getInt('score.total') ?? 0;

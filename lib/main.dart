@@ -21,7 +21,9 @@ import 'pet/family_event.dart';
 import 'pet/family_event_scene.dart';
 import 'pet/pet.dart';
 import 'ui/checkin_sheet.dart';
+import 'ui/home_tour.dart';
 import 'ui/settings_sheet.dart';
+import 'ui/tutorial.dart';
 import 'ui/splash.dart';
 
 /// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프·먹이 채우기를 띄운다.
@@ -166,8 +168,7 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     pet = Pet.load(progress.prefs);
     // 판을 깨고 앱을 껐다 켠 경우에도 놓친 사건을 보여준다.
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _showPendingEvents());
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
   @override
@@ -193,7 +194,103 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void didPopNext() {
     setState(() => pet = Pet.load(progress.prefs));
-    _showPendingEvents();
+    _bootstrap();
+  }
+
+  /// 초원에 들어설 때마다 **순서대로** 처리해야 하는 것들.
+  ///
+  /// 순서가 곧 설계다. 처음 켠 사람은 규칙부터 보고 바로 판으로 들어가고,
+  /// 한 판을 깨고 돌아온 사람은 그제야 초원이 무엇을 하는 곳인지 듣는다.
+  /// 성장·결혼 같은 사건과 출석은 그다음이다 — 배우기 전에 사건을 먼저
+  /// 던지면 무슨 일이 일어난 건지 알 수가 없다.
+  Future<void> _bootstrap() async {
+    if (_bootRunning || !mounted) return;
+    _bootRunning = true;
+    try {
+      if (!progress.rulesSeen) {
+        await _showRules(doneLabel: '레벨 1 시작');
+        await progress.markRulesSeen();
+        if (!mounted) return;
+        _bootRunning = false;      // 판에서 돌아오면 이 흐름을 다시 탄다
+        await _play(progress.currentLevel);
+        return;
+      }
+      await _showPendingEvents();
+      await _showHomeTour();
+    } finally {
+      _bootRunning = false;
+    }
+  }
+
+  bool _bootRunning = false;
+
+  /// 위에 있던 화면이 **완전히 물러날 때까지** 기다린다.
+  ///
+  /// `MaterialPageRoute`는 뒤로 갈 때 옆으로 미끄러지는데, 그 동안 초원
+  /// 화면 자체도 딸려 움직인다. 이때 위젯 좌표를 재면 그 순간 밀려 있는
+  /// 만큼 어긋난 값이 나온다 — 안내 구멍이 당근 바구니가 아니라 그 왼쪽
+  /// 허공에 뚫렸던 게 이것 때문이었다. 한 프레임만 기다려서는 모자란다.
+  Future<void> _settled() async {
+    final anim = ModalRoute.of(context)?.secondaryAnimation;
+    while (mounted &&
+        anim != null &&
+        anim.status != AnimationStatus.dismissed) {
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    if (mounted) await WidgetsBinding.instance.endOfFrame;
+  }
+
+  /// 규칙 설명. 설정의 "설명" 버튼도 이걸 연다.
+  Future<void> _showRules({required String doneLabel}) async {
+    await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => RulesTutorial(doneLabel: doneLabel),
+    ));
+  }
+
+  /// 첫 판을 깬 직후 한 번. **레벨 2가 열려 있어야** 보여준다 — 아직 한 판도
+  /// 안 깬 사람에게 "당근을 벌었죠?"라고 하면 말이 안 된다.
+  Future<void> _showHomeTour() async {
+    if (!mounted || progress.homeTourSeen || progress.currentLevel < 2) return;
+    await _settled();
+    if (!mounted) return;
+    final stops = <TourStop>[
+      TourStop(
+        hole: _rectOf(_kMeters),
+        title: '배고픔과 기분',
+        body: '시간이 지나면 배가 고파지고 기분도 가라앉아요.\n'
+            '들여다봐 주는 게 이 카피에게는 일과입니다.',
+      ),
+      TourStop(
+        hole: _rectOf(_kBasket),
+        title: '먹이 주기',
+        body: '판을 깨면 당근이 쌓입니다. 눌러서 던져 주세요.\n'
+            '일곱 판마다 나오는 수박은 온 가족이 나눠 먹어요.',
+      ),
+      TourStop(
+        hole: _rectOf(_kGrowth),
+        title: '자라납니다',
+        body: '판을 깰수록 몸집이 커지고, 생김새도 말투도 달라져요.\n'
+            '아기에서 어른까지 다섯 단계, 그다음엔 가족이 생깁니다.',
+      ),
+      TourStop(
+        hole: _rectOf(_kDaily),
+        title: '오늘의 퍼즐',
+        body: '하루 한 판, 조금 어려운 문제가 열립니다.\n'
+            '며칠 연속으로 깼는지 세어 드려요.',
+      ),
+    ];
+    await Navigator.of(context).push<bool>(PageRouteBuilder(
+      opaque: false,
+      barrierDismissible: false,
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (_, _, _) => HomeTour(
+          stops: stops, doneLabel: '레벨 ${progress.currentLevel} 시작'),
+      transitionsBuilder: (_, anim, _, child) =>
+          FadeTransition(opacity: anim, child: child),
+    ));
+    await progress.markHomeTourSeen();
+    if (!mounted) return;
+    await _play(progress.currentLevel);
   }
 
   /// 가족이 바뀌는 순간을 재생 중인가. 연출이 끝나면 홈으로 돌아오는데
@@ -366,6 +463,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// 주인공이 매 프레임 잡은 자세. 말풍선이 이걸 보고 따라다닌다.
   final ValueNotifier<CapyPose> _selfPose = ValueNotifier(const CapyPose());
+
+  // 초원 안내가 비출 자리. 좌표를 손으로 계산해 두면 화면 크기가 바뀔 때마다
+  // 어긋나므로, 실제로 그려진 위젯에서 읽는다.
+  final _kMeters = GlobalKey();
+  final _kBasket = GlobalKey();
+  final _kGrowth = GlobalKey();
+  final _kDaily = GlobalKey();
+
+  /// 그려진 위젯이 화면 어디를 차지하는지. 아직 못 그렸으면 null.
+  Rect? _rectOf(GlobalKey k) {
+    final box = k.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
 
   void _touchMember(int i, FamilyMember m) {
     Buzz.select();
@@ -750,6 +861,7 @@ class _HomeScreenState extends State<HomeScreen>
             left: basketCenter.dx - foodSize / 2,
             top: basketCenter.dy - foodSize / 2,
             child: _FoodSpot(
+              key: _kBasket,
               count: pet.carrots,
               onTap: () => _throwFood(false, basketCenter, receivers(false)),
               child: SizedBox(
@@ -831,7 +943,10 @@ class _HomeScreenState extends State<HomeScreen>
                 onTap: () async {
                   await showDialog<void>(
                       context: context,
-                      builder: (_) => SettingsSheet(onRename: _rename));
+                      builder: (_) => SettingsSheet(
+                            onRename: _rename,
+                            onHelp: () => _showRules(doneLabel: '닫기'),
+                          ));
                   if (mounted) setState(() {});
                 },
               ),
@@ -843,7 +958,7 @@ class _HomeScreenState extends State<HomeScreen>
             top: safeTop + 54,
             left: 14,
             right: 14,
-            child: Row(children: [
+            child: Row(key: _kMeters, children: [
               Expanded(
                 child: _Meter(
                     icon: Icons.restaurant_rounded,
@@ -860,12 +975,24 @@ class _HomeScreenState extends State<HomeScreen>
             ]),
           ),
 
-          // ── 디버그: 레벨 점프 (배포 전 삭제) ──
+          // ── 디버그 (릴리스에서는 통째로 빠진다) ──
           if (kDebugStages)
             Positioned(
               top: safeTop + 100,
               right: 14,
               child: Row(children: [
+                _RoundIcon(
+                  icon: Icons.school_rounded,
+                  onTap: () async {
+                    // 디버그: 안내를 처음부터 다시 본다. 첫 실행 흐름은
+                    // 앱을 지웠다 깔지 않으면 두 번 다시 못 보는데,
+                    // 그러면 아무도 손보지 않게 된다.
+                    await progress.debugResetTutorial();
+                    if (!context.mounted) return;
+                    await _bootstrap();
+                  },
+                ),
+                const SizedBox(width: 6),
                 _RoundIcon(
                   icon: Icons.restaurant_rounded,
                   onTap: () {
@@ -930,7 +1057,7 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                   ),
-                  _GrowthGauge(level: current),
+                  _GrowthGauge(key: _kGrowth, level: current),
                   const SizedBox(height: 9),
                   _PlayButton(
                     label: progress.hasBoard('$current')
@@ -940,6 +1067,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                   const SizedBox(height: 9),
                   _DailyButton(
+                    key: _kDaily,
                     done: dailyDone,
                     streak: progress.dailyStreak,
                     onTap: dailyDone ? null : _playDaily,
@@ -996,6 +1124,7 @@ class _FoodSpot extends StatelessWidget {
   final VoidCallback onTap;
 
   const _FoodSpot({
+    super.key,
     required this.count,
     required this.child,
     required this.onTap,
@@ -1245,7 +1374,7 @@ class _Meter extends StatelessWidget {
 /// 다음 성장까지 — 남은 판 수를 크게 세어 준다.
 class _GrowthGauge extends StatelessWidget {
   final int level;
-  const _GrowthGauge({required this.level});
+  const _GrowthGauge({super.key, required this.level});
 
   @override
   Widget build(BuildContext context) {
@@ -1320,7 +1449,7 @@ class _DailyButton extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _DailyButton(
-      {required this.done, required this.streak, this.onTap});
+      {super.key, required this.done, required this.streak, this.onTap});
 
   @override
   Widget build(BuildContext context) {

@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../art/x_mark.dart';
+import '../ui/tutorial.dart';
 import '../art/capy_art.dart';
 import '../art/capy_motion.dart';
 import '../art/capy_rig.dart';
@@ -124,14 +126,11 @@ class _GameScreenState extends State<GameScreen>
 
   BannerAd? _banner;
 
-  bool _showCoach = false;
-
   @override
   void initState() {
     super.initState();
     _newBoard(restore: true);
     _watch.start();
-    _showCoach = !widget.progress.coachDone;
     _loadBanner();
     // **배너를 내비게이션 바가 덮는다.** 배너는 화면 맨 아래에 붙는데
     // 3버튼 내비게이션을 쓰는 기기에서는 그 위를 시스템 바가 가린다
@@ -285,7 +284,6 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ),
             ),
-          if (_showCoach) _coachOverlay(),
           if (_xPreview != null) ..._xPreviewOverlay(),
           // 점수 비행 레이어 — 어떤 UI보다 위에 뜬다.
           Positioned.fill(
@@ -470,8 +468,22 @@ class _GameScreenState extends State<GameScreen>
   /// 규칙 셋. **한 장의 흰 카드에 몰아넣지 않는다** — 셋이 각각 다른 규칙인데
   /// 한 덩어리로 보이면 눈이 어디서 끊어야 할지 모른다. 레퍼런스도 칸을
   /// 나눠 두었다. 규칙을 어기면 그 칸만 빨갛게 선다.
+  /// 규칙 설명을 다시 연다. 헷갈리는 순간은 홈이 아니라 **판 위에서** 온다.
+  Future<void> _openRules() async {
+    Buzz.select();
+    await Navigator.of(context).push<bool>(MaterialPageRoute(
+      builder: (_) => const RulesTutorial(doneLabel: '계속 풀기'),
+    ));
+  }
+
   Widget _ruleChips() {
-    return Row(children: [
+    // 칩 줄을 통째로 누르면 설명이 열린다. 여기에 물음표 버튼을 따로 달면
+    // 그러잖아도 빽빽한 머리말에 부품이 하나 더 붙는데, **규칙이 헷갈릴 때
+    // 눈이 가는 곳이 바로 이 줄**이라 여기가 제자리다.
+    return GestureDetector(
+      onTap: _openRules,
+      behavior: HitTestBehavior.opaque,
+      child: Row(children: [
       for (var i = 0; i < 3; i++)
         Expanded(
           child: AnimatedContainer(
@@ -514,7 +526,8 @@ class _GameScreenState extends State<GameScreen>
             ]),
           ),
         ),
-    ]);
+      ]),
+    );
   }
 
   // ── 보드 ────────────────────────────────────────────────────────────
@@ -643,7 +656,7 @@ class _GameScreenState extends State<GameScreen>
                     opacity: 0.55,
                     child: AspectRatio(
                       aspectRatio: 1,
-                      child: CustomPaint(painter: _XPainter()),
+                      child: CustomPaint(painter: XPainter()),
                     ),
                   ),
                 )
@@ -678,7 +691,7 @@ class _GameScreenState extends State<GameScreen>
         widthFactor: 0.66,
         child: AspectRatio(
           aspectRatio: 1,
-          child: CustomPaint(painter: _XPainter()),
+          child: CustomPaint(painter: XPainter()),
         ),
       );
     } else {
@@ -1081,46 +1094,6 @@ class _GameScreenState extends State<GameScreen>
 
   // ── 첫 판 안내 ──────────────────────────────────────────────────────
 
-  Widget _coachOverlay() {
-    return Positioned(
-      left: 20,
-      right: 20,
-      bottom: 24,
-      child: Material(
-        color: Palette.brown,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('👆 드래그하면 X 표시,  ✌️ 두 번 탭하면 카피 배치!',
-                style: TextStyle(
-                    fontSize: 14.5,
-                    color: Colors.white,
-                    fontFamily: 'Apple SD Gothic Neo',
-                    fontWeight: FontWeight.w700)),
-            const SizedBox(height: 2),
-            Text('틀리면 하트를 하나 잃어요. 확실할 때만 놓기!',
-                style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontFamily: 'Apple SD Gothic Neo')),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () {
-                  widget.progress.markCoachDone();
-                  setState(() => _showCoach = false);
-                },
-                child: const Text('알겠어요',
-                    style: TextStyle(color: Colors.white, fontSize: 15)),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-
   // ── 완성 / 실패 ─────────────────────────────────────────────────────
 
   Future<void> _onSolved() async {
@@ -1272,24 +1245,6 @@ class _TileBounce extends StatelessWidget {
 }
 
 /// 두껍고 둥근 X — 아이콘 폰트보다 크고 진하게.
-class _XPainter extends CustomPainter {
-  const _XPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = size.width * 0.24
-      ..strokeCap = StrokeCap.round;
-    final d = size.width * 0.14;
-    canvas.drawLine(Offset(d, d), Offset(size.width - d, size.height - d), paint);
-    canvas.drawLine(Offset(size.width - d, d), Offset(d, size.height - d), paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _XPainter old) => false;
-}
-
 /// 칸에 놓인 카피 — 뾰잉 하고 꽂힌 뒤, 거기서 계속 산다.
 ///
 /// **얼굴만 쓴다.** 칸이 작아 전신을 넣으면 표정이 몇 픽셀이 되고, 그러면
