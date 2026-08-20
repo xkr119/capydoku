@@ -22,10 +22,11 @@ SIZE = 1024
 RIG = 'assets/rig'
 OUT = 'assets/icon'
 
-# lib/core/palette.dart의 색영역 그대로.
+# lib/core/palette.dart의 색영역 중 **차가운 쪽만** 골랐다.
+# 카피 털이 주황~황갈색이라 주황·갈색 칸 위에 올리면 서로 묻힌다.
 COLORS = [
-    (240, 154, 80),    # 주황
-    (62, 146, 104),    # 진초록
+    (142, 127, 219),   # 보라
+    (79, 168, 160),    # 청록
     (158, 209, 115),   # 연두
 ]
 
@@ -67,15 +68,31 @@ def background(size):
     return im
 
 
-def face(height):
-    """리그 조각을 합쳐 정면 얼굴 한 장으로."""
+TILT = -11  # 갸웃한 각도. 정면으로 세워 두면 증명사진처럼 뻣뻣하다.
+
+
+def face(height, tilt=TILT):
+    """리그 조각을 합쳐 얼굴 한 장으로. 살짝 갸웃하게 기울인다."""
     head = Image.open(f'{RIG}/h_head.png').convert('RGBA')
     jaw = Image.open(f'{RIG}/h_jaw.png').convert('RGBA')
     im = Image.new('RGBA', head.size, (0, 0, 0, 0))
     im.alpha_composite(head)
     im.alpha_composite(jaw)
+    im = im.rotate(tilt, resample=Image.BICUBIC, expand=True)
     w = round(im.width * height / im.height)
     return im.resize((w, height), Image.LANCZOS)
+
+
+def peeking(base, size, height_ratio, top_ratio):
+    """아래 모서리에 턱이 걸리게 얼굴을 얹는다.
+
+    턱까지 다 보이면 그냥 붙여 놓은 얼굴이지만, 아래가 잘리면 **창턱 너머로
+    뾱 올라온 것**처럼 보인다. 아이콘이 작아져도 이 실루엣은 살아남는다.
+    """
+    f = face(round(size * height_ratio))
+    out = base.copy()
+    out.alpha_composite(f, (round((size - f.width) / 2), round(size * top_ratio)))
+    return out
 
 
 def main():
@@ -85,16 +102,13 @@ def main():
     bg.save(f'{OUT}/icon_bg.png')
 
     # 얼굴이 주인공이되, 사방으로 판이 보여야 "퍼즐 게임"으로 읽힌다.
-    f = face(round(SIZE * 0.66))
-    full = bg.copy()
-    full.alpha_composite(f, (round((SIZE - f.width) / 2), round(SIZE * 0.19)))
-    full.convert('RGB').save(f'{OUT}/icon.png')
+    # 턱은 아래 모서리 밖으로 넘겨 잘라 낸다.
+    peeking(bg, SIZE, 0.90, 0.30).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경: 바깥 1/4이 잘려 나가므로 가운데 66% 안에 들어와야 한다.
+    # 여기서도 턱은 마스크 밖으로 넘겨 같은 실루엣을 만든다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    f2 = face(round(SIZE * 0.52))
-    fg.alpha_composite(f2, (round((SIZE - f2.width) / 2), round(SIZE * 0.25)))
-    fg.save(f'{OUT}/icon_fg.png')
+    peeking(fg, SIZE, 0.64, 0.32).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
