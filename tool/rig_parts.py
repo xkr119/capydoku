@@ -27,6 +27,12 @@ JAW = (325.0, 368.0, 118.0, 52.0)   # 아랫주둥이 타원 cx, cy, rx, ry
 EYES = ((174.5, 152.0), (471.5, 152.0))   # 눈 중심
 LID_RISE = 34.0     # 눈꺼풀을 이만큼 위에서 떠 온다(감을 때 이만큼 내려온다)
 
+# 앞발 두 짝. 타원으로 도려내고 몸통 쪽은 배 털로 덮는다.
+ARMS = ((155.0, 556.0, 86.0, 112.0), (495.0, 556.0, 86.0, 112.0))
+SHOULDERS = ((166.0, 462.0), (484.0, 462.0))   # 팔 회전축
+# 팔을 도려낸 자리를 메울 때 배 쪽에서 이만큼 떨어진 픽셀을 떠 온다.
+BELLY_REACH = 130
+
 
 def head_cut_y(x: float) -> float:
     """머리와 몸통을 가르는 곡선 — 가운데는 턱까지 내려오고 양옆은 볼에서 끝난다."""
@@ -73,13 +79,34 @@ def main():
 
     # ── 머리: 자름선 위 + 입 안쪽을 어둡게(턱이 내려가면 드러난다) ──
     head = src.copy()
-    mouth = ellipse_mask(size, JAW[0], JAW[1] + 6, JAW[2] - 14, JAW[3] - 12, blur=7)
+    # 하품처럼 크게 벌릴 때까지 덮으려면 실제 입보다 아래로 길어야 한다.
+    mouth = ellipse_mask(size, JAW[0], JAW[1] + 22, JAW[2] - 14, JAW[3] + 16, blur=9)
     dark = Image.new('RGBA', size, (74, 42, 36, 255))
     head = Image.composite(dark, head, mouth)
     head.putalpha(_mulL(alpha, head_keep))
 
+    # ── 앞발 두 짝 ──
+    # 팔이 몸통에 붙박이면 고개만 흔드는 인형이 된다. 어깨를 축으로 돌릴 수
+    # 있어야 배도 긁고 만세도 한다.
+    arms = {}
+    for i, (cx, cy, rx, ry) in enumerate(ARMS):
+        m = ellipse_mask(size, cx, cy, rx, ry, blur=11)
+        arm = src.copy()
+        arm.putalpha(_mulL(alpha, m))
+        arms[f'arm{"lr"[i]}'] = arm
+
     # ── 몸통 ──
+    # 팔을 도려낸 자리에는 배 쪽 털을 끌어와 덮는다. 원본을 그대로 두면
+    # 팔이 움직일 때 제자리에 남은 팔이 유령처럼 비친다.
     body = src.copy()
+    for i, (cx, cy, rx, ry) in enumerate(ARMS):
+        # paste(src, (dx, 0))는 원본 x를 x+dx 자리에 놓는다. 즉 팔 자리에
+        # 배(가운데) 털이 오게 하려면 왼팔은 음수, 오른팔은 양수여야 한다.
+        dx = -BELLY_REACH if i == 0 else BELLY_REACH
+        patch = Image.new('RGBA', size, (0, 0, 0, 0))
+        patch.paste(src, (dx, 0))
+        body = Image.composite(
+            patch, body, ellipse_mask(size, cx, cy, rx + 10, ry + 10, blur=26))
     body.putalpha(_mulL(alpha, body_keep))
 
     # ── 눈꺼풀: 눈 바로 위 이마 털을 떠 온다. 내려 덮으면 눈을 감는다 ──
@@ -96,10 +123,17 @@ def main():
         lid.alpha_composite(crease.filter(ImageFilter.GaussianBlur(1.6)))
         lids[f'lid{"lr"[i]}'] = lid
 
-    for name, im in (('body', body), ('head', head), ('jaw', jaw), *lids.items()):
+    for name, im in (('body', body), ('head', head), ('jaw', jaw),
+                     *arms.items(), *lids.items()):
         path = os.path.join(OUT, f'{name}.png')
         _slim(im).save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB')
+
+    W, H = size
+    print('\n// capy_rig.dart 전신 스킨의 어깨 축')
+    print('const List<Offset> _shoulders = ['
+          + ', '.join(f'Offset({x / W:.4f}, {y / H:.4f})' for x, y in SHOULDERS)
+          + '];')
 
     _head_set(src, alpha, size, jaw, lids)
 

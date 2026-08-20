@@ -967,7 +967,7 @@ class _GameScreenState extends State<GameScreen>
     } else {
       await widget.progress.markCleared(widget.level);
     }
-    // 돌봄 보상: 당근(판 크기 비례) + 7판마다 황금귤. 클리어 자체가 기분 업.
+    // 돌봄 보상: 당근(판 크기 비례) + 7판마다 수박. 클리어 자체가 기분 업.
     // 오늘의 퍼즐은 어려운 만큼 당근을 넉넉히 준다 — 매일 오게 만드는 이유다.
     await widget.progress.addWin();
     final pet = Pet.load(widget.progress.prefs);
@@ -978,7 +978,7 @@ class _GameScreenState extends State<GameScreen>
       ..onClear();
     if (specialEarned > 0) pet.addSpecials(1);
     final rewardLine = specialEarned > 0
-        ? '🥕 당근 +$carrotsEarned  ·  ✨ 황금귤 +1'
+        ? '🥕 당근 +$carrotsEarned  ·  🍉 수박 +1'
         : '🥕 당근 +$carrotsEarned';
     if (!mounted) return;
     // 불투명한 화면으로 덮는다 — 뒤에 보드가 비치면 판이 안 끝난 것처럼 보인다.

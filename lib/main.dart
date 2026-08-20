@@ -118,9 +118,15 @@ class _HomeScreenState extends State<HomeScreen>
   final List<_Morsel> _flying = [];
   int _morselId = 0;
 
-  /// 바구니 들썩임 0~1.
+  /// 먹이 자리 들썩임. **누른 자리만 흔들려야 한다** — 수박을 눌렀는데
+  /// 당근 바구니가 흔들리면 무엇이 없다는 건지 알 수 없다.
   late final AnimationController _jostle = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 420));
+  late final AnimationController _jostleSpecial = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 420));
+
+  AnimationController _shakeOf(bool special) =>
+      special ? _jostleSpecial : _jostle;
 
   /// 쓰다듬기 하트.
   final List<int> _hearts = [];
@@ -147,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen>
     routeObserver.unsubscribe(this);
     _shoutTimer?.cancel();
     _jostle.dispose();
+    _jostleSpecial.dispose();
     _capy.dispose();
     super.dispose();
   }
@@ -173,13 +180,13 @@ class _HomeScreenState extends State<HomeScreen>
   void _throwFood(bool special, Offset from, Offset to) {
     final ok = special ? pet.feedSpecial() : pet.feedCarrot();
     if (!ok) {
-      _jostle.forward(from: 0);
+      _shakeOf(special).forward(from: 0);
       HapticFeedback.selectionClick();
-      _say(special ? '황금귤이 없네…' : '당근이 없어…');
+      _say(special ? '수박이 없네…' : '당근이 없어…');
       return;
     }
     HapticFeedback.lightImpact();
-    _jostle.forward(from: 0);
+    _shakeOf(special).forward(from: 0);
 
     final m = _Morsel(
       id: _morselId++,
@@ -419,10 +426,13 @@ class _HomeScreenState extends State<HomeScreen>
                           angle: flight * math.pi * 2.2 * (m.special ? 0.4 : 1) +
                               wobble * 0.03,
                           child: m.special
-                              ? Opacity(
-                                  opacity: (1 - chewed).clamp(0.0, 1.0),
-                                  child: GoldenTangerine(
-                                      size: 40 * (1 - chewed * 0.7)))
+                              ? SizedBox(
+                                  width: 52,
+                                  height: 52,
+                                  child: CustomPaint(
+                                      painter:
+                                          WatermelonPainter(eaten: chewed)),
+                                )
                               : SizedBox(
                                   width: 52 * 0.62,
                                   height: 52,
@@ -434,7 +444,7 @@ class _HomeScreenState extends State<HomeScreen>
                           child: Crumbs(
                               progress: chewed,
                               color: m.special
-                                  ? const Color(0xFFF59B12)
+                                  ? const Color(0xFFE8392F)
                                   : const Color(0xFFF2802B)),
                         ),
                       ],
@@ -468,10 +478,15 @@ class _HomeScreenState extends State<HomeScreen>
               onTap: () => _throwFood(true, gyulCenter, mouth),
               // 귤은 그림 안에 후광·잎 여백이 있어 같은 숫자로 그리면
               // 바구니보다 작아 보인다. 눈에 같아 보이도록 키워 그린다.
-              child: const SizedBox(
-                width: foodSize,
-                height: foodSize,
-                child: Center(child: GoldenTangerine(size: foodSize * 1.22)),
+              child: AnimatedBuilder(
+                animation: _jostleSpecial,
+                builder: (context, child) => _Jostle(
+                    t: _jostleSpecial.value,
+                    child: const SizedBox(
+                      width: foodSize,
+                      height: foodSize,
+                      child: Center(child: Watermelon(size: foodSize * 1.02)),
+                    )),
               ),
             ),
           ),
@@ -656,6 +671,27 @@ class _Bubble extends StatelessWidget {
                 color: Palette.brown,
                 fontFamily: 'Apple SD Gothic Neo',
                 fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+/// 눌린 물건이 잠깐 부르르 떤다. 0과 1 모두 정지 상태라 평소엔 가만히 있다.
+class _Jostle extends StatelessWidget {
+  final double t;
+  final Widget child;
+
+  const _Jostle({required this.t, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final amp = 1 - t;
+    return Transform.translate(
+      offset: Offset(math.sin(t * math.pi * 6) * 5 * amp,
+          -math.sin(t * math.pi) * 5),
+      child: Transform.rotate(
+        angle: math.sin(t * math.pi * 5) * 0.11 * amp,
+        child: child,
       ),
     );
   }

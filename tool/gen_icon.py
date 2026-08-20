@@ -22,12 +22,13 @@ SIZE = 1024
 RIG = 'assets/rig'
 OUT = 'assets/icon'
 
-# lib/core/palette.dart의 색영역 중 **차가운 쪽만** 골랐다.
-# 카피 털이 주황~황갈색이라 주황·갈색 칸 위에 올리면 서로 묻힌다.
+# 팔레트의 **차가운 쪽**을 아이콘용으로 한 단계 더 쨍하게 올린 값.
+# 카피 털이 주황~황갈색이라 주황·갈색 칸 위에 올리면 서로 묻히고,
+# 앱 안의 톤을 그대로 쓰면 런처의 다른 아이콘들 사이에서 칙칙해 보인다.
 COLORS = [
-    (142, 127, 219),   # 보라
-    (79, 168, 160),    # 청록
-    (158, 209, 115),   # 연두
+    (153, 104, 252),   # 보라
+    (32, 201, 189),    # 청록
+    (158, 232, 82),    # 연두
 ]
 
 # 4×4 영역 지도. 같은 숫자끼리는 한 영역이라 사이에 선을 긋지 않는다 —
@@ -103,12 +104,12 @@ def main():
 
     # 얼굴이 주인공이되, 사방으로 판이 보여야 "퍼즐 게임"으로 읽힌다.
     # 턱은 아래 모서리 밖으로 넘겨 잘라 낸다.
-    peeking(bg, SIZE, 0.90, 0.30).convert('RGB').save(f'{OUT}/icon.png')
+    peeking(bg, SIZE, 1.02, 0.28).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경: 바깥 1/4이 잘려 나가므로 가운데 66% 안에 들어와야 한다.
     # 여기서도 턱은 마스크 밖으로 넘겨 같은 실루엣을 만든다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    peeking(fg, SIZE, 0.64, 0.32).save(f'{OUT}/icon_fg.png')
+    peeking(fg, SIZE, 0.72, 0.30).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')

@@ -1,4 +1,4 @@
-/// 손에 잡히는 것들 — 당근, 황금귤, 당근 바구니.
+/// 손에 잡히는 것들 — 당근, 수박, 당근 바구니.
 ///
 /// 전부 캔버스에 직접 그린다. 이미지로 두면 회전·크기·개수를 바꿀 때마다
 /// 에셋이 늘어나는데, 당근은 바구니에서 튀어나와 날아가 씹혀 사라져야 하므로
@@ -36,6 +36,11 @@ class CarrotPainter extends CustomPainter {
 
   const CarrotPainter({this.eaten = 0});
 
+  Color get _body => _carrotBody;
+  Color get _shade => _carrotDark;
+  Color get _leafTop => _carrotLeaf;
+  Color get _leafVein => _carrotLeafDark;
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
@@ -51,7 +56,7 @@ class CarrotPainter extends CustomPainter {
       ..quadraticBezierTo(w * 0.22, bodyBottom * 0.72 + bodyTop * 0.28,
           w * 0.06, bodyTop + w * 0.06)
       ..close();
-    canvas.drawPath(body, Paint()..color = _carrotBody);
+    canvas.drawPath(body, Paint()..color = _body);
 
     // 오른쪽 그늘 — 입체감은 이 한 겹이면 충분하다.
     canvas.save();
@@ -62,11 +67,11 @@ class CarrotPainter extends CustomPainter {
         ..lineTo(w, bodyTop)
         ..lineTo(w * 0.55, bodyBottom + 2)
         ..close(),
-      Paint()..color = _carrotDark.withValues(alpha: 0.55),
+      Paint()..color = _shade.withValues(alpha: 0.55),
     );
     // 잔뿌리 자국
     final tick = Paint()
-      ..color = _carrotDark.withValues(alpha: 0.5)
+      ..color = _shade.withValues(alpha: 0.5)
       ..strokeWidth = math.max(1, w * 0.05)
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < 3; i++) {
@@ -78,7 +83,7 @@ class CarrotPainter extends CustomPainter {
     canvas.restore();
 
     // ── 잎 세 장 ──
-    final leaf = Paint()..color = _carrotLeaf;
+    final leaf = Paint()..color = _leafTop;
     for (final (dx, dy, rot, sc) in [
       (-0.20, 0.02, -0.55, 0.9),
       (0.0, -0.06, 0.0, 1.0),
@@ -98,7 +103,7 @@ class CarrotPainter extends CustomPainter {
       );
       canvas.drawLine(Offset(0, 0), Offset(0, -h * 0.22),
           Paint()
-            ..color = _carrotLeafDark
+            ..color = _leafVein
             ..strokeWidth = math.max(1, w * 0.045)
             ..strokeCap = StrokeCap.round);
       canvas.restore();
@@ -109,94 +114,125 @@ class CarrotPainter extends CustomPainter {
   bool shouldRepaint(covariant CarrotPainter old) => old.eaten != eaten;
 }
 
-/// 황금귤 — 특별 먹이. 반짝이는 테두리가 당근과 구분되는 유일한 신호다.
-class GoldenTangerine extends StatelessWidget {
+/// 수박 — 특별 먹이.
+///
+/// 카피바라에게 특별한 먹이가 뭐냐면 **수박**이다. 동물원 급여 사진이 죄다
+/// 수박이고, 카피바라 하면 떠오르는 그림도 수박이다. 당근의 금색 버전은
+/// 그냥 "색만 다른 당근"이지만, 수박은 한눈에 다른 등급의 간식으로 읽힌다.
+/// 빨강·초록이라 주황 일색인 이 화면에서 눈에도 제일 먼저 띈다.
+class Watermelon extends StatelessWidget {
   final double size;
-  const GoldenTangerine({super.key, this.size = 34});
+  const Watermelon({super.key, this.size = 44});
 
   @override
   Widget build(BuildContext context) => SizedBox(
         width: size,
         height: size,
-        child: CustomPaint(painter: const _TangerinePainter()),
+        child: CustomPaint(painter: const WatermelonPainter()),
       );
 }
 
-class _TangerinePainter extends CustomPainter {
-  const _TangerinePainter();
+class WatermelonPainter extends CustomPainter {
+  /// 0이면 온전한 조각, 1이면 다 먹었다. 속살부터 없어지고 껍질이 남는다.
+  final double eaten;
+
+  /// 반짝이의 위상. 애니메이션을 걸면 별이 돌아가며 빛난다.
+  final double sparklePhase;
+
+  const WatermelonPainter({this.eaten = 0, this.sparklePhase = 0});
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 잎이 위로 뻗으므로 열매는 상자 가운데보다 아래에 앉힌다.
-    final c = Offset(size.width / 2, size.height * 0.64);
-    final r = size.width * 0.355;
+    final w = size.width, h = size.height;
+    final c = Offset(w / 2, h * 0.34);
+    final r = w * 0.44;
+
+    // 특별한 먹이라는 신호 — 은은한 후광.
+    canvas.drawCircle(
+        Offset(w / 2, h * 0.55),
+        w * 0.52,
+        Paint()
+          ..shader = RadialGradient(colors: [
+            const Color(0xFFFFF3B0).withValues(alpha: 0.70),
+            const Color(0xFFFFE07A).withValues(alpha: 0),
+          ]).createShader(
+              Rect.fromCircle(center: Offset(w / 2, h * 0.55), radius: w * 0.52)));
 
     // 풀밭에 놓인 물건으로 보이게 하는 그림자.
     canvas.drawOval(
         Rect.fromCenter(
-            center: Offset(c.dx, c.dy + r * 0.95), width: r * 1.9, height: r * 0.5),
+            center: Offset(w / 2, h * 0.86), width: r * 1.8, height: r * 0.42),
         Paint()
-          ..color = const Color(0xFF3F5A2A).withValues(alpha: 0.18)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.18));
+          ..color = const Color(0xFF3F5A2A).withValues(alpha: 0.20)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.16));
 
-    // 황금빛 후광 — 이게 없으면 그냥 주황 공이라 '특별한 먹이'로 안 읽힌다.
-    canvas.drawCircle(
-        c,
-        r * 1.55,
-        Paint()
-          ..shader = RadialGradient(colors: [
-            const Color(0xFFFFE9A0).withValues(alpha: 0.75),
-            const Color(0xFFFFE9A0).withValues(alpha: 0),
-          ]).createShader(Rect.fromCircle(center: c, radius: r * 1.55)));
+    // 반원 조각: 자른 면이 위, 껍질이 아래 곡선.
+    Path halfDisc(double rr) => Path()
+      ..moveTo(c.dx - rr, c.dy)
+      ..arcTo(Rect.fromCircle(center: c, radius: rr), math.pi, -math.pi, false)
+      ..close();
 
-    canvas.drawCircle(
-        c,
-        r,
-        Paint()
-          ..shader = const RadialGradient(
-            center: Alignment(-0.35, -0.45),
-            colors: [Color(0xFFFFDC64), Color(0xFFF59B12), Color(0xFFE07908)],
-            stops: [0, 0.62, 1],
-          ).createShader(Rect.fromCircle(center: c, radius: r)));
+    canvas.drawPath(halfDisc(r), Paint()..color = const Color(0xFF3C7A32));
+    canvas.drawPath(halfDisc(r * 0.90), Paint()..color = const Color(0xFF8CC663));
+    canvas.drawPath(halfDisc(r * 0.82), Paint()..color = const Color(0xFFF3F0DC));
 
-    // 껍질 결
-    canvas.save();
-    canvas.clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: r)));
-    for (var i = 0; i < 3; i++) {
-      canvas.drawArc(
-          Rect.fromCircle(center: c + Offset(r * 0.5, 0), radius: r * (0.5 + i * 0.3)),
-          -1.9, 1.4, false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = r * 0.06
-            ..color = const Color(0xFFD9760A).withValues(alpha: 0.30));
-    }
-    canvas.restore();
-
-    canvas.drawCircle(c + Offset(-r * 0.32, -r * 0.38), r * 0.24,
-        Paint()..color = Colors.white.withValues(alpha: 0.72));
-
-    // 꼭지 잎 두 장 — 한 장만 두면 크기가 작아 열매에 묻힌다.
-    for (final (dir, len) in [(1.0, 1.0), (-0.75, 0.72)]) {
-      canvas.save();
-      canvas.translate(c.dx, c.dy - r * 0.92);
+    // 속살 — 먹을수록 자른 면 쪽에서 줄어든다.
+    final flesh = r * 0.74 * (1 - eaten);
+    if (flesh > 1) {
       canvas.drawPath(
-        Path()
-          ..moveTo(0, 0)
-          ..quadraticBezierTo(dir * r * 1.15 * len, -r * 0.30 * len,
-              dir * r * 1.05 * len, -r * 0.78 * len)
-          ..quadraticBezierTo(dir * r * 0.30 * len, -r * 0.52 * len, 0, 0)
-          ..close(),
-        Paint()..color = dir > 0 ? _carrotLeaf : _carrotLeafDark,
-      );
+          halfDisc(flesh),
+          Paint()
+            ..shader = const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFFF7B7B), Color(0xFFE8392F)],
+            ).createShader(Rect.fromCircle(center: c, radius: flesh)));
+
+      // 씨 — 이게 없으면 그냥 빨간 반원이다.
+      canvas.save();
+      canvas.clipPath(halfDisc(flesh * 0.94));
+      final seed = Paint()..color = const Color(0xFF33221A);
+      for (final (fx, fy) in const [
+        (-0.46, 0.30), (-0.16, 0.52), (0.16, 0.52), (0.46, 0.30), (0.0, 0.24),
+      ]) {
+        canvas.save();
+        canvas.translate(c.dx + r * fx, c.dy + r * fy);
+        canvas.rotate(fx * 0.6);
+        canvas.drawOval(
+            Rect.fromCenter(
+                center: Offset.zero, width: r * 0.11, height: r * 0.17),
+            seed);
+        canvas.restore();
+      }
       canvas.restore();
     }
-    canvas.drawCircle(Offset(c.dx, c.dy - r * 0.93), r * 0.12,
-        Paint()..color = const Color(0xFF7A5A2E));
+
+    // 반짝이 셋.
+    for (var i = 0; i < 3; i++) {
+      final a = i * 2.09 + 0.4;
+      final tw = (math.sin((sparklePhase + i * 0.33) * math.pi * 2) + 1) / 2;
+      final p = Offset(w / 2, h * 0.5) +
+          Offset(math.cos(a) * w * 0.44, math.sin(a) * h * 0.40);
+      _sparkle(canvas, p, w * 0.10 * (0.35 + tw * 0.65),
+          Colors.white.withValues(alpha: 0.5 + tw * 0.5));
+    }
+  }
+
+  /// 네 갈래 반짝이.
+  void _sparkle(Canvas canvas, Offset c, double r, Color color) {
+    final path = Path();
+    for (var i = 0; i < 8; i++) {
+      final a = i * math.pi / 4;
+      final rr = i.isEven ? r : r * 0.22;
+      final p = c + Offset(math.cos(a) * rr, math.sin(a) * rr);
+      i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(path..close(), Paint()..color = color);
   }
 
   @override
-  bool shouldRepaint(covariant _TangerinePainter old) => false;
+  bool shouldRepaint(covariant WatermelonPainter old) =>
+      old.eaten != eaten || old.sparklePhase != sparklePhase;
 }
 
 /// 당근 바구니 — 홈 화면 오른쪽에 놓인다. 누르면 당근이 날아간다.
@@ -254,23 +290,27 @@ class _BasketPainter extends CustomPainter {
           ..color = const Color(0xFF3F5A2A).withValues(alpha: 0.20)
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, h * 0.05));
 
-    // ── 바구니에 담긴 당근들(테두리 뒤에서 솟는다) ──
+    // ── 바구니에 담긴 당근들 ──
+    // **뾰족한 끝이 바구니 속 깊이 박혀 있어야** 담긴 것으로 보인다.
+    // 회전축을 그 끝에 두면 테두리 아래에서 부챗살처럼 벌어진다.
+    // (x위치, 끝이 박힌 깊이, 기운 각도)
     const slots = [
-      (0.28, -0.10, -0.42),
-      (0.50, -0.20, -0.04),
-      (0.72, -0.09, 0.40),
-      (0.38, -0.02, -0.22),
-      (0.63, -0.03, 0.20),
+      (0.30, 0.21, -0.34),
+      (0.50, 0.17, -0.03),
+      (0.70, 0.21, 0.32),
+      (0.39, 0.25, -0.17),
+      (0.61, 0.25, 0.15),
     ];
+    const carrot = CarrotPainter();
+    final cw = w * 0.27;
+    final ch = h * 0.54;
     for (var i = 0; i < heap; i++) {
-      final (fx, fy, rot) = slots[i];
+      final (fx, depth, rot) = slots[i];
       canvas.save();
-      canvas.translate(w * fx, rimY + h * fy);
+      canvas.translate(w * fx, rimY + h * depth);
       canvas.rotate(rot);
-      const p = CarrotPainter();
-      final cw = w * 0.26;
-      canvas.translate(-cw / 2, -h * 0.42);
-      p.paint(canvas, Size(cw, h * 0.52));
+      canvas.translate(-cw / 2, -ch);
+      carrot.paint(canvas, Size(cw, ch));
       canvas.restore();
     }
 
@@ -317,6 +357,18 @@ class _BasketPainter extends CustomPainter {
           Radius.circular(h * 0.03)),
       Paint()..color = _basketDark.withValues(alpha: 0.30),
     );
+
+    // ── 앞면의 당근 문양 ──
+    // 바구니가 비면 안에 당근이 하나도 안 보여서 "무슨 바구니?"가 된다.
+    // 이 문양이 있으면 비어 있어도 당근 바구니로 읽힌다.
+    canvas.save();
+    canvas.translate(w * 0.5, h * 0.72);
+    canvas.rotate(-0.22);
+    const emblem = CarrotPainter();
+    final ew = w * 0.19;
+    canvas.translate(-ew / 2, -h * 0.16);
+    emblem.paint(canvas, Size(ew, h * 0.32));
+    canvas.restore();
   }
 
   @override
