@@ -3,6 +3,9 @@
 library;
 
 /// 보드 토큰: 기본캐피 머리 + 흰 스티커 테두리.
+/// 퍼즐 칸 토큰용 벡터 카피. **더는 쓰지 않는다**(2026-08-20) — 칸에도
+/// 표시에도 리그 얼굴(`assets/rig/h_*.png`, [CapyFaceIcon])을 쓴다.
+/// 벡터 카피는 판 위의 카피와 다르게 생겨서 같은 게임의 물건으로 안 읽혔다.
 const capyToken = '''
 <svg viewBox="0 0 200 176" xmlns="http://www.w3.org/2000/svg">
 <defs>
@@ -189,7 +192,9 @@ const capyOnsen = '''
 </svg>
 ''';
 
-/// 목숨 아이콘 — 귤.
+/// 목숨 아이콘 — 귤. **더는 쓰지 않는다**(2026-08-20). 목숨은 당근으로
+/// 바꿨다 — 귤은 게임 안 어디에도 없는 물건이라 무엇을 잃은 것인지
+/// 안 읽혔다. 지금은 `props.dart`의 [Carrot]을 쓴다.
 const gyulIcon = '''
 <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
 <circle cx="20" cy="23" r="14" fill="#F49E36" stroke="#5A4531" stroke-width="3.5"/>
@@ -202,5 +207,18 @@ const gyulIcon = '''
 const gyulIconEmpty = '''
 <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
 <circle cx="20" cy="23" r="14" fill="#EBDDC9" stroke="#C9B8A2" stroke-width="3.5"/>
+</svg>
+''';
+
+/// X 힌트 아이콘 — **카피 발바닥**. 전구는 "아이디어"를 뜻해서 위치를 짚는
+/// 힌트와 안 맞았다(레퍼런스도 고양이 얼굴과 고양이 발바닥 한 쌍을 쓴다).
+/// 카피바라 앞발은 발가락이 넷이다.
+const pawIcon = '''
+<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<ellipse cx="9.8" cy="16.2" rx="4.0" ry="5.3" transform="rotate(-22 9.8 16.2)" fill="#5B4232"/>
+<ellipse cx="17.2" cy="11.0" rx="4.1" ry="5.6" transform="rotate(-7 17.2 11)" fill="#5B4232"/>
+<ellipse cx="24.8" cy="11.2" rx="4.1" ry="5.6" transform="rotate(7 24.8 11.2)" fill="#5B4232"/>
+<ellipse cx="31.4" cy="16.8" rx="4.0" ry="5.3" transform="rotate(22 31.4 16.8)" fill="#5B4232"/>
+<path d="M20 35c-6.6 0-11.4-3.7-11.4-8.7 0-4.5 4.7-7.4 11.4-7.4s11.4 2.9 11.4 7.4c0 5-4.8 8.7-11.4 8.7z" fill="#5B4232"/>
 </svg>
 ''';

@@ -11,6 +11,7 @@ import '../art/capy_art.dart';
 import '../art/capy_motion.dart';
 import '../art/capy_rig.dart';
 import '../art/effects.dart';
+import '../art/props.dart';
 import '../core/palette.dart';
 import '../core/ads.dart';
 import '../core/progress.dart';
@@ -20,7 +21,6 @@ import '../pet/pet.dart';
 import '../engine/queens.dart';
 import 'board_state.dart';
 import 'capy_says.dart';
-import 'league.dart';
 import 'win_celebration.dart';
 import 'levels.dart';
 
@@ -96,6 +96,31 @@ class _GameScreenState extends State<GameScreen>
   final _rootKey = GlobalKey();
   final _scoreKey = GlobalKey();
   final _boardKey = GlobalKey();
+  final _carrotKey = GlobalKey();
+
+  /// **연속 정답 콤보.** 카피를 맞게 놓을 때마다 오르고, 틀리면 0이 된다.
+  /// [_comboStep]번째마다 당근이 하나 떨어진다.
+  ///
+  /// 힌트로 놓은 것도 콤보를 올린다 — 힌트는 판당 3회로 묶여 있어 캘 수 없고,
+  /// 무엇보다 상단의 "0/N"이 거짓말이 되면 안 된다. 규칙은 하나여야 한다:
+  /// **실수만 안 하면 다 받는다.**
+  int _combo = 0;
+
+  /// 이번 판에서 주운 당근. **지갑에는 판을 깰 때 한꺼번에 들어간다** —
+  /// 주울 때마다 넣으면 세 칸만 맞히고 나갔다 들어오기를 반복해 무한히 캔다.
+  int _carrotsFound = 0;
+
+  /// 몇 번 연속으로 맞혀야 당근 하나인가.
+  static const _comboStep = 3;
+
+  /// **이 판에서** 쓴 힌트 수. 완성 보너스는 남은 개수가 아니라 이걸로
+  /// 센다 — 힌트가 하루 풀이 되면서, 남은 개수로 세면 아침에 쓴 힌트가
+  /// 그날 남은 판 전부의 점수를 깎는 이중 처벌이 된다.
+  int _hintsUsed = 0;
+
+  /// 이 판에서 **얻을 수 있는** 당근. 한 번도 안 틀렸을 때의 값이라
+  /// 상단에 "주운 것 / 이만큼"으로 그대로 보여줄 수 있다.
+  int get _carrotsMax => board.n ~/ _comboStep;
 
   BannerAd? _banner;
 
@@ -108,6 +133,11 @@ class _GameScreenState extends State<GameScreen>
     _watch.start();
     _showCoach = !widget.progress.coachDone;
     _loadBanner();
+    // **배너를 내비게이션 바가 덮는다.** 배너는 화면 맨 아래에 붙는데
+    // 3버튼 내비게이션을 쓰는 기기에서는 그 위를 시스템 바가 가린다
+    // (광고를 가리는 건 정책 위반이기도 하다). 게임 화면에서만 시스템 바를
+    // 감추고, 가장자리를 쓸어올리면 잠깐 올라왔다 다시 숨게 둔다.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   /// 배너는 레벨 4부터 — 초반 몰입(온보딩)은 광고 없이.
@@ -130,6 +160,9 @@ class _GameScreenState extends State<GameScreen>
 
   @override
   void dispose() {
+    // 게임 화면을 벗어나면 시스템 바를 돌려준다 — 홈까지 전체 화면이면
+    // 뒤로가기를 어디서 찾아야 할지 알 수 없다.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _banner?.dispose();
     _intro.dispose();
     super.dispose();
@@ -151,9 +184,25 @@ class _GameScreenState extends State<GameScreen>
     // 초반 레벨은 첫 카피를 미리 놓아준다 — 배우면서 시작.
     // 오늘의 퍼즐은 도전이므로 거들지 않는다.
     if (saved == null && !isDaily && widget.level <= 3) board.placeStarter();
-    capyHints = 3;
-    xHints = 3;
+    // **힌트는 판이 아니라 하루 단위다.** 여기서 3으로 채우면 판을 나갔다
+    // 들어오는 것만으로 다시 차서 리워드 광고가 무의미해진다.
+    final (todayCapy, todayX) = widget.progress.hintsToday();
+    capyHints = todayCapy;
+    xHints = todayX;
     score = 0;
+    // 이어 풀기면 콤보도 그대로 이어야 한다. 새 판이면 둘 다 0에서 시작하고
+    // 저장돼 있던 값도 지운다("다시 풀기"로 당근을 캐지 못하게).
+    if (saved != null) {
+      final (combo, carrots, used) = widget.progress.loadBoardMeta(_slot);
+      _combo = combo;
+      _carrotsFound = carrots;
+      _hintsUsed = used;
+    } else {
+      _combo = 0;
+      _carrotsFound = 0;
+      _hintsUsed = 0;
+      widget.progress.clearBoardMeta(_slot);
+    }
     if (!restore) widget.progress.saveBoard(_slot, board.cells);
     setState(() => _ready = true);
     _intro.forward(from: 0);
@@ -178,9 +227,15 @@ class _GameScreenState extends State<GameScreen>
     }
     return Scaffold(
       backgroundColor: Palette.bg,
-      // 광고가 화면 맨 아래에 닿아야 하므로 아래쪽 SafeArea는 직접 다룬다.
-      body: SafeArea(
-        bottom: false,
+      // 몰입 모드라 상태바가 없다. **SafeArea를 쓰면 안 된다** — 숨긴
+      // 상태바를 0으로 보고해서 뒤로가기 버튼이 카메라 구멍 밑으로 들어간다.
+      // 시스템이 그대로 알려주는 viewPadding으로 위쪽만 직접 띄우고,
+      // 아래는 광고가 화면 끝에 닿아야 하므로 비운다.
+      body: Padding(
+        // 카메라 구멍 값이 0으로 올 때를 대비해 최소값을 둔다 — 0이면
+        // 레벨·점수 글씨가 펀치홀 밑으로 들어간다.
+        padding: EdgeInsets.only(
+            top: math.max(MediaQuery.viewPaddingOf(context).top, 18)),
         child: Stack(key: _rootKey, children: [
           Padding(
             // **가로 여백은 판 밖의 것들에만 준다.** 화면 전체에 여백을 두면
@@ -189,19 +244,27 @@ class _GameScreenState extends State<GameScreen>
             padding: const EdgeInsets.fromLTRB(_boardSide, 12, _boardSide, 16),
             child: Column(children: [
               _inset(_topBar()),
-              const SizedBox(height: 12),
-              _inset(_statusPills()),
-              const SizedBox(height: 12),
-              _inset(_ruleChips()),
-              const SizedBox(height: 14),
-              // 남는 공간 안에서 정사각형으로 — 짧은 화면에서도 안 넘친다.
+              // **남는 세로는 전부 여기, 위에 둔다.** 판을 위로 붙였더니
+              // 손을 화면 위까지 올려야 해서 한 손으로 못 쓴다는 지적을
+              // 받았다. 표시·설명·판·조작부를 한 덩어리로 아래에 몰아 두고,
+              // 남는 공간은 상단 바 아래에서 흡수한다.
               Expanded(
-                child: Center(
-                  child: AspectRatio(aspectRatio: 1, child: _board()),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _inset(_statusPills()),
+                    const SizedBox(height: 12),
+                    _inset(_ruleChips()),
+                    const SizedBox(height: 10),
+                    // 짧은 화면에서는 판이 줄어든다(넘치지 않게).
+                    Flexible(
+                      child: AspectRatio(aspectRatio: 1, child: _board()),
+                    ),
+                    const SizedBox(height: 18),
+                    _inset(_controls()),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _inset(_controls()),
               // 배너 자리를 비워 둔다. 실제 배너는 화면 맨 아래에 붙는다.
               if (_banner != null)
                 SizedBox(height: _banner!.size.height.toDouble() + 8),
@@ -234,6 +297,7 @@ class _GameScreenState extends State<GameScreen>
                     fly: f,
                     onDone: () => setState(() {
                       _flies.remove(f);
+                      if (f.carrot) return;
                       _pendingScore -= f.gained;
                       score += f.gained;
                     }),
@@ -267,6 +331,25 @@ class _GameScreenState extends State<GameScreen>
     setState(() => _flies.add(_ScoreFly(_flyId++, start, end, gained)));
   }
 
+  /// 그 칸에서 상단 당근 카운터로 당근이 날아간다. 점수와 같은 길을 쓰되
+  /// 도착지가 다르다 — 같은 곳으로 보내면 무엇이 늘어난 건지 안 보인다.
+  void _spawnCarrotFly(int r, int c) {
+    final root = _rootKey.currentContext?.findRenderObject() as RenderBox?;
+    final boardBox = _boardKey.currentContext?.findRenderObject() as RenderBox?;
+    final target = _carrotKey.currentContext?.findRenderObject() as RenderBox?;
+    if (root == null || boardBox == null || target == null) return;
+    final n = board.n;
+    final gridSide = boardBox.size.width - _boardPad * 2;
+    final cellSize = (gridSide - (n - 1) * _gap) / n;
+    final local = Offset(_boardPad + c * (cellSize + _gap) + cellSize / 2,
+        _boardPad + r * (cellSize + _gap) + cellSize / 2);
+    final start = root.globalToLocal(boardBox.localToGlobal(local));
+    final end = root
+        .globalToLocal(target.localToGlobal(target.size.center(Offset.zero)));
+    setState(() =>
+        _flies.add(_ScoreFly(_flyId++, start, end, 0, carrot: true)));
+  }
+
   // ── 상단 ────────────────────────────────────────────────────────────
 
   Widget _topBar() {
@@ -276,23 +359,23 @@ class _GameScreenState extends State<GameScreen>
       Column(children: [
         Text(isDaily ? '오늘의 퍼즐' : '레벨',
             style: const TextStyle(
-                fontSize: 15, color: Palette.brownSoft, height: 1.1)),
+                fontSize: 16, color: Palette.brownSoft, height: 1.1)),
         Text(isDaily ? '${board.n}×${board.n}' : '${widget.level}',
             style: const TextStyle(
-                fontSize: 22, color: Palette.brown, height: 1.1)),
+                fontSize: 28, color: Palette.brown, height: 1.1)),
       ]),
       const SizedBox(width: 42),
       Column(children: [
         const Text('점수',
             style: TextStyle(
-                fontSize: 15, color: Palette.brownSoft, height: 1.1)),
+                fontSize: 16, color: Palette.brownSoft, height: 1.1)),
         TweenAnimationBuilder<int>(
           key: _scoreKey,
           tween: IntTween(begin: 0, end: score),
           duration: const Duration(milliseconds: 350),
           builder: (context, v, _) => Text('$v',
               style: const TextStyle(
-                  fontSize: 22, color: Palette.brown, height: 1.1)),
+                  fontSize: 28, color: Palette.brown, height: 1.1)),
         ),
       ]),
       const Spacer(),
@@ -319,29 +402,57 @@ class _GameScreenState extends State<GameScreen>
   }
 
   Widget _statusPills() {
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+    // 표시가 셋(카피·당근·하트)이라 좁은 폰에서는 한 줄에 안 들어간다.
+    // 넘치게 두면 노란 줄무늬가 뜨므로 **줄어들게** 한다 — 줄바꿈은 안 된다.
+    // 이 줄의 높이가 흔들리면 그만큼 판이 작아진다.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+      // **칸에 들어가는 그 얼굴을 쓴다.** 벡터 카피(capyToken)는 판 위의
+      // 카피와 다르게 생겨서 무엇을 세는 표시인지 한눈에 안 붙었다.
       _pill(Row(mainAxisSize: MainAxisSize.min, children: [
-        SvgPicture.string(capyToken, width: 26),
-        const SizedBox(width: 8),
+        const CapyFaceIcon(width: 30),
+        const SizedBox(width: 7),
         Text('${board.placedCount()}',
-            style: const TextStyle(fontSize: 19, color: Color(0xFF2F9E44))),
+            style: const TextStyle(fontSize: 18, color: Color(0xFF2F9E44))),
         Text('/${board.n}',
-            style: const TextStyle(fontSize: 19, color: Palette.brown)),
+            style: const TextStyle(fontSize: 18, color: Palette.brown)),
       ])),
-      const SizedBox(width: 14),
+      const SizedBox(width: 9),
+      // **이 판에서 얻을 수 있는 당근**과 지금까지 주운 것. 총량을 미리
+      // 보여줄 수 있는 건 콤보 규칙이 "실수만 안 하면 다 받는다"라서다.
+      // 여기가 날아온 당근이 도착하는 자리이기도 하다(_carrotKey).
+      _pill(Row(key: _carrotKey, mainAxisSize: MainAxisSize.min, children: [
+        const Carrot(size: 24),
+        const SizedBox(width: 7),
+        Text('$_carrotsFound',
+            style: const TextStyle(fontSize: 18, color: Color(0xFFE8830C))),
+        Text('/$_carrotsMax',
+            style: const TextStyle(fontSize: 18, color: Palette.brown)),
+      ])),
+      const SizedBox(width: 9),
+      // 목숨은 **하트**다. 당근으로 뒀더니 바로 옆의 "모으는 당근"과 같은
+      // 그림이 되어 무엇이 늘고 무엇이 주는지 구분이 안 갔다.
+      // 잃은 목숨은 같은 하트를 옅게 칠한다 — 지우면 원래 몇 개였는지 모른다.
       _pill(Row(mainAxisSize: MainAxisSize.min, children: [
         for (var i = 0; i < 3; i++) ...[
-          if (i > 0) const SizedBox(width: 5),
-          SvgPicture.string(i < board.hearts ? gyulIcon : gyulIconEmpty,
-              width: 22),
+          if (i > 0) const SizedBox(width: 3),
+          Icon(Icons.favorite,
+              size: 21,
+              color: i < board.hearts
+                  ? Palette.heart
+                  : const Color(0xFFE3D6C4)),
         ],
       ])),
-    ]);
+      ]),
+    );
   }
 
   Widget _pill(Widget child) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      // 표시가 셋이라 좌우 여백은 줄이고(18 → 13), 대신 **안의 그림을
+      // 키웠다** — 이 줄은 좌우가 남으므로 알아볼 수 있는 크기가 먼저다.
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
       decoration: BoxDecoration(
         color: Palette.card,
         borderRadius: BorderRadius.circular(22),
@@ -356,55 +467,54 @@ class _GameScreenState extends State<GameScreen>
 
   static const _ruleTexts = ['색깔마다\n카피 1마리', '행·열마다\n카피 1마리', '서로 붙기\n없기'];
 
+  /// 규칙 셋. **한 장의 흰 카드에 몰아넣지 않는다** — 셋이 각각 다른 규칙인데
+  /// 한 덩어리로 보이면 눈이 어디서 끊어야 할지 모른다. 레퍼런스도 칸을
+  /// 나눠 두었다. 규칙을 어기면 그 칸만 빨갛게 선다.
   Widget _ruleChips() {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Palette.card,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Palette.brown.withValues(alpha: 0.08), blurRadius: 8),
-        ],
-      ),
-      child: Row(children: [
-        for (var i = 0; i < 3; i++)
-          Expanded(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              margin: EdgeInsets.only(left: i == 0 ? 0 : 6),
-              padding:
-                  const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color:
-                      _violatedRule == i ? Palette.heart : Colors.transparent,
-                  width: 2,
-                ),
-                borderRadius: BorderRadius.circular(4),
+    return Row(children: [
+      for (var i = 0; i < 3; i++)
+        Expanded(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: EdgeInsets.only(left: i == 0 ? 0 : 7),
+            padding: const EdgeInsets.fromLTRB(7, 8, 5, 8),
+            decoration: BoxDecoration(
+              color: _violatedRule == i
+                  ? const Color(0xFFFDECEA)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _violatedRule == i
+                    ? Palette.heart
+                    : const Color(0xFFE7DBC9),
+                width: _violatedRule == i ? 2 : 1.4,
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                CustomPaint(
-                    size: const Size(30, 30), painter: _RuleDiagram(i)),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _ruleTexts[i],
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.25,
-                      fontFamily: 'Apple SD Gothic Neo',
-                      fontWeight: FontWeight.w600,
-                      color:
-                          _violatedRule == i ? Palette.heart : Palette.brown,
-                    ),
+              boxShadow: [
+                BoxShadow(
+                    color: Palette.brown.withValues(alpha: 0.06),
+                    blurRadius: 5,
+                    offset: const Offset(0, 2)),
+              ],
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              CustomPaint(size: const Size(30, 30), painter: _RuleDiagram(i)),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  _ruleTexts[i],
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.25,
+                    fontFamily: 'Apple SD Gothic Neo',
+                    fontWeight: FontWeight.w600,
+                    color: _violatedRule == i ? Palette.heart : Palette.brown,
                   ),
                 ),
-              ]),
-            ),
+              ),
+            ]),
           ),
-      ]),
-    );
+        ),
+    ]);
   }
 
   // ── 보드 ────────────────────────────────────────────────────────────
@@ -417,7 +527,9 @@ class _GameScreenState extends State<GameScreen>
   static Widget _inset(Widget child) => Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12), child: child);
 
-  static const _gap = 1.5;
+  /// 칸 사이 간격. 좁을수록 칸이 커지지만, 너무 붙으면 색영역의 경계가
+  /// 안 읽힌다. 1.5는 붙어 보였다.
+  static const _gap = 3.0;
 
   /// 판 테두리와 타일 사이 여백. 여기도 줄여야 칸이 커진다.
   static const _boardPad = 4.0;
@@ -662,11 +774,23 @@ class _GameScreenState extends State<GameScreen>
       Sfx.place();
       setState(() {});
       _spawnScoreFly(r, c, 100 + board.n * 25);
-      widget.progress.saveBoard(_slot, board.cells);
+      _onCorrect(r, c);
       if (board.isSolved) _onSolved();
       return;
     }
     _onMistake(r, c, result);
+  }
+
+  /// 카피가 제자리에 놓였다. 콤보를 올리고, [_comboStep]번째면 당근이 떨어진다.
+  void _onCorrect(int r, int c) {
+    _combo++;
+    if (_combo % _comboStep == 0 && _carrotsFound < _carrotsMax) {
+      setState(() => _carrotsFound++);
+      Sfx.mark();
+      _spawnCarrotFly(r, c);
+    }
+    widget.progress.saveBoard(_slot, board.cells);
+    widget.progress.saveBoardMeta(_slot, _combo, _carrotsFound, _hintsUsed);
   }
 
   Future<void> _onMistake(int r, int c, PlaceResult result) async {
@@ -674,6 +798,9 @@ class _GameScreenState extends State<GameScreen>
     Sfx.wrong();
     setState(() {
       board.hearts--;
+      // 여기서 콤보가 끊긴다 — 이 판에서 못 받게 된 당근은 상단 "0/N"의
+      // N이 아니라 앞으로 채울 수 있는 칸으로만 줄어든다.
+      _combo = 0;
       _errorCell = (r, c);
       _violatedRule = switch (result) {
         PlaceResult.wrongRegion => 0,
@@ -682,6 +809,7 @@ class _GameScreenState extends State<GameScreen>
         _ => null,
       };
     });
+    widget.progress.saveBoardMeta(_slot, _combo, _carrotsFound, _hintsUsed);
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     setState(() {
@@ -701,13 +829,24 @@ class _GameScreenState extends State<GameScreen>
     final (r, c) = cell;
     setState(() {
       capyHints--;
+      _hintsUsed++;
       board.tryPlace(r, c);
       _floats.add(_FloatText(_floatId++, r, c, '여기!'));
     });
+    _saveHints();
     _spawnScoreFly(r, c, 50);
     Buzz.medium();
-    widget.progress.saveBoard(_slot, board.cells);
+    _onCorrect(r, c);
     if (board.isSolved) _onSolved();
+  }
+
+  /// 남은 힌트를 하루 풀에 적는다. **다 썼으면 그 규칙을 알려준다** —
+  /// 판마다 차던 것이 안 차면 버그로 보이지, 하루 단위라고는 생각 못 한다.
+  void _saveHints() {
+    widget.progress.setHintsToday(capyHints, xHints);
+    if (capyHints <= 0 || xHints <= 0) {
+      _toast('오늘 힌트를 다 썼어요 — 자정에 다시 채워져요');
+    }
   }
 
   void _useXHint() {
@@ -736,7 +875,9 @@ class _GameScreenState extends State<GameScreen>
     setState(() {
       _xPreview = null;
       xHints--;
+      _hintsUsed++;
     });
+    _saveHints();
     Buzz.medium();
     final cells = preview.$2;
     for (final (i, cell) in cells.indexed) {
@@ -763,7 +904,10 @@ class _GameScreenState extends State<GameScreen>
   /// 리워드 광고를 보고 [onReward]로 충전한다.
   void _rechargeWithAd(VoidCallback onReward) {
     final shown = Ads.showRewarded(() {
-      if (mounted) setState(onReward);
+      if (!mounted) return;
+      setState(onReward);
+      // 충전분도 하루 풀에 적는다 — 안 적으면 다음 판에서 사라진다.
+      widget.progress.setHintsToday(capyHints, xHints);
     });
     if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
   }
@@ -796,53 +940,74 @@ class _GameScreenState extends State<GameScreen>
 
   Widget _controls() {
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      _labeledCircle(
+      _hintButton(
         label: '카피 위치',
         badge: capyHints,
-        child: SvgPicture.string(capyTokenHappy, width: 34),
+        child: const CapyFaceIcon(width: 46, ring: true),
         onTap: _useCapyHint,
       ),
-      const SizedBox(width: 44),
-      _labeledCircle(
+      const SizedBox(width: 50),
+      _hintButton(
         label: 'X 위치',
         badge: xHints,
-        child: const Icon(Icons.lightbulb_outline,
-            size: 25, color: Palette.brown),
+        // 전구가 아니라 **발바닥**이다. 둘 다 "어디인지"를 짚는 힌트라
+        // 얼굴과 발바닥 한 쌍으로 두는 편이 무엇을 하는 버튼인지 빠르다.
+        // 얼굴과 **눈에 같은 크기로** 보여야 한다 — 발바닥은 여백이 적어
+        // 같은 숫자로 그리면 훨씬 작아 보인다.
+        child: _ringed(SvgPicture.string(pawIcon, width: 40)),
         onTap: _useXHint,
       ),
     ]);
   }
 
-  Widget _labeledCircle(
+  /// 흰 동그라미 위에 얹는다. 크림색 배경에 그림만 놓으면 떠 보이고,
+  /// 무엇보다 눌리는 것으로 안 읽힌다.
+  Widget _ringed(Widget child) {
+    return Container(
+      width: 62,
+      height: 62,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+              color: Palette.brown.withValues(alpha: 0.18),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Center(child: child),
+    );
+  }
+
+  /// 힌트 버튼. — 카피를 원 안에 넣으면
+  /// 판 위에 사는 캐릭터가 아니라 붙여 놓은 스티커로 보인다. 그림 자체가
+  /// 버튼이고, 남은 개수 배지만 오른쪽 위에 붙는다.
+  Widget _hintButton(
       {required String label,
       required Widget child,
       required int badge,
       VoidCallback? onTap}) {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Stack(clipBehavior: Clip.none, children: [
-        Material(
-          color: Palette.card,
-          shape: const CircleBorder(),
-          elevation: 1.5,
-          shadowColor: Palette.brown.withValues(alpha: 0.3),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(width: 56, height: 56, child: Center(child: child)),
-          ),
+        InkResponse(
+          onTap: onTap,
+          radius: 38,
+          child: SizedBox(width: 60, height: 58, child: Center(child: child)),
         ),
         Positioned(
-          top: -4,
-          right: -4,
+          top: -2,
+          right: -6,
           child: Container(
-            width: 22,
-            height: 22,
+            constraints: const BoxConstraints(minWidth: 22),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
                 color: badge > 0 ? Palette.heart : const Color(0xFF43A047),
-                shape: BoxShape.circle),
+                borderRadius: BorderRadius.circular(8)),
             child: Center(
               child: badge > 0
                   ? Text('$badge',
+                      textAlign: TextAlign.center,
                       style:
                           const TextStyle(fontSize: 13, color: Colors.white))
                   : const Icon(Icons.play_arrow,
@@ -934,7 +1099,7 @@ class _GameScreenState extends State<GameScreen>
                     fontFamily: 'Apple SD Gothic Neo',
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
-            Text('틀리면 귤을 하나 잃어요. 확실할 때만 놓기!',
+            Text('틀리면 하트를 하나 잃어요. 확실할 때만 놓기!',
                 style: TextStyle(
                     fontSize: 13,
                     color: Colors.white.withValues(alpha: 0.85),
@@ -966,28 +1131,18 @@ class _GameScreenState extends State<GameScreen>
     score += _pendingScore;
     _pendingScore = 0;
     _flies.clear();
-    final bonus = 500 + board.hearts * 200 + (capyHints + xHints) * 50;
+    // 힌트 보너스는 **이 판에서** 안 쓴 만큼이다. 하루 풀로 바뀐 뒤로
+    // 남은 개수로 세면 아침에 쓴 힌트가 그날 남은 판 전부의 점수를 깎는다.
+    final bonus = 500 +
+        board.hearts * 200 +
+        math.max(0, Progress.hintsPerDay * 2 - _hintsUsed) * 50;
     score += bonus;
     final now = DateTime.now();
     final dateKey = now.year * 10000 + now.month * 100 + now.day;
-    final dayFrac =
-        (now.hour * 3600 + now.minute * 60 + now.second) / 86400.0;
-    // 카피 리그: 이 판 점수를 넣기 전후 순위 비교 → 변동 문구.
-    final before = widget.progress.dailyScore(dateKey);
-    final rankBefore = League.rankOf(dateKey, dayFrac, before);
+    // 카피 리그(NPC 랭킹)는 걷어냈다 — 상대가 봇이라 이기든 지든 의미가
+    // 없었고, "게으른 카피바라를 돌본다"는 이 앱의 정서와 정반대였다.
+    // 하루 점수는 주간 차트가 여전히 쓴다.
     await widget.progress.addDailyScore(dateKey, score);
-    final rankAfter = League.rankOf(dateKey, dayFrac, before + score);
-    String leagueLine;
-    if (rankAfter < rankBefore) {
-      final overtaken = League.standings(dateKey, dayFrac, before + score)
-          .skip(rankAfter)
-          .firstOrNull;
-      leagueLine = overtaken != null
-          ? '\'${overtaken.name}\'를 제쳤어요! 오늘 $rankAfter위'
-          : '오늘 $rankAfter위로 올라섰어요!';
-    } else {
-      leagueLine = '카피 리그 오늘 $rankAfter위';
-    }
     await widget.progress.logClear(dateKey, _watch.elapsed.inSeconds);
     await widget.progress.addScore(score);
     if (isDaily) {
@@ -996,19 +1151,28 @@ class _GameScreenState extends State<GameScreen>
     } else {
       await widget.progress.markCleared(widget.level);
     }
-    // 돌봄 보상: 당근(판 크기 비례) + 7판마다 수박. 클리어 자체가 기분 업.
-    // 오늘의 퍼즐은 어려운 만큼 당근을 넉넉히 준다 — 매일 오게 만드는 이유다.
+    // 돌봄 보상: **판에서 주운 당근 + 깬 값** + 7판마다 수박.
+    // 클리어 자체가 기분 업. 오늘의 퍼즐은 어려운 만큼 넉넉히 준다.
+    //
+    // 주운 당근이 여기서 처음 지갑에 들어간다 — 주울 때마다 넣으면 세 칸만
+    // 맞히고 나갔다 들어오기를 반복해 무한히 캘 수 있다.
     await widget.progress.addWin();
     final pet = Pet.load(widget.progress.prefs);
-    final carrotsEarned = isDaily ? 5 : 1 + board.n ~/ 8;
+    final clearBonus = isDaily ? 5 : 1 + board.n ~/ 8;
+    final carrotsEarned = clearBonus + _carrotsFound;
     final specialEarned = widget.progress.totalWins % 7 == 0 ? 1 : 0;
     pet
       ..addCarrots(carrotsEarned)
       ..onClear();
     if (specialEarned > 0) pet.addSpecials(1);
-    final rewardLine = specialEarned > 0
-        ? '🥕 당근 +$carrotsEarned  ·  🍉 수박 +1'
+    // 주운 게 있으면 **어디서 온 당근인지 쪼개서** 보여준다. 합만 보여주면
+    // 판에서 주운 보람이 사라진다.
+    final carrotLine = _carrotsFound > 0
+        ? '🥕 주운 당근 $_carrotsFound + 클리어 $clearBonus = $carrotsEarned'
         : '🥕 당근 +$carrotsEarned';
+    final rewardLine =
+        specialEarned > 0 ? '$carrotLine  ·  🍉 수박 +1' : carrotLine;
+    await widget.progress.clearBoardMeta(_slot);
     if (!mounted) return;
     // 불투명한 화면으로 덮는다 — 뒤에 보드가 비치면 판이 안 끝난 것처럼 보인다.
     final goNext = await Navigator.of(context).push<bool>(PageRouteBuilder(
@@ -1017,7 +1181,6 @@ class _GameScreenState extends State<GameScreen>
         level: widget.level,
         score: score,
         elapsed: _watch.elapsed,
-        leagueLine: leagueLine,
         rewardLine: rewardLine,
         dailyStreak: isDaily ? widget.progress.dailyStreak : null,
         skin: Pet.skinOf(widget.progress.currentLevel),
@@ -1052,7 +1215,7 @@ class _GameScreenState extends State<GameScreen>
               child:
                   Image.asset('assets/mascot/capy_cry.png', height: 150)),
           const SizedBox(height: 12),
-          const Text('귤이 없어요...',
+          const Text('하트가 없어요...',
               style: TextStyle(fontSize: 22, color: Palette.brown)),
           const SizedBox(height: 4),
           Text(CapySays.failCommentFor(widget.level),
@@ -1077,7 +1240,7 @@ class _GameScreenState extends State<GameScreen>
                 if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
               },
               icon: const Icon(Icons.play_circle_outline, size: 18),
-              label: const Text('귤 3개 받기')),
+              label: const Text('하트 3개 받기')),
           FilledButton(
               onPressed: () => Navigator.pop(context, true),
               child: const Text('다시 풀기')),
@@ -1085,7 +1248,7 @@ class _GameScreenState extends State<GameScreen>
       ),
     );
     if (!mounted) return;
-    if (retry == null) return; // 광고로 귤 회복 — 판 그대로 계속
+    if (retry == null) return; // 광고로 하트 회복 — 판 그대로 계속
     if (retry == true) {
       _newBoard();
       _watch
@@ -1185,7 +1348,12 @@ class _ScoreFly {
   final Offset start;
   final Offset end;
   final int gained;
-  _ScoreFly(this.id, this.start, this.end, this.gained);
+
+  /// 점수가 아니라 **당근**이 날아간다. 도착해도 점수는 안 오른다.
+  final bool carrot;
+
+  _ScoreFly(this.id, this.start, this.end, this.gained,
+      {this.carrot = false});
 }
 
 /// 점수 비행: 칸에서 "빵" 커졌다가(0~0.35) 점수 카운터로 슈룩 날아간다.
@@ -1221,14 +1389,16 @@ class _ScoreFlyWidget extends StatelessWidget {
           child: Transform.scale(
             scale: scale,
             child: Center(
-              child: Text('+${fly.gained}',
-                  style: const TextStyle(
-                      fontSize: 24,
-                      color: Color(0xFFE8830C),
-                      shadows: [
-                        Shadow(color: Colors.white, blurRadius: 8),
-                        Shadow(color: Colors.white, blurRadius: 14),
-                      ])),
+              child: fly.carrot
+                  ? const Carrot(size: 34)
+                  : Text('+${fly.gained}',
+                      style: const TextStyle(
+                          fontSize: 24,
+                          color: Color(0xFFE8830C),
+                          shadows: [
+                            Shadow(color: Colors.white, blurRadius: 8),
+                            Shadow(color: Colors.white, blurRadius: 14),
+                          ])),
             ),
           ),
         );

@@ -21,8 +21,6 @@ class WinCelebration extends StatefulWidget {
   final int score;
   final Duration elapsed;
 
-  /// 리그 순위 변동 문구 (예: "'귤카피'를 제쳤어요! 오늘 3위"). null이면 생략.
-  final String? leagueLine;
 
   /// 돌봄 보상 문구 (예: "🥕 당근 +2"). null이면 생략.
   final String? rewardLine;
@@ -38,7 +36,6 @@ class WinCelebration extends StatefulWidget {
     required this.level,
     required this.score,
     required this.elapsed,
-    this.leagueLine,
     this.rewardLine,
     this.dailyStreak,
     required this.skin,
@@ -175,23 +172,6 @@ class _WinCelebrationState extends State<WinCelebration>
                     ),
                     const SizedBox(height: 12),
                     _stats(mm, ss),
-                    if (widget.leagueLine != null) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(widget.leagueLine!,
-                            style: const TextStyle(
-                                fontSize: 14.5,
-                                color: Color(0xFFFFE8B0),
-                                fontFamily: 'Apple SD Gothic Neo',
-                                fontWeight: FontWeight.w700)),
-                      ),
-                    ],
                     const SizedBox(height: 26),
                     _nextButton(),
                     // 오늘의 퍼즐은 이어질 다음 판이 없다 — 나가기 하나면 된다.

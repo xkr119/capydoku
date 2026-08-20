@@ -33,6 +33,7 @@ class Progress {
       await _prefs.setInt('level.current', level + 1);
     }
     await _prefs.remove('bd.$level');
+    await _prefs.remove('bdm.$level');
   }
 
   /// 오늘 날짜와 어제 날짜를 yyyymmdd 정수로. 기기 로컬 시간 기준.
@@ -68,6 +69,92 @@ class Progress {
 
   bool hasBoard(String slot) => _prefs.getString('bd.$slot') != null;
 
+  /// 판과 **함께** 저장하는 부수 상태 — 연속 정답 콤보와 이번 판에서 주운
+  /// 당근 개수. 칸만 저장하면 앱을 껐다 켰을 때 콤보가 0부터 다시 세어져
+  /// 같은 판에서 당근이 한 번 더 나온다.
+  ///
+  /// 당근은 **깰 때 한꺼번에** 들어간다. 주울 때마다 넣어 주면 세 칸만 맞히고
+  /// 나갔다 들어오기를 반복해 무한히 캘 수 있다.
+  /// [hintsUsed]는 **이 판에서** 쓴 힌트 수 — 완성 보너스가 이걸로 계산된다.
+  /// 저장 안 하면 나갔다 들어와 0으로 되돌려 보너스를 캘 수 있다.
+  Future<void> saveBoardMeta(
+      String slot, int combo, int carrots, int hintsUsed) async {
+    await _prefs.setInt(
+        'bdm.$slot', combo * 10000 + carrots * 100 + hintsUsed);
+  }
+
+  (int combo, int carrots, int hintsUsed) loadBoardMeta(String slot) {
+    final v = _prefs.getInt('bdm.$slot') ?? 0;
+    return (v ~/ 10000, (v ~/ 100) % 100, v % 100);
+  }
+
+  Future<void> clearBoardMeta(String slot) async =>
+      _prefs.remove('bdm.$slot');
+
+  // ── 일일 출석 ─────────────────────────────────────────────────────
+
+  /// 며칠짜리 도장판인가. 마지막 날은 수박이다.
+  static const checkinDays = 7;
+
+  /// N일째 출석 보상(당근 개수). 7일째는 여기에 **수박 1개**가 더 붙는다.
+  static const checkinCarrots = [2, 2, 3, 3, 4, 4, 5];
+
+  /// 지금 도장판의 몇 칸째인가(1~[checkinDays]). 오늘 아직 안 받았으면
+  /// **오늘 받게 될 칸**을 돌려준다.
+  ///
+  /// 랭킹을 걷어내고 그 자리에 들어온 기능이다. 등수는 상대가 봇이라
+  /// 이기든 지든 의미가 없었고, 무엇보다 "게으른 카피바라를 돌본다"는
+  /// 이 앱의 정서와 정반대였다. 출석은 문턱이 0이고(켜기만 하면 된다)
+  /// 보상이 곧 **당근** — 매일 와야 카피가 안 굶는다는 이야기로 이어진다.
+  int checkinStep([DateTime? now]) {
+    final (today, yesterday) = dateKeys(now);
+    final last = _prefs.getInt('checkin.day') ?? 0;
+    final step = _prefs.getInt('checkin.step') ?? 0;
+    if (last == today) return step;
+    // 어제 받았으면 다음 칸, 아니면 처음부터. 일곱 칸을 채웠으면 새 판.
+    if (last == yesterday && step < checkinDays) return step + 1;
+    return 1;
+  }
+
+  /// 오늘 도장을 아직 안 찍었는가.
+  bool checkinPending([DateTime? now]) =>
+      _prefs.getInt('checkin.day') != dateKeys(now).$1;
+
+  /// 오늘 도장을 찍는다. 보상 지급은 호출자 몫이다.
+  Future<void> markCheckin(int step, [DateTime? now]) async {
+    await _prefs.setInt('checkin.day', dateKeys(now).$1);
+    await _prefs.setInt('checkin.step', step);
+  }
+
+  // ── 힌트: 하루 풀 ─────────────────────────────────────────────────
+
+  /// 하루에 주는 힌트 개수(카피·X 각각).
+  static const hintsPerDay = 3;
+
+  /// 오늘 남은 힌트. **날짜가 바뀌었으면 채워서** 돌려준다(자정 리셋).
+  ///
+  /// 예전엔 게임 화면을 열 때마다 3개씩 채웠다. 그러면 힌트가 떨어져도
+  /// **뒤로 나갔다 다시 들어오면 공짜로 차서** 리워드 광고를 볼 이유가
+  /// 하나도 없었다. 힌트는 희소해야 광고에 값이 붙는다.
+  /// 되돌리지 말 것 — 레퍼런스(Meowdoku)도 하루 단위다.
+  (int capy, int x) hintsToday([DateTime? now]) {
+    final (today, _) = dateKeys(now);
+    if (_prefs.getInt('hint.day') != today) {
+      return (hintsPerDay, hintsPerDay);
+    }
+    return (_prefs.getInt('hint.capy') ?? hintsPerDay,
+        _prefs.getInt('hint.x') ?? hintsPerDay);
+  }
+
+  /// 남은 힌트를 적는다. **오늘 날짜를 함께 박는다** — 그래야 자정에 다시
+  /// 찬다. 한 번도 안 썼으면 아무것도 안 적히고, 그때는 늘 가득이다.
+  Future<void> setHintsToday(int capy, int x, [DateTime? now]) async {
+    final (today, _) = dateKeys(now);
+    await _prefs.setInt('hint.day', today);
+    await _prefs.setInt('hint.capy', capy);
+    await _prefs.setInt('hint.x', x);
+  }
+
   // ── 오늘의 퍼즐 + 연속 기록 ───────────────────────────────────────
 
   /// 오늘 것을 이미 깼는가.
@@ -87,6 +174,7 @@ class Progress {
         'daily.streak', last == yesterdayKey ? dailyStreak + 1 : 1);
     await _prefs.setInt('daily.last', dateKey);
     await _prefs.remove('bd.d$dateKey');
+    await _prefs.remove('bdm.d$dateKey');
   }
 
   // ── 트레이닝 기록 (네모로직과 같은 구조) ──────────────────────────

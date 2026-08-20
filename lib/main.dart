@@ -13,13 +13,13 @@ import 'core/palette.dart';
 import 'core/progress.dart';
 import 'core/settings.dart';
 import 'core/sfx.dart';
+import 'game/capy_says.dart';
 import 'game/game_screen.dart';
-import 'game/league.dart';
-import 'game/league_screen.dart';
 import 'pet/family.dart';
 import 'pet/family_event.dart';
 import 'pet/family_event_scene.dart';
 import 'pet/pet.dart';
+import 'ui/checkin_sheet.dart';
 import 'ui/settings_sheet.dart';
 import 'ui/splash.dart';
 
@@ -198,7 +198,10 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _showPendingEvents() async {
     if (_eventsRunning || !mounted) return;
     final events = FamilyEvents.pending(progress.prefs, progress.currentLevel);
-    if (events.isEmpty) return;
+    if (events.isEmpty) {
+      await _maybeCheckin();
+      return;
+    }
     _eventsRunning = true;
     for (final e in events) {
       if (!mounted) break;
@@ -215,6 +218,7 @@ class _HomeScreenState extends State<HomeScreen>
     await FamilyEvents.markSeen(progress.prefs, progress.currentLevel);
     _eventsRunning = false;
     if (mounted) setState(() {});
+    await _maybeCheckin();
   }
 
   Future<void> _play(int level) async {
@@ -246,7 +250,9 @@ class _HomeScreenState extends State<HomeScreen>
       if (t < _Morsel.flightEnd) continue;
       final chewT =
           ((t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd)).clamp(0.0, 1.0);
-      final bites = (chewT / 0.78 * 3).clamp(0.0, 3.0);
+      // 0.70은 리그가 "꿀꺽"하는 시각(먹는 동작의 80%)에 맞춘 값이다 —
+      // 크게 잡으면 다 씹은 뒤에도 먹이가 남아 허공에서 줄어든다.
+      final bites = (chewT / 0.70 * 3).clamp(0.0, 3.0);
       return HeldFood(
         watermelon: m.special,
         eaten: (bites / 3 * 1.02).clamp(0.0, 1.0),
@@ -286,20 +292,19 @@ class _HomeScreenState extends State<HomeScreen>
       );
       // 날아가는 구간이 끝나면 입에 물린 채로 조금씩 없어진다 —
       // 그냥 사라지면 "먹었다"가 아니라 "삭제됐다"로 보인다.
-      var bitten = false;
       var lastBite = -1;
+      // **먹이가 출발할 때 바로 먹는 동작을 건다.** 도착한 뒤에 걸면 앞발이
+      // 반 박자 늦게 올라와 "벌써 먹고 있는데 손이 뒤따라오는" 그림이 된다.
+      // 동작의 첫 구간(덥석)이 나는 동안이고, 씹기는 도착과 함께 시작한다.
+      _ctrlFor(who).play(special ? CapyAct.feast : CapyAct.eat);
       m.ctrl.addListener(() {
         final t = m.ctrl.value;
         if (t < _Morsel.flightEnd) return;
-        if (!bitten) {
-          bitten = true;
-          _ctrlFor(who).play(special ? CapyAct.feast : CapyAct.eat);
-        }
         // 한 입 베어 물 때마다 소리와 진동. 여럿이 동시에 먹을 때는 첫
         // 조각만 소리를 낸다 — 다섯 배로 겹치면 소음이 된다.
         if (idx != 0) return;
         final chewT = (t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd);
-        final bite = (chewT / 0.78 * 3).floor();
+        final bite = (chewT / 0.70 * 3).floor();
         if (bite != lastBite && bite < 3) {
           lastBite = bite;
           Sfx.munch();
@@ -355,11 +360,29 @@ class _HomeScreenState extends State<HomeScreen>
     _say('${m.label} 카피가 좋아해요!');
   }
 
-  String _leagueLabel() {
-    final now = DateTime.now();
-    final dateKey = now.year * 10000 + now.month * 100 + now.day;
-    final dayFrac = (now.hour * 3600 + now.minute * 60 + now.second) / 86400.0;
-    return '${League.rankOf(dateKey, dayFrac, progress.dailyScore(dateKey))}위';
+  /// 오늘 도장을 아직 안 찍었으면 도장판을 띄우고 보상을 준다.
+  ///
+  /// **가족 사건 다음이다.** 성장·결혼은 이 게임에서 훨씬 큰 사건이라
+  /// 출석 창이 그 앞을 막으면 안 된다.
+  Future<void> _maybeCheckin() async {
+    if (!mounted || !progress.checkinPending()) return;
+    final step = progress.checkinStep();
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => CheckinSheet(
+        step: step,
+        onClaim: () {
+          final p = Pet.load(progress.prefs);
+          p.addCarrots(Progress.checkinCarrots[step - 1]);
+          if (step == Progress.checkinDays) p.addSpecials(1);
+          progress.markCheckin(step);
+          Sfx.win();
+          Navigator.of(context).pop();
+        },
+      ),
+    );
+    if (mounted) setState(() => pet = Pet.load(progress.prefs));
   }
 
   Future<void> _playDaily() async {
@@ -372,6 +395,21 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   /// 이름 짓기 — 애착은 이름에서 시작한다.
+  /// 이름을 부르면 대답한다. **반기지 않는다** — 부르면 듣기는 하는데
+  /// 딱 그만큼만 하는 것이 이 캐릭터다.
+  void _callByName() {
+    if (!pet.named) {
+      _say(CapySays.noName[_nameTapCount++ % CapySays.noName.length]);
+      return;
+    }
+    _say(CapySays
+        .calledByName[_nameTapCount++ % CapySays.calledByName.length]);
+    Sfx.pet();
+    _ctrlFor(0).play(CapyAct.startle);
+  }
+
+  int _nameTapCount = 0;
+
   Future<void> _rename() async {
     final ctrl = TextEditingController(text: pet.named ? pet.name : '');
     final value = await showDialog<String>(
@@ -476,8 +514,13 @@ class _HomeScreenState extends State<HomeScreen>
         // 먹이도 덩치에 맞춘다 — 아기에게 어른만 한 당근은 우스꽝스럽다.
         final foodScale = 0.52 + fill * 0.55;
 
-        // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다.
+        // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다. 여기서 정하는 건
+        // **자리 크기**이고, 그림은 저마다 배율을 따로 먹는다 — 후광·여백이
+        // 달라서 같은 숫자로 그리면 눈에는 크기가 달라 보인다.
         const foodSize = 68.0;
+        // 바구니는 넓고 당근이 위로 솟아 있어 같은 상자를 써도 수박보다
+        // 훨씬 커 보인다. 눈에 맞춰 줄인다(자리와 누를 수 있는 크기는 그대로).
+        const basketDraw = foodSize * 0.82;
         final foodX = w - 18 - foodSize / 2;
         // 먹이는 어른 카피의 어깨보다 아래로 — 위에 두면 몸에 가린다.
         final basketCenter = Offset(foodX, feetY - capyH * 0.30);
@@ -580,7 +623,7 @@ class _HomeScreenState extends State<HomeScreen>
                 final chewT =
                     ((t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd))
                         .clamp(0.0, 1.0);
-                final bites = (chewT / 0.78 * 3).clamp(0.0, 3.0);
+                final bites = (chewT / 0.70 * 3).clamp(0.0, 3.0);
                 final chewed = (bites / 3 * 1.02).clamp(0.0, 1.0);
                 final p = Offset.lerp(
                     m.from, m.to, Curves.easeInOut.transform(flight))!;
@@ -597,15 +640,21 @@ class _HomeScreenState extends State<HomeScreen>
                 final held = capyH *
                     holder.scale *
                     _fillOf(holder.skin) *
-                    (m.special ? 0.38 : 0.34);
-                final fw = 52 * foodScale +
-                    (held - 52 * foodScale) *
+                    (m.special ? kFeastSize : kFoodSize);
+                // 출발 크기는 바구니에서 튀어나오는 크기다 — 바구니를
+                // 줄였으면 여기도 같이 줄여야 튀어나오는 순간이 안 튄다.
+                final fw = 43 * foodScale +
+                    (held - 43 * foodScale) *
                         Curves.easeIn.transform(flight);
                 return Positioned(
                   left: p.dx - fw / 2 + wobble,
                   // 먹이의 **윗부분**이 입에 걸리게 둔다. 중심을 입에 맞추면
                   // 위로 뻗은 잎이 눈을 덮는다.
-                  top: p.dy - lift - fw * 0.18,
+                  // 수박은 자른 면이 입에 닿아야 해서 더 올린다 — 리그가
+                  // 그리는 위치(_drawFood)와 같아야 넘겨받는 순간 안 튄다.
+                  // 0.34는 페인터 안에서 자른 면의 높이, 0.015는 이 상자가
+                  // 세로로 조금 큰 만큼(1.15)의 보정이다.
+                  top: p.dy - lift - fw * (m.special ? 0.355 : 0.18),
                   child: SizedBox(
                     width: fw,
                     height: fw * 1.15,
@@ -661,12 +710,18 @@ class _HomeScreenState extends State<HomeScreen>
             child: _FoodSpot(
               count: pet.carrots,
               onTap: () => _throwFood(false, basketCenter, receivers(false)),
-              child: AnimatedBuilder(
-                animation: _jostle,
-                builder: (context, _) => CarrotBasket(
-                    count: pet.carrots,
-                    size: foodSize,
-                    jostle: _jostle.value),
+              child: SizedBox(
+                width: foodSize,
+                height: foodSize,
+                child: Center(
+                  child: AnimatedBuilder(
+                    animation: _jostle,
+                    builder: (context, _) => CarrotBasket(
+                        count: pet.carrots,
+                        size: basketDraw,
+                        jostle: _jostle.value),
+                  ),
+                ),
               ),
             ),
           ),
@@ -697,27 +752,34 @@ class _HomeScreenState extends State<HomeScreen>
             left: 14,
             right: 14,
             child: Row(children: [
-              // 이름은 왼쪽 맨 앞. 가족이 생기면 "○○ 가족"이 된다.
-              _NameChip(
-                name: married ? '${pet.name} 가족' : pet.name,
-                named: pet.named,
-                onTap: _rename,
-              ),
-              const Spacer(),
+              // 별(누적 점수)은 왼쪽 맨 앞. 이름은 여기 없다 — 카피 바로
+              // 아래, 성장 게이지 위에 이름표 없이 글씨로만 놓는다.
               _Pill(
                 icon: Icons.star_rounded,
                 iconColor: const Color(0xFFF4A93A),
                 label: '${progress.totalScore}',
               ),
-              const SizedBox(width: 6),
+              const Spacer(),
+              // 랭킹(트로피)이 있던 자리. 등수 대신 **며칠째 왔는가**를 센다.
               _Pill(
-                icon: Icons.emoji_events_rounded,
-                iconColor: const Color(0xFFF4A93A),
-                label: _leagueLabel(),
+                icon: Icons.calendar_month_rounded,
+                iconColor: const Color(0xFFE8830C),
+                label: '${progress.checkinStep()}일',
                 onTap: () async {
-                  await Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => LeagueScreen(progress: progress),
-                  ));
+                  final step = progress.checkinStep();
+                  if (progress.checkinPending()) {
+                    await _maybeCheckin();
+                  } else {
+                    // 오늘은 이미 받았다 — 도장판만 보여준다.
+                    await showDialog<void>(
+                      context: context,
+                      builder: (_) => CheckinSheet(
+                        step: step,
+                        claimed: true,
+                        onClaim: () => Navigator.of(context).pop(),
+                      ),
+                    );
+                  }
                   if (mounted) setState(() {});
                 },
               ),
@@ -726,7 +788,8 @@ class _HomeScreenState extends State<HomeScreen>
                 icon: Icons.settings_rounded,
                 onTap: () async {
                   await showDialog<void>(
-                      context: context, builder: (_) => const SettingsSheet());
+                      context: context,
+                      builder: (_) => SettingsSheet(onRename: _rename));
                   if (mounted) setState(() {});
                 },
               ),
@@ -797,6 +860,36 @@ class _HomeScreenState extends State<HomeScreen>
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  // 이름은 **뱃지에 담지 않는다.** 카드처럼 두르면 UI 부품이
+                  // 되어 버리는데, 이건 이 카피의 이름이다.
+                  //
+                  // 대신 **스티커 레터링**으로 쓴다 — 흰 글씨에 갈색 테두리.
+                  // 갈색 글씨에 흰 후광만 깔았더니 초원에 묻혔다(풀색과
+                  // 명도가 비슷해서 후광으로는 안 떨어진다). 흰 속에 진한
+                  // 테두리를 두르면 어떤 배경에서도 읽히고, 만화 로고처럼
+                  // 보여서 이름이 물건이 아니라 **이름**으로 읽힌다.
+                  // 살짝 기울여 붙여 둔 것처럼 둔다.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _callByName,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
+                        child: Transform.rotate(
+                          angle: -0.032,
+                          child: _StickerName(
+                            text: pet.named
+                                ? (married ? '${pet.name} 가족' : pet.name)
+                                // 말풍선이 이미 조르고 있다 — 같은 문구를
+                                // 두 번 쓰면 잔소리가 된다.
+                                : '이름 없는 카피',
+                            faded: !pet.named,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   _GrowthGauge(level: current),
                   const SizedBox(height: 9),
                   _PlayButton(
@@ -1025,43 +1118,6 @@ class _Jostle extends StatelessWidget {
 /// 카피 이름표. 눌러서 이름을 지어 준다.
 ///
 /// 이름이 없으면 "이름 짓기"로 조른다 — 이름이 붙는 순간 애착이 생긴다.
-class _NameChip extends StatelessWidget {
-  final String name;
-  final bool named;
-  final VoidCallback onTap;
-
-  const _NameChip(
-      {required this.name, required this.named, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: named ? Colors.white.withValues(alpha: 0.94) : const Color(0xFFF2802B),
-      borderRadius: BorderRadius.circular(999),
-      elevation: 2,
-      shadowColor: Palette.brown.withValues(alpha: 0.3),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(13, 5, 11, 5),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Text(named ? name : '이름 짓기',
-                style: TextStyle(
-                    fontSize: 17,
-                    color: named ? Palette.brown : Colors.white)),
-            const SizedBox(width: 5),
-            Icon(Icons.edit_rounded,
-                size: 14,
-                color: named ? Palette.brownSoft : Colors.white),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-/// 몸무게 배지 — 커 가는 걸 실감하게 하는 숫자라 크고 또렷해야 한다.
 class _WeightBadge extends StatelessWidget {
   final double kg;
   final String shape;
@@ -1381,5 +1437,47 @@ class _HeartFloat extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 초원 위에 붙은 이름. **흰 글씨 + 진한 테두리**(스티커 레터링).
+///
+/// 갈색 글씨에 흰 후광만 깔았을 때는 풀색과 명도가 비슷해 묻혔다.
+/// 속을 희게 비우고 테두리를 두르면 배경이 무엇이든 떨어져 나온다.
+class _StickerName extends StatelessWidget {
+  final String text;
+
+  /// 아직 이름을 안 지었을 때 — 조르는 문구라 조금 물러나 있어야 한다.
+  final bool faded;
+
+  const _StickerName({required this.text, this.faded = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = faded ? 19.0 : 27.0;
+    final edge = faded ? const Color(0xFF9C8468) : const Color(0xFF4A3222);
+    return Stack(children: [
+      // 테두리 — 획을 이어 그려야 모서리가 안 벌어진다.
+      Text(text,
+          style: TextStyle(
+            fontSize: size,
+            height: 1.0,
+            foreground: Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = faded ? 4.5 : 6.5
+              ..strokeJoin = StrokeJoin.round
+              ..color = edge,
+          )),
+      Text(text,
+          style: TextStyle(
+            fontSize: size,
+            height: 1.0,
+            color: Colors.white,
+            shadows: const [
+              Shadow(color: Color(0x33000000), offset: Offset(0, 2),
+                  blurRadius: 3),
+            ],
+          )),
+    ]);
   }
 }

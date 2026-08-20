@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show ByteData, rootBundle;
 
+import '../core/palette.dart';
 import 'props.dart';
 
 /// 전신 렌더 비율. 리그 위젯의 가로세로는 항상 이 비율을 따른다.
@@ -94,15 +95,15 @@ class CapySkins {
     // pivotX, pivotY, lidRise, jawDrop, eyeL, eyeR, eyeY, shLx, shLy, shRx, shRy
     'stage1': [0.4970, 0.7974, 0.0454, 0.0336, 0.4121, 0.5879, 0.6276],
     'stage2': [0.4970, 0.5711, 0.0393, 0.0313, 0.4242, 0.5727, 0.4237,
-               0.4167, 0.6079, 0.5788, 0.6079],
+               0.3833, 0.5842, 0.6136, 0.5842],
     'stage3': [0.5030, 0.4658, 0.0363, 0.0380, 0.4121, 0.5879, 0.2763,
-               0.2879, 0.5500, 0.7152, 0.5500],
+               0.3000, 0.5263, 0.6985, 0.5263],
     'stage4': [0.5000, 0.4684, 0.0333, 0.0425, 0.3712, 0.6212, 0.1513,
-               0.3333, 0.4974, 0.6758, 0.4974],
+               0.2818, 0.4724, 0.7152, 0.4724],
     'stage5': [0.5076, 0.4289, 0.0303, 0.0503, 0.3636, 0.6439, 0.0789,
-               0.2818, 0.5658, 0.7212, 0.5658],
+               0.2424, 0.4895, 0.7561, 0.4895],
     'mate':   [0.4970, 0.4553, 0.0424, 0.0403, 0.3970, 0.6061, 0.2566,
-               0.3788, 0.5500, 0.6242, 0.5500],
+               0.3333, 0.5263, 0.6652, 0.5263],
     // 퍼즐 칸에 쓰는 얼굴. 원본 카피에서 뽑았고 성장과 무관하다.
     // 퍼즐 칸 얼굴은 청소년 렌더에서 뽑는다 — 원본 카피는 둥글고 납작해
     // "빵떡" 소리를 들었다. tool/rig_stages.py의 FACE_FROM이 출처다.
@@ -440,7 +441,11 @@ class _RigPainter extends CustomPainter {
     final tall = size.height * skin.fill;
     // 수박은 7판에 하나 나오는 특별 먹이다. 당근보다 확실히 커야 한눈에
     // 다른 등급으로 읽힌다.
-    final fh = tall * (f.watermelon ? 0.38 : 0.34);
+    //
+    // **앞발은 먹이에 끝내 닿지 못한다**(어깨를 축으로 도는 조각이라
+    // 한계가 있다). 그래서 먹이를 키워 그 틈을 메운다 — 먹이가 크면
+    // 손이 먹이의 아래쪽을 받치는 것처럼 읽힌다. 0.34/0.38에서 키웠다.
+    final fh = tall * (f.watermelon ? kFeastSize : kFoodSize);
     // 입보다 조금 아래에 둔다. 윗부분만 주둥이에 가려 "베어 문" 그림이 된다.
     final cx = skin.mouthX * size.width + f.wobble * fh * 0.05;
     final cy = skin.mouthY * size.height + fh * 0.06;
@@ -451,8 +456,12 @@ class _RigPainter extends CustomPainter {
     if (f.watermelon) {
       // 자른 면이 위(입 쪽). 위에서부터 베어 먹고 껍질이 남는다.
       // 먹은 만큼 끌어올려 베어 문 면을 입에 붙여 둔다.
-      canvas.translate(
-          -fh / 2, -fh * 0.18 - WatermelonPainter.gone(fh, f.eaten));
+      // **자른 면이 정확히 [cy]에 오게 한다** — 페인터 안에서 자른 면은
+      // 위에서 [WatermelonPainter.centerY]만큼 내려간 곳이므로 그만큼 올린다.
+      // 눈대중으로 0.18을 썼더니 자른 면이 입보다 반 뼘 아래에 있어서
+      // 주둥이가 허공을 씹었다. 당근(뿌리 끝이 [cy])과 같은 규칙이다.
+      canvas.translate(-fh / 2,
+          -fh * WatermelonPainter.centerY - WatermelonPainter.gone(fh, f.eaten));
       WatermelonPainter(eaten: f.eaten, grounded: false)
           .paint(canvas, Size(fh, fh));
     } else {
@@ -473,6 +482,11 @@ class _RigPainter extends CustomPainter {
   bool shouldRepaint(covariant _RigPainter old) =>
       old.p != p || old.skin != skin || old.food != food;
 }
+
+/// 물고 있는 먹이의 크기(캐릭터 실제 키 대비). **`main.dart`의 날아오는
+/// 먹이도 이 값으로 자란다** — 다르면 입에 닿는 순간 크기가 튄다.
+const double kFoodSize = 0.42;
+const double kFeastSize = 0.48;
 
 /// 카피가 지금 하고 있는 짓.
 enum CapyAct {
@@ -827,10 +841,17 @@ class _CapyPerformerState extends State<CapyPerformer>
           final gain = big ? 1.45 : 1.0;
           if (ap < 0.10) {
             // 덥석 — 입을 크게 벌리고 고개를 앞으로 내민다.
+            // **앞발도 여기서 함께 올라온다.** 이 구간은 먹이가 날아오는
+            // 동안이다(`_Morsel.flightEnd`와 길이를 맞춰 뒀다). 예전에는
+            // 앞발이 씹기 시작할 때부터 움직여서, 입은 벌써 먹고 있는데
+            // 손이 반 박자 늦게 따라 올라오는 그림이 됐다.
             final k = Curves.easeOut.transform(ap / 0.10);
             jaw = 1.3 * k;
             headNod += 0.45 * k;
             squash += 0.10 * k;
+            armL -= 0.42 * gain * k;
+            armR += 0.42 * gain * k;
+            armLY = armRY = -0.050 * gain * k;
           } else if (ap < 0.80) {
             // 와그작 와그작 — **몰아서 씹고 잠깐 쉬고**를 세 번 되풀이한다.
             // 일정한 속도로 씹으면 기계처럼 보인다.
@@ -847,14 +868,14 @@ class _CapyPerformerState extends State<CapyPerformer>
             shift += math.sin(ct * math.pi * 7) * 0.012 * gain;
             squash += (chew - 0.45) * 0.17 * gain;
             // **앞발로 받쳐 들고 먹는다.** 어깨만 돌려서는 앞발이 입까지
-            // 못 올라오므로 위로 끌어올리는 값을 함께 준다. 도려낸 자리는
-            // 배 털로 메워져 있어 올려도 구멍이 안 보인다.
-            // 더 올리면 몸통에 남은 **팔 그림자**가 드러난다(팔을 도려낸
-            // 자리는 배 털로 메웠지만 그 둘레의 접촉 그림자는 원본에 남아
-            // 있다). 여기가 그 한계선이다.
-            armL -= (0.34 + chew * 0.10) * gain;
-            armR += (0.34 + chew * 0.10) * gain;
-            armLY = armRY = -0.042 * gain;
+            // 못 올라오므로 위로 끌어올리는 값을 함께 준다.
+            // 예전엔 0.34가 한계였다 — 도려낸 타원이 팔보다 작아 몸통에 팔이
+            // 그대로 남아 있었고, 조금만 올려도 그 유령 팔이 드러났다.
+            // 이제 팔을 통째로 도려내므로(rig_stages.py의 SPECS) 남는 것이
+            // 없고, 팔도 길어져서 같은 각도로도 더 크게 움직인다.
+            armL -= (0.42 + chew * 0.12) * gain;
+            armR += (0.42 + chew * 0.12) * gain;
+            armLY = armRY = -0.050 * gain;
             blink = math.max(blink, 0.55);
             // 한 입 삼킬 때마다 신나서 통통 — 특별 먹이는 더 크게 뛴다.
             if (!chomping) {
@@ -988,6 +1009,59 @@ class _CapyPerformerState extends State<CapyPerformer>
       height: widget.height,
       skin: widget.skin,
       food: widget.foodOf?.call(),
+    );
+  }
+}
+
+/// 퍼즐 칸에 들어가는 **그 얼굴**을 아이콘으로 쓴다(움직이지 않는 정지 그림).
+///
+/// 상단 "몇 마리 놓았나" 표시와 하단 힌트 버튼에 쓴다. 예전엔 벡터 카피(SVG)를
+/// 썼는데 칸 안의 카피와 다르게 생겨서 같은 게임의 물건으로 안 읽혔다.
+///
+/// **리그 조각을 그대로 겹쳐 쓰지 않는다.** 머리 조각의 아래쪽은 몸통과
+/// 이으려고 페더링돼 있어서, 그대로 쓰면 목이 안개처럼 흐려지며 끊긴다 —
+/// 작게 그리면 그 자락이 얼룩으로 보인다. `tool/rig_stages.py`가 알파를
+/// 또렷하게 잘라 `h_face.png` 한 장으로 뽑아 둔다(색도 아주 살짝 올렸다).
+class CapyFaceIcon extends StatelessWidget {
+  /// 가로 크기. 세로는 얼굴 비율로 정해진다.
+  final double width;
+
+  /// 흰 동그라미를 뒤에 깔까. 크림색 배경에 얼굴만 놓으면 떠 보인다.
+  final bool ring;
+
+  const CapyFaceIcon({super.key, required this.width, this.ring = false});
+
+  /// `h_face.png`의 가로세로 비율(스크립트가 출력한 값).
+  static const aspect = 255 / 234;
+
+  @override
+  Widget build(BuildContext context) {
+    final face = SizedBox(
+      width: width,
+      height: width / aspect,
+      child: const Image(
+          image: AssetImage('assets/rig/h_face.png'), fit: BoxFit.fill),
+    );
+    if (!ring) return face;
+    final d = width * 1.34;
+    return SizedBox(
+      width: d,
+      height: d,
+      child: Stack(alignment: Alignment.center, children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                  color: Palette.brown.withValues(alpha: 0.18),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2)),
+            ],
+          ),
+        ),
+        face,
+      ]),
     );
   }
 }
