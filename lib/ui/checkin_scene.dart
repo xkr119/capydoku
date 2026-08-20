@@ -9,13 +9,16 @@
 /// 그대로였다). 그건 **어느 게임에 붙여도 되는 화면**이라, 이 앱을 여는
 /// 첫 순간을 그런 것에 내주는 게 아까웠다.
 ///
-/// 지금은 이렇다. 초원에서 카피가 **오늘의 선물을 안고 자고 있다** → 버튼을
-/// 누르면 깨어나 폴짝 뛰고 당근이 쏟아진다. 깨우는 행동이 곧 출석이고,
-/// 그게 이 게임에서 매일 하는 일(들여다보고 먹인다)과 같은 몸짓이다.
+/// 지금은 이렇다. 초원에서 **짝꿍 카피가 오늘의 선물을 들고 기다린다** →
+/// 버튼을 누르면 폴짝 뛰고 당근이 쏟아진다.
+///
+/// 마중 나오는 얼굴은 **늘 짝꿍(`mate`)이다.** 가진 렌더 중 가장 귀엽고,
+/// 무엇보다 매일 같은 얼굴이 맞아 주는 편이 낫다 — 성장 단계에 따라 얼굴이
+/// 바뀌면 "출석하면 만나는 그 카피"라는 게 안 생긴다.
 ///
 /// 한때는 "화면 아무 데나 누르면 깨어나요"였다. 정서는 좋았지만 **뭘 받는지,
-/// 뭘 해야 하는지가 안 보였다** — 받을 것을 카피 품에 안겨 두고 버튼에 그
-/// 개수를 적으니 누르기 전에 이미 다 읽힌다.
+/// 뭘 해야 하는지가 안 보였다** — 받을 것을 손에 들려 두고 버튼에 그 개수를
+/// 적으니 누르기 전에 이미 다 읽힌다.
 ///
 /// 말투는 나른하게 — 이 앱에서 호들갑은 금지다.
 library;
@@ -41,9 +44,6 @@ class CheckinScene extends StatefulWidget {
   /// 며칠 연속으로 왔는가. 도장판과 달리 일곱 날을 채워도 안 끊긴다.
   final int streak;
 
-  /// 카피의 지금 모습(성장 단계 조각 이름).
-  final String skin;
-
   /// 깨우고 나서. 보상 지급은 부르는 쪽이 한다.
   final VoidCallback onClaim;
 
@@ -55,7 +55,6 @@ class CheckinScene extends StatefulWidget {
     super.key,
     required this.step,
     required this.streak,
-    required this.skin,
     required this.onClaim,
     this.claimed = false,
   });
@@ -68,7 +67,10 @@ class _CheckinSceneState extends State<CheckinScene>
     with TickerProviderStateMixin {
   final _capy = CapyController();
 
-  /// 깨어났는가. 이미 받은 날은 처음부터 깨어 있다.
+  /// 마중 나오는 얼굴. 성장 단계와 무관하게 늘 같다.
+  static const _skin = 'mate';
+
+  /// 선물을 건넸는가. 이미 받은 날은 처음부터 빈손이다.
   late bool _awake = widget.claimed;
 
   /// 쏟아지는 당근. 각자 시작 위치와 지연이 다르다.
@@ -96,16 +98,9 @@ class _CheckinSceneState extends State<CheckinScene>
     if (_awake) return;
     setState(() => _awake = true);
     Buzz.medium();
-    // 깜짝 놀라 깼다가 곧바로 신나서 폴짝. 하품부터 시키면 2.6초를 기다려야
-    // 해서, 버튼을 누른 사람에게는 그 사이가 "먹통"으로 느껴진다.
-    _capy.play(CapyAct.startle);
-    Sfx.pet();
-    Timer(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      _capy.play(CapyAct.cheer);
-      Sfx.sparkle();
-      _pour();
-    });
+    _capy.play(CapyAct.cheer);
+    Sfx.sparkle();
+    _pour();
   }
 
   /// 하늘에서 당근이 쏟아진다. 받은 개수만큼 떨어지므로 **세어 볼 수 있다** —
@@ -170,26 +165,17 @@ class _CheckinSceneState extends State<CheckinScene>
                       bottom: -capyH * 0.02,
                       child: GroundShadow(width: capyH * 0.62),
                     ),
-                    _awake
-                        ? CapyPerformer(
-                            height: capyH,
-                            controller: _capy,
-                            skin: widget.skin,
-                            happy: true)
-                        // **오늘 받을 것을 안고 잔다.** 무엇을 받는지 글자로
-                        // 적기 전에 그림으로 먼저 보인다.
-                        : CapySleeping(
-                            skin: widget.skin,
-                            height: capyH,
-                            food: HeldFood(
-                                watermelon: _isLast, eaten: 0),
-                          ),
-                    if (!_awake)
-                      // 머리 바로 오른쪽 위. 멀리 두면 누구 잠인지 안 읽힌다.
-                      Positioned(
-                          bottom: capyH * 0.66,
-                          right: capyH * 0.04,
-                          child: const _Zzz()),
+                    // **오늘 받을 것을 들고 서 있다.** 무엇을 받는지 글자로
+                    // 적기 전에 그림이 먼저 말한다. 건네고 나면 빈손이 된다.
+                    CapyPerformer(
+                      height: capyH,
+                      controller: _capy,
+                      skin: _skin,
+                      happy: true,
+                      foodOf: () => _awake
+                          ? null
+                          : HeldFood(watermelon: _isLast, eaten: 0),
+                    ),
                   ],
                 ),
               ),
@@ -239,7 +225,7 @@ class _CheckinSceneState extends State<CheckinScene>
                     ? '오늘 몫은 다 받았어요'
                     : _awake
                         ? (_isLast ? '일곱 날을 채웠네요!' : '잘 받았어요')
-                        : '카피가 안고 자고 있어요',
+                        : '오늘 몫을 들고 기다렸어요',
                 style: const TextStyle(
                     fontSize: 15,
                     color: Palette.brown,
@@ -457,54 +443,5 @@ class _Stamp extends StatelessWidget {
         ]),
       ),
     ]);
-  }
-}
-
-/// 머리 위로 하나씩 떠오르는 잠. 셋이 시차를 두고 올라간다.
-class _Zzz extends StatefulWidget {
-  const _Zzz();
-
-  @override
-  State<_Zzz> createState() => _ZzzState();
-}
-
-class _ZzzState extends State<_Zzz> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 2600))
-    ..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 56,
-        height: 76,
-        child: AnimatedBuilder(
-          animation: _c,
-          builder: (context, _) =>
-              Stack(children: [for (var i = 0; i < 3; i++) _one(i)]),
-        ),
-      );
-
-  Widget _one(int i) {
-    // 각자 1/3씩 어긋나게 올라간다. 같이 움직이면 글자 덩어리가 뜬다.
-    final t = (_c.value + i / 3) % 1.0;
-    return Positioned(
-      left: 8 + t * 18,
-      bottom: t * 56,
-      child: Opacity(
-        // 처음 20%는 나타나고, 마지막 35%는 사라진다.
-        opacity: (t < 0.2 ? t / 0.2 : (1 - t) / 0.35).clamp(0.0, 1.0),
-        child: Text('z',
-            style: TextStyle(
-                fontSize: 14 + i * 5.0,
-                color: Palette.brown.withValues(alpha: 0.75),
-                fontWeight: FontWeight.w800)),
-      ),
-    );
   }
 }
