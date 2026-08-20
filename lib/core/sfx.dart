@@ -8,6 +8,8 @@
 /// 한다.** 예전에는 예외를 통째로 삼켜서 원인을 못 찾았다.
 library;
 
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
@@ -24,13 +26,32 @@ class Sfx {
   static bool everPlayed = false;
   static Object? lastError;
 
+  /// 앱 시작에 한 번. **오디오 포커스를 잡지 않게 한다.**
+  ///
+  /// 기본값(`gain`)은 소리 하나를 낼 때마다 시스템 오디오 포커스를 뺏고
+  /// 돌려준다. 짧은 효과음이 이 게임처럼 촘촘히 나면(X를 쭉 그으면 40ms
+  /// 간격이다) 매번 포커스를 오가느라 앞소리가 잘리고 지연이 붙는다.
+  /// 게다가 사용자가 듣던 음악을 계속 끊는다 — 퍼즐 게임에서 그건 앱을
+  /// 지울 이유가 된다.
+  static Future<void> init() async {
+    try {
+      await AudioPlayer.global.setAudioContext(
+        AudioContextConfig(focus: AudioContextConfigFocus.mixWithOthers)
+            .build(),
+      );
+    } catch (e) {
+      lastError = e;
+      if (kDebugMode) debugPrint('Sfx.init 실패: $e');
+    }
+  }
+
   static Future<void> play(String name, {double volume = 0.9}) async {
     if (!enabled) return;
     final p = _pool[_next];
     _next = (_next + 1) % _pool.length;
     try {
+      // 같은 자리의 앞소리는 끊고 시작한다(풀이 여섯이라 웬만해선 안 겹친다).
       await p.stop();
-      await p.setVolume(volume);
       await p.play(AssetSource('sfx/$name.wav'), volume: volume);
       everPlayed = true;
     } catch (e) {
@@ -40,20 +61,64 @@ class Sfx {
     }
   }
 
-  /// 칸을 톡 누를 때.
-  static void tap() => play('tap', volume: 0.5);
+  /// [after] 뒤에 이어서 낸다. **소리를 겹쳐 쌓는 데 쓴다** — 종소리 뒤에
+  /// 카피 목소리가 따라 나오면 하나짜리 효과음보다 훨씬 두껍게 들린다.
+  static void _later(Duration after, String name, {double volume = 0.9}) {
+    if (!enabled) return;
+    Timer(after, () => play(name, volume: volume));
+  }
+
+  // ── 조작 ──────────────────────────────────────────────────────────
+
+  /// 버튼을 누를 때. 아주 자주 나므로 절대 튀면 안 된다.
+  static void tap() => play('tap', volume: 0.45);
 
   /// X 표시 한 칸. 아주 짧아서 드래그하면 "띠디디디딕"이 된다.
   static void mark() => play('tick', volume: 0.55);
 
-  /// 카피를 제대로 놓았을 때 — "카피~ 카피~".
-  static void place() => play('voice_place');
+  /// 카피를 제대로 놓았을 때 — 마림바 "동" 위에 "카피~ 카피~".
+  static void place() {
+    play('place', volume: 0.55);
+    _later(const Duration(milliseconds: 60), 'voice_place', volume: 0.9);
+  }
 
-  /// 틀렸을 때 — "꽥".
-  static void wrong() => play('voice_wrong', volume: 0.85);
+  /// 틀렸을 때 — 흘러내리는 소리 뒤에 "꽥".
+  static void wrong() {
+    play('wrong', volume: 0.6);
+    _later(const Duration(milliseconds: 40), 'voice_wrong', volume: 0.85);
+  }
 
-  /// 판을 깼을 때.
-  static void win() => play('voice_win');
+  // ── 보상 ──────────────────────────────────────────────────────────
+
+  /// 판을 깼을 때 — **뾰로롱~**, 그다음에 카피가 좋아하는 소리.
+  ///
+  /// 예전엔 목소리 하나뿐이라 판을 깬 순간이 칸 하나 맞힌 순간과 크게
+  /// 다르지 않게 들렸다. 이 게임에서 가장 큰 보상에는 가장 큰 소리가 붙어야
+  /// 한다 — 올라가는 아르페지오가 먼저 나가고 목소리가 그 위에 얹힌다.
+  static void win() {
+    play('win');
+    _later(const Duration(milliseconds: 320), 'voice_win', volume: 0.85);
+  }
+
+  /// 보상 하나가 들어올 때의 반짝임.
+  static void sparkle() => play('sparkle', volume: 0.7);
+
+  /// 힌트를 썼을 때. 짧은 "핑" — 축하처럼 들리면 안 된다.
+  static void hint() => play('hint', volume: 0.6);
+
+  /// 하트가 채워질 때. 두근 두근, 그리고 안도.
+  static void heart() => play('heart', volume: 0.8);
+
+  /// 출석 도장을 찍을 때.
+  static void stamp() => play('stamp', volume: 0.8);
+
+  /// 한 단계 자랐을 때 — 쭉 올라갔다 종소리로 안착한다.
+  static void grow() => play('grow', volume: 0.9);
+
+  // ── 돌봄 ──────────────────────────────────────────────────────────
+
+  /// 먹이를 던질 때의 바람 소리. 던진 게 눈에 보이니 거들기만 한다.
+  static void whoosh() => play('whoosh', volume: 0.5);
 
   static void munch() => play('munch', volume: 0.8);
   static void pet() => play('pet', volume: 0.7);
@@ -70,7 +135,4 @@ class Sfx {
 
   /// 배웅 — 낮고 길게, 여운을 남기며 멀어진다.
   static void bye() => play('voice_bye', volume: 0.8);
-
-  /// 무언가 일어났다는 반짝임. **화면이 내는 소리**라 목소리와 겹쳐 쓴다.
-  static void sparkle() => play('sparkle', volume: 0.7);
 }

@@ -110,6 +110,7 @@ class _BootState extends State<_Boot> {
       preload: () async {
         final p = await Progress.load();
         Settings.load(p.prefs);
+        await Sfx.init();
         _progress = p;
         _skin = Pet.skinOf(p.currentLevel);
         await CapySkins.load(_skin, px);
@@ -381,6 +382,8 @@ class _HomeScreenState extends State<HomeScreen>
     }
     Buzz.light();
     _shakeOf(special).forward(from: 0);
+    // 던지는 순간에는 바람 소리만. 씹는 소리는 입에 닿은 뒤에 나온다.
+    Sfx.whoosh();
     if (!special) _feedTurn++; // 다음 당근은 다음 식구 차례
 
     for (final (idx, (who, to)) in targets.indexed) {
@@ -515,7 +518,9 @@ class _HomeScreenState extends State<HomeScreen>
           p.addCarrots(Progress.checkinCarrots[step - 1]);
           if (step == Progress.checkinDays) p.addSpecials(1);
           progress.markCheckin(step);
-          Sfx.win();
+          // 도장은 도장 소리다. 판을 깬 소리를 돌려쓰면 출석이 클리어처럼
+          // 들려서, 정작 판을 깼을 때의 보람이 깎인다.
+          Sfx.stamp();
           Navigator.of(context).pop();
         },
       ),
@@ -1083,14 +1088,22 @@ class _HomeScreenState extends State<HomeScreen>
                     label: progress.hasBoard('$current')
                         ? '레벨 $current 이어서'
                         : '레벨 $current 시작',
-                    onTap: () => _play(current),
+                    onTap: () {
+                      Sfx.tap();
+                      _play(current);
+                    },
                   ),
                   const SizedBox(height: 9),
                   _DailyButton(
                     key: _kDaily,
                     done: dailyDone,
                     streak: progress.dailyStreak,
-                    onTap: dailyDone ? null : _playDaily,
+                    onTap: dailyDone
+                        ? null
+                        : () {
+                            Sfx.tap();
+                            _playDaily();
+                          },
                   ),
                   const SizedBox(height: 8),
                   Text('모든 퍼즐은 찍기 없이 100% 논리로 풀립니다',

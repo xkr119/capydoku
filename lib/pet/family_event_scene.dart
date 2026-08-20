@@ -186,7 +186,7 @@ class _FamilyEventSceneState extends State<FamilyEventScene>
               Sfx.sparkle();
               Buzz.medium();
             }),
-            (2.25, Sfx.win),
+            (2.25, Sfx.grow),
           ],
         FamilyEventKind.marry => [
             (3.5, () {

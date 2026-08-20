@@ -13,7 +13,6 @@ import '../art/capy_art.dart';
 import '../art/capy_motion.dart';
 import '../art/capy_rig.dart';
 import '../art/effects.dart';
-import '../art/props.dart';
 import '../core/palette.dart';
 import '../core/ads.dart';
 import '../core/progress.dart';
@@ -99,31 +98,31 @@ class _GameScreenState extends State<GameScreen>
   final _rootKey = GlobalKey();
   final _scoreKey = GlobalKey();
   final _boardKey = GlobalKey();
-  final _carrotKey = GlobalKey();
 
   /// **연속 정답 콤보.** 카피를 맞게 놓을 때마다 오르고, 틀리면 0이 된다.
-  /// [_comboStep]번째마다 당근이 하나 떨어진다.
+  /// 점수와 "연달아 맞히고 있다"는 감각에만 쓴다.
   ///
-  /// 힌트로 놓은 것도 콤보를 올린다 — 힌트는 판당 3회로 묶여 있어 캘 수 없고,
-  /// 무엇보다 상단의 "0/N"이 거짓말이 되면 안 된다. 규칙은 하나여야 한다:
-  /// **실수만 안 하면 다 받는다.**
+  /// 예전엔 세 번마다 당근이 하나씩 떨어졌는데, 10판을 깨기도 전에 서른
+  /// 개가 넘게 쌓여 먹이는 일이 아까울 게 없는 일이 됐다. 당근은 이제
+  /// **판을 깬 값**으로만 들어온다.
   int _combo = 0;
-
-  /// 이번 판에서 주운 당근. **지갑에는 판을 깰 때 한꺼번에 들어간다** —
-  /// 주울 때마다 넣으면 세 칸만 맞히고 나갔다 들어오기를 반복해 무한히 캔다.
-  int _carrotsFound = 0;
-
-  /// 몇 번 연속으로 맞혀야 당근 하나인가.
-  static const _comboStep = 3;
 
   /// **이 판에서** 쓴 힌트 수. 완성 보너스는 남은 개수가 아니라 이걸로
   /// 센다 — 힌트가 하루 풀이 되면서, 남은 개수로 세면 아침에 쓴 힌트가
   /// 그날 남은 판 전부의 점수를 깎는 이중 처벌이 된다.
   int _hintsUsed = 0;
 
-  /// 이 판에서 **얻을 수 있는** 당근. 한 번도 안 틀렸을 때의 값이라
-  /// 상단에 "주운 것 / 이만큼"으로 그대로 보여줄 수 있다.
-  int get _carrotsMax => board.n ~/ _comboStep;
+  /// 판 하나를 깨면 받는 당근.
+  static const carrotsPerClear = 2;
+
+  /// 오늘의 퍼즐을 깨면 받는 당근. 하루 한 판이라 조금 넉넉하다.
+  static const carrotsPerDaily = 5;
+
+  /// 판을 깰 때 수박이 나올 확률.
+  static const specialChance = 0.10;
+
+  /// 수박 추첨용. 판을 깨는 순간 한 번만 뽑으므로 다시 굴릴 방법은 없다.
+  static final _rng = math.Random();
 
   BannerAd? _banner;
 
@@ -194,16 +193,14 @@ class _GameScreenState extends State<GameScreen>
     capyHints = todayCapy;
     xHints = todayX;
     score = 0;
-    // 이어 풀기면 콤보도 그대로 이어야 한다. 새 판이면 둘 다 0에서 시작하고
-    // 저장돼 있던 값도 지운다("다시 풀기"로 당근을 캐지 못하게).
+    // 이어 풀기면 콤보도 그대로 이어야 한다. 새 판이면 0에서 시작하고
+    // 저장돼 있던 값도 지운다("다시 풀기"로 힌트 보너스를 캐지 못하게).
     if (saved != null) {
-      final (combo, carrots, used) = widget.progress.loadBoardMeta(_slot);
+      final (combo, _, used) = widget.progress.loadBoardMeta(_slot);
       _combo = combo;
-      _carrotsFound = carrots;
       _hintsUsed = used;
     } else {
       _combo = 0;
-      _carrotsFound = 0;
       _hintsUsed = 0;
       widget.progress.clearBoardMeta(_slot);
     }
@@ -300,7 +297,6 @@ class _GameScreenState extends State<GameScreen>
                     fly: f,
                     onDone: () => setState(() {
                       _flies.remove(f);
-                      if (f.carrot) return;
                       _pendingScore -= f.gained;
                       score += f.gained;
                     }),
@@ -332,25 +328,6 @@ class _GameScreenState extends State<GameScreen>
         scoreBox.localToGlobal(scoreBox.size.center(Offset.zero)));
     _pendingScore += gained;
     setState(() => _flies.add(_ScoreFly(_flyId++, start, end, gained)));
-  }
-
-  /// 그 칸에서 상단 당근 카운터로 당근이 날아간다. 점수와 같은 길을 쓰되
-  /// 도착지가 다르다 — 같은 곳으로 보내면 무엇이 늘어난 건지 안 보인다.
-  void _spawnCarrotFly(int r, int c) {
-    final root = _rootKey.currentContext?.findRenderObject() as RenderBox?;
-    final boardBox = _boardKey.currentContext?.findRenderObject() as RenderBox?;
-    final target = _carrotKey.currentContext?.findRenderObject() as RenderBox?;
-    if (root == null || boardBox == null || target == null) return;
-    final n = board.n;
-    final gridSide = boardBox.size.width - _boardPad * 2;
-    final cellSize = (gridSide - (n - 1) * _gap) / n;
-    final local = Offset(_boardPad + c * (cellSize + _gap) + cellSize / 2,
-        _boardPad + r * (cellSize + _gap) + cellSize / 2);
-    final start = root.globalToLocal(boardBox.localToGlobal(local));
-    final end = root
-        .globalToLocal(target.localToGlobal(target.size.center(Offset.zero)));
-    setState(() =>
-        _flies.add(_ScoreFly(_flyId++, start, end, 0, carrot: true)));
   }
 
   // ── 상단 ────────────────────────────────────────────────────────────
@@ -419,18 +396,6 @@ class _GameScreenState extends State<GameScreen>
         Text('${board.placedCount()}',
             style: const TextStyle(fontSize: 18, color: Color(0xFF2F9E44))),
         Text('/${board.n}',
-            style: const TextStyle(fontSize: 18, color: Palette.brown)),
-      ])),
-      const SizedBox(width: 9),
-      // **이 판에서 얻을 수 있는 당근**과 지금까지 주운 것. 총량을 미리
-      // 보여줄 수 있는 건 콤보 규칙이 "실수만 안 하면 다 받는다"라서다.
-      // 여기가 날아온 당근이 도착하는 자리이기도 하다(_carrotKey).
-      _pill(Row(key: _carrotKey, mainAxisSize: MainAxisSize.min, children: [
-        const Carrot(size: 24),
-        const SizedBox(width: 7),
-        Text('$_carrotsFound',
-            style: const TextStyle(fontSize: 18, color: Color(0xFFE8830C))),
-        Text('/$_carrotsMax',
             style: const TextStyle(fontSize: 18, color: Palette.brown)),
       ])),
       const SizedBox(width: 9),
@@ -799,16 +764,16 @@ class _GameScreenState extends State<GameScreen>
     _onMistake(r, c, result);
   }
 
-  /// 카피가 제자리에 놓였다. 콤보를 올리고, [_comboStep]번째면 당근이 떨어진다.
+  /// 카피가 제자리에 놓였다. 콤보를 올린다.
+  ///
+  /// **판 안에서 당근이 떨어지던 것을 걷어냈다.** 세 칸마다 하나씩 주웠더니
+  /// 10판을 깨기도 전에 서른 개가 넘게 쌓여서, 먹이는 일이 아까울 게 없는
+  /// 일이 됐다. 이제 당근은 **판을 깬 값**으로만 들어온다(판당 두 개).
+  /// 콤보 자체는 남는다 — 점수와 "연달아 맞히고 있다"는 감각은 그대로다.
   void _onCorrect(int r, int c) {
     _combo++;
-    if (_combo % _comboStep == 0 && _carrotsFound < _carrotsMax) {
-      setState(() => _carrotsFound++);
-      Sfx.mark();
-      _spawnCarrotFly(r, c);
-    }
     widget.progress.saveBoard(_slot, board.cells);
-    widget.progress.saveBoardMeta(_slot, _combo, _carrotsFound, _hintsUsed);
+    widget.progress.saveBoardMeta(_slot, _combo, 0, _hintsUsed);
   }
 
   Future<void> _onMistake(int r, int c, PlaceResult result) async {
@@ -827,7 +792,7 @@ class _GameScreenState extends State<GameScreen>
         _ => null,
       };
     });
-    widget.progress.saveBoardMeta(_slot, _combo, _carrotsFound, _hintsUsed);
+    widget.progress.saveBoardMeta(_slot, _combo, 0, _hintsUsed);
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     setState(() {
@@ -851,6 +816,7 @@ class _GameScreenState extends State<GameScreen>
       board.tryPlace(r, c);
       _floats.add(_FloatText(_floatId++, r, c, '여기!'));
     });
+    Sfx.hint();
     _saveHints();
     _spawnScoreFly(r, c, 50);
     Buzz.medium();
@@ -897,6 +863,7 @@ class _GameScreenState extends State<GameScreen>
     });
     _saveHints();
     Buzz.medium();
+    Sfx.hint();
     final cells = preview.$2;
     for (final (i, cell) in cells.indexed) {
       Timer(Duration(milliseconds: 40 * i), () {
@@ -1130,15 +1097,16 @@ class _GameScreenState extends State<GameScreen>
       await widget.progress.markCleared(widget.level);
     }
     // 돌봄 보상: **판에서 주운 당근 + 깬 값** + 7판마다 수박.
-    // 클리어 자체가 기분 업. 오늘의 퍼즐은 어려운 만큼 넉넉히 준다.
-    //
-    // 주운 당근이 여기서 처음 지갑에 들어간다 — 주울 때마다 넣으면 세 칸만
-    // 맞히고 나갔다 들어오기를 반복해 무한히 캘 수 있다.
+    // **판 하나에 당근 둘.** 판 크기와도, 얼마나 잘 풀었는지와도 무관한
+    // 고정값이다. 예전엔 판 안에서 줍는 것까지 더해 판당 다섯 개까지 갔고,
+    // 10판이면 서른 개가 넘게 쌓여 먹이는 일이 아까울 게 없어졌다.
+    // 오늘의 퍼즐은 하루 한 판이니 조금 더 준다.
     await widget.progress.addWin();
     final pet = Pet.load(widget.progress.prefs);
-    final clearBonus = isDaily ? 5 : 1 + board.n ~/ 8;
-    final carrotsEarned = clearBonus + _carrotsFound;
-    final specialEarned = widget.progress.totalWins % 7 == 0 ? 1 : 0;
+    final carrotsEarned = isDaily ? carrotsPerDaily : carrotsPerClear;
+    // 수박은 **운으로** 나온다. 일곱 판마다 정확히 나오면 달력이 되어
+    // 놀랄 일이 없다 — 열 번에 한 번쯤 튀어나와야 그날의 사건이 된다.
+    final specialEarned = _rng.nextDouble() < specialChance ? 1 : 0;
     pet
       ..addCarrots(carrotsEarned)
       ..onClear();
@@ -1221,6 +1189,7 @@ class _GameScreenState extends State<GameScreen>
               final shown = Ads.showRewarded(() {
                 if (!mounted) return;
                 setState(() => board.hearts = 3);
+                Sfx.heart();
                 Navigator.pop(context, null); // 다이얼로그 닫고 이어서 푼다
               });
               if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
@@ -1324,11 +1293,7 @@ class _ScoreFly {
   final Offset end;
   final int gained;
 
-  /// 점수가 아니라 **당근**이 날아간다. 도착해도 점수는 안 오른다.
-  final bool carrot;
-
-  _ScoreFly(this.id, this.start, this.end, this.gained,
-      {this.carrot = false});
+  _ScoreFly(this.id, this.start, this.end, this.gained);
 }
 
 /// 점수 비행: 칸에서 "빵" 커졌다가(0~0.35) 점수 카운터로 슈룩 날아간다.
@@ -1364,16 +1329,14 @@ class _ScoreFlyWidget extends StatelessWidget {
           child: Transform.scale(
             scale: scale,
             child: Center(
-              child: fly.carrot
-                  ? const Carrot(size: 34)
-                  : Text('+${fly.gained}',
-                      style: const TextStyle(
-                          fontSize: 24,
-                          color: Color(0xFFE8830C),
-                          shadows: [
-                            Shadow(color: Colors.white, blurRadius: 8),
-                            Shadow(color: Colors.white, blurRadius: 14),
-                          ])),
+              child: Text('+${fly.gained}',
+                  style: const TextStyle(
+                      fontSize: 24,
+                      color: Color(0xFFE8830C),
+                      shadows: [
+                        Shadow(color: Colors.white, blurRadius: 8),
+                        Shadow(color: Colors.white, blurRadius: 14),
+                      ])),
             ),
           ),
         );
