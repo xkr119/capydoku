@@ -29,6 +29,12 @@ HEIGHTS = [0.50, 0.65, 0.80, 0.91, 1.00]
 # 배우자(성인 암컷). 어른 수컷보다 조금 작고 부드럽다.
 MATE = ('f1', 0.86)
 
+# 배우자만 **살짝 따뜻하게** 물들인다.
+# 원본이 거의 흰 크림색이라 갈색 식구들 사이에 혼자 튀었다("너무 하얗다").
+# 그렇다고 같은 색으로 맞추면 구분이 안 되므로, 밝기는 지키고 **채도만**
+# 카피바라 쪽으로 조금 끌어온다. 0이면 원본, 1이면 완전한 갈색.
+MATE_WARMTH = 0.34
+
 
 def cutout(img: Image.Image) -> Image.Image:
     """가장자리에서 이어진 밝은 무채색을 지운다.
@@ -147,6 +153,39 @@ def _top_of(alpha: Image.Image) -> int:
     return box[1] if box else 0
 
 
+def warm(img: Image.Image, k: float) -> Image.Image:
+    """밝기는 그대로 두고 색만 따뜻한 쪽으로 [k]만큼 끌어온다.
+
+    채널을 곱해 진하게 만들면 그림자까지 같이 어두워져 다른 캐릭터가 된다.
+    각 픽셀의 밝기를 유지한 채 색조만 기준색으로 섞으면 "같은 아이인데
+    털색이 조금 더 따뜻한" 정도로 남는다.
+    """
+    if k <= 0:
+        return img
+    ref = (208, 158, 104)                       # 카피바라 털의 기준색
+    rw, gw, bw = 0.299, 0.587, 0.114
+    ref_lum = ref[0] * rw + ref[1] * gw + ref[2] * bw
+    r, g, b, a = img.split()
+    rp, gp, bp = r.load(), g.load(), b.load()
+    W, H = img.size
+    ap = a.load()
+    for y in range(H):
+        for x in range(W):
+            if ap[x, y] == 0:
+                continue
+            R, G, B = rp[x, y], gp[x, y], bp[x, y]
+            lum = R * rw + G * gw + B * bw
+            if lum <= 1:
+                continue
+            # 기준색을 이 픽셀의 밝기로 옮겨 놓고 그쪽으로 섞는다.
+            scale = lum / ref_lum
+            tr, tg, tb = (min(255, c * scale) for c in ref)
+            rp[x, y] = int(R + (tr - R) * k)
+            gp[x, y] = int(G + (tg - G) * k)
+            bp[x, y] = int(B + (tb - B) * k)
+    return Image.merge('RGBA', (r, g, b, a))
+
+
 def place(sub: Image.Image, height_frac: float) -> Image.Image:
     """피사체를 캔버스 아래 중앙에, 정해진 높이 비율로 앉힌다."""
     box = sub.split()[3].getbbox()
@@ -174,7 +213,10 @@ def main():
     jobs = [(f's{i}', f) for i, f in enumerate(HEIGHTS, start=1)] + [MATE]
     for name, frac in jobs:
         src = Image.open(f'{RAW}/{name}.png')
-        out = slim(place(drop_shadow(cutout(src)), frac))
+        cut = drop_shadow(cutout(src))
+        if name == MATE[0]:
+            cut = warm(cut, MATE_WARMTH)
+        out = slim(place(cut, frac))
         path = f'{OUT}/{name}.png'
         out.save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB  높이 {frac:.0%}')

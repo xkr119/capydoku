@@ -92,6 +92,27 @@ def ramp(size, y_at, span, invert):
     return m
 
 
+def neck_column(size, cut_y, spec):
+    """자름선 위쪽만 목 굵기로 남기는 마스크. 아래는 손대지 않는다.
+
+    예전 방식은 어깨 높이를 따로 정해 그 위를 전부 좁혔는데, 성인·어른처럼
+    몸이 넓으면 좁힌 폭이 실제 몸통보다 좁아 **옆구리가 잘려 나갔다**.
+    자름선 자체를 기준으로 삼으면 어깨는 무슨 일이 있어도 안 건드린다.
+    """
+    W, H = size
+    m = Image.new('L', size, 0)
+    d = ImageDraw.Draw(m)
+    half = spec.head_half * 0.55
+    for y in range(H):
+        d.line([(0, y), (W, y)], fill=255)          # 기본은 전부 남긴다
+    for x in range(W):
+        top = int(cut_y(x))
+        if abs(x - spec.head_cx) <= half:
+            continue                                 # 목 안쪽 기둥은 위까지 남긴다
+        d.line([(x, 0), (x, top)], fill=0)           # 목 밖은 자름선 위를 지운다
+    return m.filter(ImageFilter.GaussianBlur(6))
+
+
 def ellipse_mask(size, cx, cy, rx, ry, blur):
     m = Image.new('L', size, 0)
     ImageDraw.Draw(m).ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
@@ -149,7 +170,13 @@ def build(spec: Spec):
     # 머리가 클수록 더 깊이 물려야 한다. 얕으면 목에 희끄무레한 띠가 남는다.
     over = max((spec.chin_y - spec.cheek_y) * 0.9 + 30, spec.head_half * 0.62)
     head_keep = ramp(size, lambda x: cut_y(x) + over * 0.55, over * 0.6, False)
-    body_keep = ramp(size, lambda x: cut_y(x) - 8, over * 0.6, True)
+
+    # 몸통은 **세로로 흐리지 않는다.** 예전에는 머리처럼 위로 서서히 사라지게
+    # 했는데, 두 조각이 같이 반투명해지는 띠가 생겨 합친 불투명도가 1에 못
+    # 미쳤다. 고개를 돌리면 그 띠가 머리를 따라 움직여 **목에 잔상**으로 보였다.
+    # 대신 몸통은 끝까지 불투명하게 두고, **자름선 위에서만 목 굵기로 좁힌다**.
+    # 좁은 기둥은 회전축 가까이에 있어 고개를 돌려도 넓은 머리 뒤에 계속 숨는다.
+    body_keep = neck_column(size, cut_y, spec)
 
     jcx, jcy, jrx, jry = spec.jaw
     jaw = src.copy()
