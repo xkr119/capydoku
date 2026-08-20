@@ -32,7 +32,7 @@ class _SplashScreenState extends State<SplashScreen>
   static const _title = 'Capydoku';
 
   late final AnimationController _c = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 2600));
+      vsync: this, duration: const Duration(milliseconds: 2200));
 
   bool _ready = false;
 
@@ -43,12 +43,17 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _run() async {
-    // 준비와 연출을 나란히 돌리고 둘 다 끝나기를 기다린다.
-    // 준비가 먼저 끝나도 연출은 끝까지 간다 — 그게 이 화면의 목적이다.
-    await Future.wait<void>([widget.warmUp(), _c.forward()]);
+    // **연출보다 리그 조각 디코딩이 먼저다.** 조각이 없으면 카피가 아예 안
+    // 그려지는데, 그동안 등장 곡선은 계속 흘러간다. 그러면 로딩이 끝나는
+    // 순간 이미 커진 카피가 툭 나타났다가 되튀며 줄어드는 것처럼 보인다.
+    // (이게 "확 커졌다 줄어드는 끊기는 느낌"의 정체였다.)
+    await CapyRigImages.load();
+    if (!mounted) return;
+    final warm = widget.warmUp();
+    await Future.wait<void>([warm, _c.forward()]);
     if (!mounted) return;
     setState(() => _ready = true);
-    await Future<void>.delayed(const Duration(milliseconds: 260));
+    await Future<void>.delayed(const Duration(milliseconds: 240));
     if (mounted) widget.onDone();
   }
 
@@ -125,25 +130,25 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Widget _capy(double t, double h) {
-    final p = _seg(t, 0.02, 0.34, curve: const PoingCurve());
+    // 큰 화면에서는 튀는 폭을 줄인다 — 칸만 한 크기에서 시원한 진폭이
+    // 화면 한가운데의 250px짜리에 그대로 걸리면 덜컹거리는 것처럼 보인다.
+    final p = _seg(t, 0.0, 0.36, curve: const PoingCurve(overshoot: 0.13));
     if (p <= 0) return SizedBox(height: h);
     // 등장 직후 한 번 기지개 켜듯 갸웃.
-    final settle = _seg(t, 0.34, 0.75, curve: Curves.easeInOut);
+    final settle = _seg(t, 0.36, 0.78, curve: Curves.easeInOut);
     final pose = CapyPose(
       breathe: math.sin(t * 22),
       headTurn: math.sin(settle * math.pi * 2) * 0.16,
       blink: settle > 0.45 && settle < 0.56 ? 1 : 0,
-      squash: (1 - p).clamp(-1.0, 1.0) * 0.4,
+      smile: settle > 0.6 ? ((settle - 0.6) / 0.25).clamp(0.0, 1.0) : 0,
+      squash: (1 - p).clamp(-1.0, 1.0) * 0.25,
     );
-    final stretch = 1 + (p - 1) * 0.45;
-    return Opacity(
-      opacity: math.min(1, t * 12),
-      child: Transform.scale(
-        scaleX: p / stretch,
-        scaleY: p * stretch,
-        alignment: Alignment.bottomCenter,
-        child: CapyRig(pose: pose, height: h),
-      ),
+    final stretch = 1 + (p - 1) * 0.22;
+    return Transform.scale(
+      scaleX: p / stretch,
+      scaleY: p * stretch,
+      alignment: Alignment.bottomCenter,
+      child: CapyRig(pose: pose, height: h),
     );
   }
 

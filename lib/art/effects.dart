@@ -127,18 +127,22 @@ class _BurstPainter extends CustomPainter {
 /// `Curves.elasticOut`은 여러 번 흔들려서 물컹해 보인다. 이건 한 번 크게
 /// 넘겼다가 한 번만 되튄다. 만화적으로 읽히는 건 이쪽이다.
 class PoingCurve extends Curve {
-  const PoingCurve();
+  /// 얼마나 넘겨 칠지. 작은 칸에서 튀어나올 땐 크게, 큰 화면에선 작게.
+  final double overshoot;
+
+  const PoingCurve({this.overshoot = 0.28});
 
   @override
   double transformInternal(double t) {
+    final peak = 1 + overshoot;
     if (t < 0.42) {
-      // 0 → 1.28 까지 단숨에
+      // 0 → peak 까지 단숨에
       final p = t / 0.42;
-      return 1.28 * (1 - math.pow(1 - p, 2.6)).toDouble();
+      return peak * (1 - math.pow(1 - p, 2.6)).toDouble();
     }
-    // 1.28 → 0.94 → 1.0, 사인 반주기로 한 번만 되튄다
+    // peak → 살짝 눌렸다 → 1.0, 사인 반주기로 한 번만 되튄다
     final p = (t - 0.42) / 0.58;
-    return 1 + 0.28 * math.cos(p * math.pi * 1.5) * (1 - p);
+    return 1 + overshoot * math.cos(p * math.pi * 1.5) * (1 - p);
   }
 }
 

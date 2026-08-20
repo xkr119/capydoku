@@ -74,5 +74,6 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/icon.png"
-  adaptive_icon_background: "#7EC4B8"
+  # 적응형 배경도 이미지다 — 단색이면 아이콘이 퍼즐 게임으로 안 읽힌다.
+  adaptive_icon_background: "assets/icon/icon_bg.png"
   adaptive_icon_foreground: "assets/icon/icon_fg.png"

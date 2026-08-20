@@ -109,7 +109,6 @@ def _head_set(src, alpha, size, jaw, lids):
 
     칸은 작아서 전신을 넣으면 얼굴이 몇 픽셀 안 된다. 표정이 안 보이면
     캐릭터가 아니라 무늬가 된다. 그래서 타일은 머리만 쓴다.
-    칸 색과 털색이 비슷해 묻히므로 흰 테두리(스티커)를 함께 만든다.
 
     몸통용 머리와 달리 아래로 길게 흐리지 않는다 — 받쳐 줄 몸이 없어서
     흐린 자락이 그대로 보이고, 테두리도 그 자락까지 뒤집어쓴다.
@@ -123,18 +122,7 @@ def _head_set(src, alpha, size, jaw, lids):
     cropped = {k: v.crop(box) for k, v in parts.items()}
     W, H = cropped['head'].size
 
-    # 테두리: 머리 실루엣을 부풀려 흰색으로 채운 판. 머리 밑에 한 장 깐다.
-    grow = max(3, round(W * 0.024))
-    silhouette = cropped["head"].split()[3].point(lambda v: 255 if v > 120 else 0)
-    ring = silhouette.filter(ImageFilter.MaxFilter(grow * 2 + 1)).filter(
-        ImageFilter.GaussianBlur(1.2))
-    outline = Image.new('RGBA', (W, H), (255, 255, 255, 0))
-    outline.putalpha(ring)
-    outline = Image.composite(
-        Image.new('RGBA', (W, H), (255, 255, 255, 255)), outline, ring)
-    outline.putalpha(ring)
-
-    for name, im in (('outline', outline), *cropped.items()):
+    for name, im in cropped.items():
         path = os.path.join(OUT, f'h_{name}.png')
         _slim(im, HEAD_OUT_H).save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB')

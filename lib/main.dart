@@ -302,18 +302,20 @@ class _HomeScreenState extends State<HomeScreen>
         final safeTop = MediaQuery.paddingOf(context).top;
 
         // ── 씬 좌표 ──
-        // 카피가 화면 한가운데 위쪽에 온다. 아래는 초원과 조작부에 내준다.
+        // 위에서부터: 점수·리그 → 게이지 둘 → 말풍선 → 이름 → 카피 → 몸무게
+        // → 조작부. 카피 주변에만 정보를 모아 두고 화면 구석은 비워 둔다.
         // 성장은 눈에 보여야 하지만 아기라고 점만 하게 두면 초원이 빈다.
         final grow = 0.78 + (stage.scale - 0.62) * 0.58;
-        final capyH = (h * 0.27).clamp(150.0, 260.0) * grow;
-        final feetY = h * 0.515;                        // 발이 닿는 선
+        final capyH = (h * 0.30).clamp(160.0, 280.0) * grow;
+        final feetY = h * 0.565;                        // 발이 닿는 선
         final capyTop = feetY - capyH;
         final mouth = Offset(w / 2, feetY - capyH * 0.59);
-        // 먹이는 카피보다 앞쪽(아래) 풀밭에 둔다. 가까운 것이 아래 있어야
-        // 깊이가 생기고, 카피와 조작부 사이의 빈 잔디도 이걸로 메운다.
-        const basketSize = 88.0;
-        final basketCenter = Offset(w - 20 - basketSize / 2, feetY + 74);
-        final gyulCenter = Offset(48.0, feetY + 56);
+
+        // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다.
+        const foodSize = 68.0;
+        final foodX = w - 18 - foodSize / 2;
+        final basketCenter = Offset(foodX, feetY - capyH * 0.46);
+        final gyulCenter = Offset(foodX, basketCenter.dy + foodSize + 14);
 
         return Stack(fit: StackFit.expand, children: [
           // ── 배경: 초원 ──
@@ -323,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen>
           Positioned(
             left: 0,
             right: 0,
-            top: h * 0.33,
+            top: h * 0.37,
             bottom: 0,
             child: const CustomPaint(painter: MeadowGround(horizon: 0.04)),
           ),
@@ -363,34 +365,27 @@ class _HomeScreenState extends State<HomeScreen>
               child: Center(child: _HeartFloat(key: ValueKey('h$id'))),
             ),
 
-          // ── 카피 머리 위: 말풍선 · 이름 · 몸무게 · 게이지 ──
+          // ── 카피 위: 말풍선 + 이름표 ──
           Positioned(
             left: 12,
             right: 12,
-            bottom: h - capyTop + 6,
+            bottom: h - capyTop + 8,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               _Bubble(text: _shout ?? pet.statusLine),
-              const SizedBox(height: 7),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                _NameChip(
-                    name: pet.name, named: pet.named, onTap: _rename),
-                const SizedBox(width: 7),
-                _WeightBadge(
-                    kg: pet.weightKg(current), shape: pet.shapeLabel),
-              ]),
-              const SizedBox(height: 7),
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                _Meter(
-                    icon: Icons.restaurant_rounded,
-                    color: const Color(0xFFF2802B),
-                    value: pet.satiety),
-                const SizedBox(width: 8),
-                _Meter(
-                    icon: Icons.favorite_rounded,
-                    color: const Color(0xFFE8837E),
-                    value: pet.mood),
-              ]),
+              const SizedBox(height: 8),
+              _NameChip(name: pet.name, named: pet.named, onTap: _rename),
             ]),
+          ),
+
+          // ── 카피 아래: 몸무게 ──
+          Positioned(
+            left: 0,
+            right: 0,
+            top: feetY + 12,
+            child: Center(
+              child: _WeightBadge(
+                  kg: pet.weightKg(current), shape: pet.shapeLabel),
+            ),
           ),
 
           // ── 날아가는 먹이 ──
@@ -449,10 +444,10 @@ class _HomeScreenState extends State<HomeScreen>
               },
             ),
 
-          // ── 먹이 바구니 (오른쪽) ──
+          // ── 먹이 둘 (오른쪽, 같은 크기로 세로) ──
           Positioned(
-            left: basketCenter.dx - basketSize / 2,
-            top: basketCenter.dy - basketSize / 2,
+            left: basketCenter.dx - foodSize / 2,
+            top: basketCenter.dy - foodSize / 2,
             child: _FoodSpot(
               count: pet.carrots,
               onTap: () => _throwFood(false, basketCenter, mouth),
@@ -460,20 +455,24 @@ class _HomeScreenState extends State<HomeScreen>
                 animation: _jostle,
                 builder: (context, _) => CarrotBasket(
                     count: pet.carrots,
-                    size: basketSize,
+                    size: foodSize,
                     jostle: _jostle.value),
               ),
             ),
           ),
-
-          // ── 황금귤 (반대쪽 풀밭) ──
           Positioned(
-            left: gyulCenter.dx - 27,
-            top: gyulCenter.dy - 27,
+            left: gyulCenter.dx - foodSize / 2,
+            top: gyulCenter.dy - foodSize / 2,
             child: _FoodSpot(
               count: pet.specials,
               onTap: () => _throwFood(true, gyulCenter, mouth),
-              child: const GoldenTangerine(size: 54),
+              // 귤은 그림 안에 후광·잎 여백이 있어 같은 숫자로 그리면
+              // 바구니보다 작아 보인다. 눈에 같아 보이도록 키워 그린다.
+              child: const SizedBox(
+                width: foodSize,
+                height: foodSize,
+                child: Center(child: GoldenTangerine(size: foodSize * 1.22)),
+              ),
             ),
           ),
 
@@ -503,7 +502,29 @@ class _HomeScreenState extends State<HomeScreen>
             ]),
           ),
 
-          // ── 하단: 성장 게이지 · 오늘의 퍼즐 · 시작 ──
+          // ── 포만감 · 기분: 화면 위쪽 양 끝으로 벌려 둔다 ──
+          Positioned(
+            top: safeTop + 54,
+            left: 14,
+            right: 14,
+            child: Row(children: [
+              Expanded(
+                child: _Meter(
+                    icon: Icons.restaurant_rounded,
+                    color: const Color(0xFFF2802B),
+                    value: pet.satiety),
+              ),
+              SizedBox(width: w * 0.10),
+              Expanded(
+                child: _Meter(
+                    icon: Icons.favorite_rounded,
+                    color: const Color(0xFFE8837E),
+                    value: pet.mood),
+              ),
+            ]),
+          ),
+
+          // ── 하단: 성장 게이지 · 레벨 진행 · 오늘의 퍼즐 ──
           Positioned(
             left: 0,
             right: 0,
@@ -515,17 +536,17 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   _GrowthGauge(level: current),
                   const SizedBox(height: 9),
-                  _DailyButton(
-                    done: dailyDone,
-                    streak: progress.dailyStreak,
-                    onTap: dailyDone ? null : _playDaily,
-                  ),
-                  const SizedBox(height: 9),
                   _PlayButton(
                     label: progress.hasBoard('$current')
                         ? '레벨 $current 이어서'
                         : '레벨 $current 시작',
                     onTap: () => _play(current),
+                  ),
+                  const SizedBox(height: 9),
+                  _DailyButton(
+                    done: dailyDone,
+                    streak: progress.dailyStreak,
+                    onTap: dailyDone ? null : _playDaily,
                   ),
                   const SizedBox(height: 8),
                   Text('모든 퍼즐은 찍기 없이 100% 논리로 풀립니다',
@@ -715,7 +736,9 @@ class _WeightBadge extends StatelessWidget {
   }
 }
 
-/// 카피 머리 위에 뜨는 상태 게이지 하나.
+/// 포만감·기분 게이지. 화면 위쪽 양 끝에 하나씩 놓인다.
+///
+/// 카피의 상태는 이 게임에서 가장 자주 보는 숫자라 작으면 안 된다.
 class _Meter extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -727,20 +750,21 @@ class _Meter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+      padding: const EdgeInsets.fromLTRB(9, 6, 11, 7),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.90),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Palette.brown.withValues(alpha: 0.12), blurRadius: 5),
+              color: Palette.brown.withValues(alpha: 0.14),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
         ],
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 6),
-        SizedBox(
-          width: 62,
+      child: Row(children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 7),
+        Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: TweenAnimationBuilder<double>(
@@ -749,7 +773,7 @@ class _Meter extends StatelessWidget {
               curve: Curves.easeOutCubic,
               builder: (context, v, _) => LinearProgressIndicator(
                 value: v,
-                minHeight: 8,
+                minHeight: 13,
                 color: color,
                 backgroundColor: const Color(0xFFEDE3D4),
               ),

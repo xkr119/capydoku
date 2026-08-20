@@ -30,9 +30,6 @@ const double kCapyHeadAspect = 512 / 450;
 /// 좌표는 전부 `tool/rig_parts.py`가 출력한 값이다. 원본 렌더를 갈아끼우면
 /// 스크립트를 다시 돌려 여기 숫자를 옮겨 적어야 한다.
 class CapySkin {
-  /// 얼굴용에만 있는 흰 스티커 테두리. 머리 밑에 한 장 깐다.
-  final ui.Image? outline;
-
   /// 전신용에만 있는 몸통.
   final ui.Image? body;
 
@@ -49,7 +46,6 @@ class CapySkin {
   final double eyeY;
 
   const CapySkin({
-    this.outline,
     this.body,
     required this.head,
     required this.jaw,
@@ -88,7 +84,7 @@ class CapyRigImages {
 
       final p = await Future.wait([
         'body', 'head', 'jaw', 'lidl', 'lidr', //
-        'h_outline', 'h_head', 'h_jaw', 'h_lidl', 'h_lidr',
+        'h_head', 'h_jaw', 'h_lidl', 'h_lidr',
       ].map(one));
       return _loaded = CapyRigImages(
         CapySkin(
@@ -98,7 +94,7 @@ class CapyRigImages {
           eyeX: const [174.5 / 651, 471.5 / 651], eyeY: 150 / 900,
         ),
         CapySkin(
-          outline: p[5], head: p[6], jaw: p[7], lidL: p[8], lidR: p[9],
+          head: p[5], jaw: p[6], lidL: p[7], lidR: p[8],
           pivotX: 0.4980, pivotY: 0.9556,
           lidRise: 0.0756, jawDrop: 0.0978,
           eyeX: const [0.2041, 0.7842], eyeY: 0.3378,
@@ -226,8 +222,6 @@ class _RigPainter extends CustomPainter {
     canvas.scale(1, 1 - p.headNod * 0.045);
     canvas.translate(-pivot.dx, -pivot.dy);
 
-    // 테두리는 머리와 같이 돌아야 한다.
-    if (skin.outline != null) draw(skin.outline!);
     draw(skin.head);
     final lidDown = math.max(p.blink, p.smile);
     if (lidDown > 0.01) {
