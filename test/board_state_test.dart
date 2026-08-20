@@ -43,11 +43,17 @@ void main() {
     expect(Levels.sizeOf(1), 4);
     expect(Levels.sizeOf(2), 5);
     expect(Levels.sizeOf(4), 6);
-    expect(Levels.sizeOf(7), 7);
-    expect(Levels.sizeOf(10), 8);
-    expect(Levels.sizeOf(14), 9);
-    expect(Levels.sizeOf(18), 10);
+    expect(Levels.sizeOf(6), 7);
+    expect(Levels.sizeOf(8), 8);
+    expect(Levels.sizeOf(9), 9);
+    // 10판째에 10×10에 닿고 거기서 고정된다. 배너 광고도 여기서 시작한다.
+    expect(Levels.sizeOf(10), 10);
     expect(Levels.sizeOf(999), 10);
+    // 9판까지는 매번(또는 한 판 걸러) 커진다 — 그게 초반의 유일한 보상이다.
+    for (var l = 1; l < 10; l++) {
+      expect(Levels.sizeOf(l + 1) - Levels.sizeOf(l), inInclusiveRange(0, 1),
+          reason: '레벨 $l→${l + 1}에서 크기가 한 번에 두 단계 뛴다');
+    }
     // 초반 레벨은 한 수 읽기 없이 풀린다 — "찍기 같다" 방지선
     for (var l = 1; l <= 6; l++) {
       expect(Levels.puzzleOf(l).lookaheads, 0, reason: 'level $l');

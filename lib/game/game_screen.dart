@@ -140,9 +140,13 @@ class _GameScreenState extends State<GameScreen>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  /// 배너는 레벨 4부터 — 초반 몰입(온보딩)은 광고 없이.
+  /// 배너는 **레벨 10부터** — 판이 10×10이 되는 지점과 같다.
+  ///
+  /// 앞의 아홉 판은 한 판이 1분도 안 걸려서, 그 위에 광고를 얹으면 시간당
+  /// 광고량이 훨씬 커진다. 그 구간이 곧 사람이 가장 많이 나가는 구간이라
+  /// 통째로 비워 둔다. 전면 광고는 여기서 더 뒤(레벨 20)부터다.
   void _loadBanner() {
-    if (widget.level < 4 || !Ads.ready) return;
+    if (widget.level < 10 || !Ads.ready) return;
     final banner = BannerAd(
       adUnitId: AdIds.banner,
       size: AdSize.banner,
