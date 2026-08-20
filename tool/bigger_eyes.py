@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""성인(s4) 카피의 **눈만** 키운다.
+"""청소년·성인·어른 카피의 **눈만** 키운다.
 
     python3 tool/bigger_eyes.py && python3 tool/gen_stages.py && python3 tool/rig_stages.py
 
-성인 단계는 눈이 너무 작아 화면에서도 스토어 스크린샷에서도 감은 것처럼
-보였다. 처음엔 Canva로 다시 렌더했는데, 나온 그림이 **햄스터**에 가까웠고
+자란 단계일수록 눈이 작고 넓게 벌어져 있어, 화면에서 **표정이 아예 안
+읽혔다**. 눈이 안 보이면 웃든 놀라든 아무 일도 일어나지 않은 것처럼 보인다. 처음엔 Canva로 다시 렌더했는데, 나온 그림이 **햄스터**에 가까웠고
 청소년(s3)보다 어려 보여서 성장 순서가 뒤집혔다. 얼굴을 통째로 바꾸면
 가족 다섯이 같은 종으로 안 읽힌다.
 
@@ -21,14 +21,22 @@ from PIL import Image
 
 RAW = 'build/stage_raw'
 
-# 눈 중심(원본 1131×1600 좌표)과 부풀릴 반경.
+# 눈을 키울 단계와, 그 단계의 눈 중심(원본 1131×1600 좌표)·반경·배율.
+#
 # 반경은 **주둥이와 귀에 닿기 전**까지다 — 넘어가면 코가 같이 늘어난다.
-EYES = [(440, 328), (698, 332)]
-RADIUS = 78
-
-# 중심에서의 확대 배율. 2.0쯤이 작은 화면에서도 "떴다"가 읽히면서 만화 눈은 되지 않는 선.
-# 2.2를 넘기면 콧등이 눌려 주둥이가 좁아 보인다.
-BOOST = 2.0
+# 배율은 작은 화면에서 "떴다"가 읽히는 선. 2.2를 넘기면 콧등이 눌려
+# 주둥이가 좁아 보인다.
+#
+# 아기(s1)·어린이(s2)는 원본부터 눈이 크고 동그래서 손대지 않는다.
+# 짝꿍(f1)도 그대로 둔다 — 옆에 선 어른보다 눈이 크면 나이가 뒤바뀐다.
+STAGES = {
+    # 청소년 — 눈이 작고 넓게 벌어져 있어 화면에서 표정이 안 읽혔다.
+    's3': ([(444, 344), (700, 344)], 82, 1.70),
+    # 성인 — 가장 심했다. 스토어 스크린샷에서도 감은 것처럼 보였다.
+    's4': ([(440, 328), (698, 332)], 78, 2.00),
+    # 어른 — 주둥이가 커서 눈이 더 밀려나 있다.
+    's5': ([(430, 296), (710, 296)], 80, 1.80),
+}
 
 
 def bloat(img, cx, cy, radius, boost):
@@ -68,15 +76,16 @@ def bloat(img, cx, cy, radius, boost):
 
 
 def main():
-    orig = f'{RAW}/s4_orig.png'
-    if not os.path.exists(orig):
-        os.rename(f'{RAW}/s4.png', orig)
-        print(f'원본을 {orig}로 옮겨 두었다')
-    img = Image.open(orig).convert('RGB')
-    for cx, cy in EYES:
-        bloat(img, cx, cy, RADIUS, BOOST)
-    img.save(f'{RAW}/s4.png')
-    print(f'{RAW}/s4.png — 눈 {BOOST}배')
+    for name, (eyes, radius, boost) in STAGES.items():
+        orig = f'{RAW}/{name}_orig.png'
+        if not os.path.exists(orig):
+            os.rename(f'{RAW}/{name}.png', orig)
+            print(f'원본을 {orig}로 옮겨 두었다')
+        img = Image.open(orig).convert('RGB')
+        for cx, cy in eyes:
+            bloat(img, cx, cy, radius, boost)
+        img.save(f'{RAW}/{name}.png')
+        print(f'{RAW}/{name}.png — 눈 {boost}배')
 
 
 if __name__ == '__main__':

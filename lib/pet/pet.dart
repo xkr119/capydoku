@@ -106,7 +106,11 @@ class Pet {
     satiety += 22;
     mood += 4;
     // 먹인 만큼 찐다. 시간당 정산(±7‰)만 있으면 먹이는 손맛이 없다.
-    weightDeltaPm += 3;
+    //
+    // 3‰이면 아기(4kg) 기준 한 개에 12g이라 화면의 숫자가 꿈쩍도 안 했다 —
+    // 먹였는데 아무 일도 안 일어나는 것처럼 보인다. 5‰이면 두세 개마다
+    // 소수점 첫 자리가 움직이고, 몸집도 눈에 띄게 붇는다(`widthScale`).
+    weightDeltaPm += 5;
     _clamp();
     _save();
     return true;
@@ -117,7 +121,8 @@ class Pet {
     _p.setInt('inv.special', specials - 1);
     satiety += 30;
     mood += 18;
-    weightDeltaPm += 8;
+    // 수박은 특별 먹이다. 당근 세 개 몫은 쪄야 그날의 사건으로 남는다.
+    weightDeltaPm += 15;
     _clamp();
     _save();
     return true;
@@ -169,8 +174,13 @@ class Pet {
           ? PetShape.chubby
           : PetShape.fit;
 
-  /// 체형에 따른 가로 스케일 — 전용 렌더가 오기 전까지의 표현.
+  /// 체중에 따른 **가로** 스케일. 살은 옆으로 붙는다.
+  /// 최대 ±25%의 체중 편차가 가로 ±14%가 된다.
   double get widthScale => 1 + weightDeltaPm / 1000 * 0.55;
+
+  /// 체중에 따른 **세로** 스케일. 가로보다 훨씬 작아야 한다 — 같은 비율로
+  /// 키우면 살찐 게 아니라 그냥 캐릭터가 커진 것처럼 보인다.
+  double get heightScale => 1 + weightDeltaPm / 1000 * 0.16;
 
   String get shapeLabel => switch (shape) {
         PetShape.slim => '홀쭉',

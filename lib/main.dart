@@ -621,8 +621,15 @@ class _HomeScreenState extends State<HomeScreen>
         // 캔버스는 모든 단계가 같지만 **그림이 캔버스를 채우는 비율은 다르다**
         // (아기는 절반). 말풍선·이름표는 캔버스가 아니라 실제 머리 위에 와야 한다.
         final fill = Pet.stageOf(current).scale;
-        final capyTop = feetY - capyH * fill;
         final married = Family.married(current);
+        // **먹인 만큼 몸이 붇는다.** 가로가 세로보다 훨씬 크게 벌어져야
+        // "살쪘다"로 읽힌다 — 같은 비율로 키우면 그냥 캐릭터가 커진 것처럼
+        // 보인다. 발을 축으로 늘이므로 바닥에서 뜨지 않는다.
+        //
+        // 가족이 생기면 1로 둔다. 그때부터는 몸무게라는 개념 자체가 없다.
+        final fatX = married ? 1.0 : pet.widthScale;
+        final fatY = married ? 1.0 : pet.heightScale;
+        final capyTop = feetY - capyH * fill * fatY;
         final lineup = Family.lineup(current, Pet.skinOf(current));
         // 먹이가 날아갈 곳 = **지금 단계 캐릭터의 입**. 캔버스는 모두 같지만
         // 그 안에서 입 높이는 캐릭터마다 다르다(아기는 아래, 어른은 위).
@@ -634,9 +641,12 @@ class _HomeScreenState extends State<HomeScreen>
           final box = capyH * m.scale * CapySkins.bodyAspect;
           final cx = w / 2 + m.x * (w - box) / 2;
           final mm = CapySkins.mouthOf(m.skin);
-          final top = feetY - capyH * m.scale + (m.front ? capyH * 0.07 : 0);
-          return Offset(cx + (mm.dx - 0.5) * box,
-              top + capyH * m.scale * mm.dy);
+          final foot = feetY + (m.front ? capyH * 0.07 : 0);
+          // 몸이 붇으면 입도 그만큼 옆으로·위로 옮겨 간다. 안 맞추면 살찐
+          // 카피가 허공에서 당근을 씹는다. (가족이 생기면 배율이 1이라
+          // 식구 모두에게 그냥 곱해도 된다.)
+          return Offset(cx + (mm.dx - 0.5) * box * fatX,
+              foot - capyH * m.scale * (1 - mm.dy) * fatY);
         }
 
         final mouths = [for (final m in lineup) mouthOfMember(m)];
@@ -693,26 +703,36 @@ class _HomeScreenState extends State<HomeScreen>
                   // 주인공만 움직여서 가족이 인형처럼 보였다.
                   onTap: () => _touchMember(i, m),
                   behavior: HitTestBehavior.opaque,
-                  child: Stack(
+                  // 살이 붙은 만큼 늘여 그린다. **발을 축으로** 늘여야
+                  // 바닥에서 뜨거나 파묻히지 않는다.
+                  child: Transform(
                     alignment: Alignment.bottomCenter,
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned(
-                        bottom: -capyH * 0.02,
-                        child: GroundShadow(
-                            width: capyH * m.scale * _fillOf(m.skin) * 0.78),
-                      ),
-                      CapyPerformer(
-                        height: capyH * m.scale,
-                        controller: _ctrlFor(i),
-                        skin: m.skin,
-                        seed: i * 37 + 5,
-                        happy: pet.mood >= 65,
-                        foodOf: () => _heldBy(i),
-                        // 말풍선이 따라다녀야 하는 건 주인공뿐이다.
-                        poseOut: i == 0 ? _selfPose : null,
-                      ),
-                    ],
+                    transform: Matrix4.diagonal3Values(fatX, fatY, 1),
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      clipBehavior: Clip.none,
+                      children: [
+                        Positioned(
+                          bottom: -capyH * 0.02,
+                          child: GroundShadow(
+                              width: capyH *
+                                  m.scale *
+                                  _fillOf(m.skin) *
+                                  0.78 *
+                                  fatX),
+                        ),
+                        CapyPerformer(
+                          height: capyH * m.scale,
+                          controller: _ctrlFor(i),
+                          skin: m.skin,
+                          seed: i * 37 + 5,
+                          happy: pet.mood >= 65,
+                          foodOf: () => _heldBy(i),
+                          // 말풍선이 따라다녀야 하는 건 주인공뿐이다.
+                          poseOut: i == 0 ? _selfPose : null,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
