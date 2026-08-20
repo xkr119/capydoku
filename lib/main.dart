@@ -228,10 +228,10 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) setState(() => pet = Pet.load(progress.prefs));
   }
 
-  void _say(String text) {
+  void _say(String text, {Duration hold = const Duration(milliseconds: 1800)}) {
     _shoutTimer?.cancel();
     setState(() => _shout = text);
-    _shoutTimer = Timer(const Duration(milliseconds: 1800), () {
+    _shoutTimer = Timer(hold, () {
       if (mounted) setState(() => _shout = null);
     });
   }
@@ -297,6 +297,17 @@ class _HomeScreenState extends State<HomeScreen>
       // 반 박자 늦게 올라와 "벌써 먹고 있는데 손이 뒤따라오는" 그림이 된다.
       // 동작의 첫 구간(덥석)이 나는 동안이고, 씹기는 도착과 함께 시작한다.
       _ctrlFor(who).play(special ? CapyAct.feast : CapyAct.eat);
+      // 먹는 식구의 **단계에 맞는** 말을 한 마디. 여럿이 동시에 먹는
+      // 수박은 첫 조각(막내)만 말한다 — 다섯이 한꺼번에 떠들 수는 없다.
+      if (idx == 0) {
+        final lv = progress.currentLevel;
+        final line = Family.lineup(lv, Pet.skinOf(lv));
+        _say(
+          CapySays.eating(line[who.clamp(0, line.length - 1)].skin,
+              watermelon: special, salt: _feedTurn + _morselId),
+          hold: const Duration(milliseconds: 2600),
+        );
+      }
       m.ctrl.addListener(() {
         final t = m.ctrl.value;
         if (t < _Morsel.flightEnd) return;

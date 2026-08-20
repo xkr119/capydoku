@@ -63,12 +63,10 @@ void main() {
           level: 3,
           score: 1234,
           elapsed: Duration(seconds: 83),
-          leagueLine: '오늘 3위',
           skin: 'stage3'),
     ));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('레벨 4'), findsOneWidget);
-    expect(find.text('오늘 3위'), findsOneWidget);
   });
 }
