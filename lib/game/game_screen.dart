@@ -19,6 +19,7 @@ import '../core/ads.dart';
 import '../core/progress.dart';
 import '../core/settings.dart';
 import '../core/sfx.dart';
+import '../pet/family_event.dart';
 import '../pet/pet.dart';
 import '../engine/queens.dart';
 import 'board_state.dart';
@@ -1156,8 +1157,15 @@ class _GameScreenState extends State<GameScreen>
           FadeTransition(opacity: anim, child: child),
     ));
     if (!mounted) return;
-    // 전면 광고: 판 사이에만, 7판마다.
-    Ads.maybeShowAfterClear();
+    // 전면 광고: 판 사이에만, 레벨 20부터 다섯 판마다.
+    // 성장·가족 장면이 대기 중이면 건너뛴다 — 그 앞을 막지 않는다.
+    await Ads.maybeShowAfterClear(
+      prefs: widget.progress.prefs,
+      level: widget.progress.currentLevel,
+      eventPending: FamilyEvents.hasPending(
+          widget.progress.prefs, widget.progress.currentLevel),
+    );
+    if (!mounted) return;
     if (goNext == true) {
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) =>

@@ -101,6 +101,16 @@ class FamilyEvents {
   /// 수십 개가 쌓이는데, 그걸 다 재생하면 몇 분 동안 갇힌다.
   static const _maxBurst = 3;
 
+  /// 곧 보여줄 사건이 있는가. **아무것도 건드리지 않는다** —
+  /// [pending]은 처음 물어볼 때 표식을 남기므로 "물어보기만" 할 수 없다.
+  ///
+  /// 전면 광고가 이걸 본다. 성장·결혼·출산은 이 게임에서 유일한 사건인데
+  /// 그 직전에 광고를 끼워 넣으면 정확히 그 장면의 기억을 망친다.
+  static bool hasPending(SharedPreferences p, int level) {
+    final seen = p.getInt(_seenKey);
+    return seen != null && level > seen && between(seen, level).isNotEmpty;
+  }
+
   /// 아직 못 본 사건들.
   ///
   /// 처음 물어보면 **지금 레벨을 이미 본 것으로 친다** — 업데이트로 이 기능이
