@@ -129,8 +129,10 @@ class _CheckinSceneState extends State<CheckinScene>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    // 카피가 이 화면의 주인공이다. 작게 두면 초원 사진에 점 하나가 된다.
-    final capyH = (size.height * 0.31).clamp(190.0, 330.0);
+    // **카피가 이 화면의 주인공이다.** 처음엔 화면 높이의 1/4쯤이었는데,
+    // 초원 사진 한가운데 점 하나처럼 보였다. 위아래로 남는 풀밭을 줄이고
+    // 그만큼 카피에 준다.
+    final capyH = (size.height * 0.42).clamp(240.0, 460.0);
     return Scaffold(
       backgroundColor: const Color(0xFFF7E9C8),
       body: GestureDetector(
@@ -152,7 +154,7 @@ class _CheckinSceneState extends State<CheckinScene>
           Positioned(
             left: 0,
             right: 0,
-            top: size.height * 0.62 - capyH,
+            top: size.height * 0.70 - capyH,
             height: capyH,
             child: Center(
               child: SizedBox(
@@ -217,9 +219,9 @@ class _CheckinSceneState extends State<CheckinScene>
           // ── 글자와 도장판 ──
           SafeArea(
             child: Column(children: [
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               _StreakBadge(streak: widget.streak),
-              const SizedBox(height: 6),
+              const SizedBox(height: 5),
               Text(
                 widget.claimed
                     ? '오늘 몫은 다 받았어요'
@@ -238,9 +240,9 @@ class _CheckinSceneState extends State<CheckinScene>
                 claimed: widget.claimed || _awake,
                 stamp: _stamp,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 26),
+                padding: const EdgeInsets.symmetric(horizontal: 22),
                 child: SizedBox(
                   width: double.infinity,
                   height: 58,
@@ -266,7 +268,7 @@ class _CheckinSceneState extends State<CheckinScene>
                 ),
               ),
               const SizedBox(height: 10),
-              const SizedBox(height: 18),
+              const SizedBox(height: 12),
             ]),
           ),
         ]),
@@ -334,15 +336,15 @@ class _StampRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final today = DateTime.now();
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.80),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         for (var i = 1; i <= Progress.checkinDays; i++) ...[
-          if (i > 1) const SizedBox(width: 3),
+          if (i > 1) const SizedBox(width: 4),
           _Stamp(
             day: i,
             label: _weekdays[
@@ -381,21 +383,21 @@ class _Stamp extends StatelessWidget {
     final carrots = Progress.checkinCarrots[day - 1];
     final cell = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       SizedBox(
-        height: 22,
+        height: 28,
         child: last
-            ? const Watermelon(size: 22)
-            : const Center(child: Carrot(size: 19)),
+            ? const Watermelon(size: 28)
+            : const Center(child: Carrot(size: 24)),
       ),
       Text(last ? '수박' : '$carrots',
           style: TextStyle(
-              fontSize: 10,
+              fontSize: 11.5,
               height: 1.1,
               color: current ? Palette.brown : Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo')),
     ]);
 
     Widget check = const Icon(Icons.check_rounded,
-        size: 20, color: Color(0xFF43A047));
+        size: 26, color: Color(0xFF43A047));
     if (pop != null) {
       // **위에서 쿵.** 그냥 나타나면 "이미 그랬던 것"으로 보이고,
       // 찍히는 순간이 있어야 오늘 받았다는 것이 남는다.
@@ -420,14 +422,14 @@ class _Stamp extends StatelessWidget {
     return Column(children: [
       Text(label,
           style: TextStyle(
-              fontSize: 10.5,
+              fontSize: 12,
               color: current ? const Color(0xFFE8830C) : Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo',
               fontWeight: current ? FontWeight.w800 : FontWeight.w600)),
       const SizedBox(height: 3),
       Container(
-        width: 34,
-        height: 46,
+        width: 44,
+        height: 58,
         decoration: BoxDecoration(
           color: current ? const Color(0xFFFFF3E0) : Palette.bg,
           borderRadius: BorderRadius.circular(9),
