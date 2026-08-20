@@ -367,8 +367,32 @@ class _GameScreenState extends State<GameScreen>
         ),
       ]),
       const Spacer(),
+      // 디버그: 판을 통째로 채우고 바로 완료로 넘긴다. 완료 연출·보상·성장
+      // 사건을 확인하는 데 매번 10×10을 손으로 풀 수는 없다.
+      // 릴리스에서는 상수가 false라 트리 셰이킹으로 통째로 빠진다.
+      if (kDebugMode) ...[
+        _circleButton(Icons.fast_forward_rounded, _debugSolve),
+        const SizedBox(width: 8),
+      ],
       _circleButton(Icons.refresh, _confirmReset),
     ]);
+  }
+
+  /// **디버그 전용.** 정답을 그대로 채워 넣고 완료 처리한다.
+  ///
+  /// 칸을 하나씩 `tryPlace`로 놓는다 — 셀 배열을 직접 건드리면 자동 X 같은
+  /// 부수 처리가 빠져서 실제로 푼 판과 상태가 달라진다.
+  void _debugSolve() {
+    for (var r = 0; r < board.n; r++) {
+      for (var c = 0; c < board.n; c++) {
+        if (board.stateAt(r, c) != cellBlank) board.clearCell(r, c);
+      }
+    }
+    for (var r = 0; r < board.n; r++) {
+      board.tryPlace(r, board.puzzle.solution[r]);
+    }
+    setState(() {});
+    if (board.isSolved) _onSolved();
   }
 
   Widget _circleButton(IconData icon, VoidCallback onTap) {
