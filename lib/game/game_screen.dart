@@ -14,6 +14,7 @@ import '../art/effects.dart';
 import '../core/palette.dart';
 import '../core/ads.dart';
 import '../core/progress.dart';
+import '../core/settings.dart';
 import '../core/sfx.dart';
 import '../pet/pet.dart';
 import '../engine/queens.dart';
@@ -582,8 +583,8 @@ class _GameScreenState extends State<GameScreen>
       return;
     }
     // 싱글탭: 즉시 X 토글 — 반응 지연 0.
-    HapticFeedback.selectionClick();
-    Sfx.tap();
+    Buzz.select();
+    Sfx.mark();
     setState(() =>
         state == cellBlank ? board.setMark(r, c) : board.clearCell(r, c));
     widget.progress.saveBoard(_slot, board.cells);
@@ -608,7 +609,9 @@ class _GameScreenState extends State<GameScreen>
     if (state == cellCapy) return;
     final want = _dragMarking! ? cellMark : cellBlank;
     if (state == want) return;
-    HapticFeedback.selectionClick();
+    Buzz.select();
+    // 칸마다 한 번씩 "띡" — 쭉 끌면 "띠디디디디딕"이 된다.
+    Sfx.mark();
     setState(() =>
         want == cellMark ? board.setMark(r, c) : board.clearCell(r, c));
     widget.progress.saveBoard(_slot, board.cells);
@@ -618,7 +621,7 @@ class _GameScreenState extends State<GameScreen>
     if (cell == null) return;
     final (r, c) = cell;
     if (board.stateAt(r, c) == cellMark) {
-      HapticFeedback.selectionClick();
+      Buzz.select();
       setState(() => board.clearCell(r, c));
       widget.progress.saveBoard(_slot, board.cells);
     }
@@ -629,7 +632,7 @@ class _GameScreenState extends State<GameScreen>
 
     final result = board.tryPlace(r, c);
     if (result == PlaceResult.ok) {
-      HapticFeedback.mediumImpact();
+      Buzz.medium();
       Sfx.place();
       setState(() {});
       _spawnScoreFly(r, c, 100 + board.n * 25);
@@ -676,7 +679,7 @@ class _GameScreenState extends State<GameScreen>
       _floats.add(_FloatText(_floatId++, r, c, '여기!'));
     });
     _spawnScoreFly(r, c, 50);
-    HapticFeedback.mediumImpact();
+    Buzz.medium();
     widget.progress.saveBoard(_slot, board.cells);
     if (board.isSolved) _onSolved();
   }
@@ -696,7 +699,7 @@ class _GameScreenState extends State<GameScreen>
       _toast('지금은 지울 칸이 없어요');
       return;
     }
-    HapticFeedback.selectionClick();
+    Buzz.select();
     setState(() => _xPreview = (capy, ex));
   }
 
@@ -708,7 +711,7 @@ class _GameScreenState extends State<GameScreen>
       _xPreview = null;
       xHints--;
     });
-    HapticFeedback.mediumImpact();
+    Buzz.medium();
     final cells = preview.$2;
     for (final (i, cell) in cells.indexed) {
       Timer(Duration(milliseconds: 40 * i), () {
@@ -931,7 +934,7 @@ class _GameScreenState extends State<GameScreen>
 
   Future<void> _onSolved() async {
     _watch.stop();
-    HapticFeedback.mediumImpact();
+    Buzz.medium();
     Sfx.win();
     // 아직 날아가는 중인 점수까지 정산.
     score += _pendingScore;

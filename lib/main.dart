@@ -11,12 +11,14 @@ import 'art/scenery.dart';
 import 'core/ads.dart';
 import 'core/palette.dart';
 import 'core/progress.dart';
+import 'core/settings.dart';
 import 'core/sfx.dart';
 import 'game/game_screen.dart';
 import 'game/league.dart';
 import 'game/league_screen.dart';
 import 'pet/family.dart';
 import 'pet/pet.dart';
+import 'ui/settings_sheet.dart';
 import 'ui/splash.dart';
 
 /// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프 선택기를 띄운다.
@@ -96,6 +98,7 @@ class _BootState extends State<_Boot> {
       // 카피 조각은 연출을 시작하기 전에 반드시 들어와 있어야 한다.
       preload: () async {
         final p = await Progress.load();
+        Settings.load(p.prefs);
         _progress = p;
         _skin = Pet.skinOf(p.currentLevel);
         await CapySkins.load(_skin, px);
@@ -167,6 +170,9 @@ class _HomeScreenState extends State<HomeScreen>
     _shoutTimer?.cancel();
     _jostle.dispose();
     _jostleSpecial.dispose();
+    for (final c in _ctrls.values) {
+      c.dispose();
+    }
     _capy.dispose();
     super.dispose();
   }
@@ -194,11 +200,11 @@ class _HomeScreenState extends State<HomeScreen>
     final ok = special ? pet.feedSpecial() : pet.feedCarrot();
     if (!ok) {
       _shakeOf(special).forward(from: 0);
-      HapticFeedback.selectionClick();
+      Buzz.select();
       _say(special ? '수박이 없네…' : '당근이 없어…');
       return;
     }
-    HapticFeedback.lightImpact();
+    Buzz.light();
     _shakeOf(special).forward(from: 0);
 
     final m = _Morsel(
@@ -228,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (bite != lastBite && bite < 3) {
         lastBite = bite;
         Sfx.munch();
-        HapticFeedback.mediumImpact();
+        Buzz.medium();
       }
     });
     setState(() => _flying.add(m));
@@ -241,19 +247,38 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  void _touchPet() {
-    if (pet.touch()) {
+  /// 식구마다 손잡이 하나씩 — 만진 식구만 반응해야 한다.
+  final Map<int, CapyController> _ctrls = {};
+
+  CapyController _ctrlFor(int i) =>
+      i == 0 ? _capy : _ctrls.putIfAbsent(i, CapyController.new);
+
+  /// 조각 그림이 캔버스를 채우는 비율. 발밑 그림자 크기를 여기서 맞춘다.
+  static double _fillOf(String skin) => switch (skin) {
+        'stage1' => 0.50,
+        'stage2' => 0.65,
+        'stage3' => 0.80,
+        'stage4' => 0.91,
+        'mate' => 0.86,
+        _ => 1.0,
+      };
+
+  void _touchMember(int i, FamilyMember m) {
+    Buzz.select();
+    // 쓰다듬기 보상(기분·하트)은 주인공에게만. 아이들은 반응만 한다.
+    if (i == 0 && pet.touch()) {
       Sfx.pet();
-      HapticFeedback.selectionClick();
+      _capy.play(CapyAct.cheer);
       final id = _heartId++;
       setState(() => _hearts.add(id));
       Timer(const Duration(milliseconds: 900), () {
         if (mounted) setState(() => _hearts.remove(id));
       });
-    } else {
-      HapticFeedback.selectionClick();
-      _capy.play(CapyAct.startle);
+      return;
     }
+    Sfx.pet();
+    _ctrlFor(i).play(i == 0 ? CapyAct.startle : CapyAct.cheer);
+    _say('${m.label} 카피가 좋아해요!');
   }
 
   String _leagueLabel() {
@@ -347,6 +372,8 @@ class _HomeScreenState extends State<HomeScreen>
         // (아기는 절반). 말풍선·이름표는 캔버스가 아니라 실제 머리 위에 와야 한다.
         final fill = Pet.stageOf(current).scale;
         final capyTop = feetY - capyH * fill;
+        final married = Family.married(current);
+        final lineup = Family.lineup(current, Pet.skinOf(current));
         final mouth = Offset(w / 2, feetY - capyH * 0.59);
 
         // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다.
@@ -369,52 +396,39 @@ class _HomeScreenState extends State<HomeScreen>
             child: const CustomPaint(painter: MeadowGround(horizon: 0.04)),
           ),
 
-          // ── 카피 ──
-          Positioned(
-            left: 0,
-            right: 0,
-            top: feetY - capyH,
-            height: capyH,
-            child: Center(
-              child: GestureDetector(
-                onTap: _touchPet,
-                behavior: HitTestBehavior.opaque,
-                child: Stack(
-                  alignment: Alignment.bottomCenter,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned(
-                      bottom: -capyH * 0.02,
-                      child: GroundShadow(width: capyH * fill * 0.78),
-                    ),
-                    CapyPerformer(
-                        height: capyH,
-                        controller: _capy,
-                        skin: Pet.skinOf(current),
-                        happy: pet.mood >= 65),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // ── 가족: 어른 다음에 합류한다. 주인공보다 뒤(작게)에 선다 ──
-          for (final (i, m) in Family.around(current).indexed)
+          // ── 식구들 ──
+          // 뒷줄(부부)을 먼저 그리고 앞줄(아이)을 위에 얹는다.
+          for (final (i, m) in lineup.indexed)
             Positioned(
               left: 0,
               right: 0,
-              // 아이들은 앞줄이라 발이 조금 더 아래에 있다 — 깊이가 생긴다.
-              top: feetY - capyH * m.scale + (i == 0 ? 0 : capyH * 0.05),
+              // 앞줄은 발이 조금 더 아래 — 그래야 앞뒤가 생긴다.
+              top: feetY - capyH * m.scale + (m.front ? capyH * 0.07 : 0),
               height: capyH * m.scale,
               child: Align(
-                // 짝은 오른쪽, 아이들은 왼쪽으로 차례로 벌어진다.
-                alignment: Alignment(
-                    i == 0 ? 0.58 : -0.40 - (i - 1) * 0.28, 1),
-                child: IgnorePointer(
-                  child: CapyPerformer(
-                    height: capyH * m.scale,
-                    skin: m.skin,
-                    seed: i * 37 + 5,
-                    happy: pet.mood >= 65,
+                alignment: Alignment(m.x, 1),
+                child: GestureDetector(
+                  // **만진 식구가 반응해야 한다.** 예전엔 어디를 눌러도
+                  // 주인공만 움직여서 가족이 인형처럼 보였다.
+                  onTap: () => _touchMember(i, m),
+                  behavior: HitTestBehavior.opaque,
+                  child: Stack(
+                    alignment: Alignment.bottomCenter,
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        bottom: -capyH * 0.02,
+                        child: GroundShadow(
+                            width: capyH * m.scale * _fillOf(m.skin) * 0.78),
+                      ),
+                      CapyPerformer(
+                        height: capyH * m.scale,
+                        controller: _ctrlFor(i),
+                        skin: m.skin,
+                        seed: i * 37 + 5,
+                        happy: pet.mood >= 65,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -428,28 +442,28 @@ class _HomeScreenState extends State<HomeScreen>
               child: Center(child: _HeartFloat(key: ValueKey('h$id'))),
             ),
 
-          // ── 카피 위: 말풍선 + 이름표 ──
+          // ── 말풍선: 주인공 머리 위 ──
           Positioned(
             left: 12,
             right: 12,
             bottom: h - capyTop + 8,
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              _Bubble(text: _shout ?? pet.statusLine),
-              const SizedBox(height: 8),
-              _NameChip(name: pet.name, named: pet.named, onTap: _rename),
-            ]),
-          ),
-
-          // ── 카피 아래: 몸무게 ──
-          Positioned(
-            left: 0,
-            right: 0,
-            top: feetY + 12,
-            child: Center(
-              child: _WeightBadge(
-                  kg: pet.weightKg(current), shape: pet.shapeLabel),
+            child: Align(
+              alignment: Alignment(married ? -0.34 : 0, 1),
+              child: _Bubble(text: _shout ?? pet.statusLine),
             ),
           ),
+
+          // ── 몸무게: 혼자일 때만. 가족이 생기면 이 숫자는 의미가 없다 ──
+          if (!married)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: feetY + 12,
+              child: Center(
+                child: _WeightBadge(
+                    kg: pet.weightKg(current), shape: pet.shapeLabel),
+              ),
+            ),
 
           // ── 날아가는 먹이 ──
           for (final m in _flying)
@@ -557,12 +571,19 @@ class _HomeScreenState extends State<HomeScreen>
             left: 14,
             right: 14,
             child: Row(children: [
+              // 이름은 왼쪽 맨 앞. 가족이 생기면 "○○ 가족"이 된다.
+              _NameChip(
+                name: married ? '${pet.name} 가족' : pet.name,
+                named: pet.named,
+                onTap: _rename,
+              ),
+              const Spacer(),
               _Pill(
                 icon: Icons.star_rounded,
                 iconColor: const Color(0xFFF4A93A),
                 label: '${progress.totalScore}',
               ),
-              const Spacer(),
+              const SizedBox(width: 6),
               _Pill(
                 icon: Icons.emoji_events_rounded,
                 iconColor: const Color(0xFFF4A93A),
@@ -571,6 +592,15 @@ class _HomeScreenState extends State<HomeScreen>
                   await Navigator.of(context).push(MaterialPageRoute(
                     builder: (_) => LeagueScreen(progress: progress),
                   ));
+                  if (mounted) setState(() {});
+                },
+              ),
+              const SizedBox(width: 6),
+              _RoundIcon(
+                icon: Icons.settings_rounded,
+                onTap: () async {
+                  await showDialog<void>(
+                      context: context, builder: (_) => const SettingsSheet());
                   if (mounted) setState(() {});
                 },
               ),
@@ -793,6 +823,30 @@ class _DebugStageJump extends StatelessWidget {
             DropdownMenuItem(value: e.value, child: Text(e.key)),
         ],
         onChanged: (v) => v == null ? null : onPick(v),
+      ),
+    );
+  }
+}
+
+/// 상단 HUD의 동그란 아이콘 버튼.
+class _RoundIcon extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _RoundIcon({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.86),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(7),
+          child: Icon(icon, size: 20, color: Palette.brown),
+        ),
       ),
     );
   }

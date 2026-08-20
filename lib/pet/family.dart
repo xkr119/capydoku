@@ -23,7 +23,13 @@ class FamilyMember {
   /// 여기서 또 줄이면 아이가 두 번 작아진다. 뒤에 선 만큼만 살짝 줄인다.
   final double scale;
 
-  const FamilyMember(this.skin, this.label, this.scale);
+  /// 가로 위치(-1 왼쪽 끝 ~ 1 오른쪽 끝).
+  final double x;
+
+  /// 앞줄인가. 앞줄은 조금 아래에 서서 깊이를 만든다.
+  final bool front;
+
+  const FamilyMember(this.skin, this.label, this.scale, this.x, this.front);
 }
 
 class Family {
@@ -66,20 +72,35 @@ class Family {
     return ('새 아이가 태어나요', left);
   }
 
-  /// 주인공 옆에 설 식구들. 주인공 자신은 포함하지 않는다.
-  static List<FamilyMember> around(int level) {
-    if (!married(level)) return const [];
-    final out = <FamilyMember>[
-      const FamilyMember('mate', '짝꿍', 0.97),
-    ];
-    const kidNames = ['막내', '둘째', '첫째'];
-    const kidScale = [0.92, 0.92, 0.92];
+  /// 화면에 설 식구 전부(주인공 포함). 왼쪽부터 순서대로다.
+  ///
+  /// 배치 규칙:
+  /// - 혼자일 때는 가운데.
+  /// - 결혼하면 **주인공이 왼쪽으로 비키고 짝이 옆에 바짝 붙어 선다**(살짝 겹침).
+  /// - 아이가 하나면 부부 사이 앞, 둘이면 각자 앞, 셋이면 사이사이 앞줄에.
+  static List<FamilyMember> lineup(int level, String selfSkin) {
+    final me = FamilyMember(selfSkin, '나', 1.0, 0, false);
+    if (!married(level)) return [me];
+
     final kids = childStages(level);
-    for (var i = 0; i < kids.length; i++) {
-      final st = kids[i];
-      // 큰 아이부터 담겨 있으므로 이름은 뒤에서 가져온다.
-      final name = kidNames[(kidNames.length - 1 - i).clamp(0, 2)];
-      out.add(FamilyMember('stage${st + 1}', name, kidScale[st]));
+    // 부부는 가운데를 기준으로 좌우로 벌어진다. 겹치도록 간격을 좁게.
+    const spouseGap = 0.46;
+    final out = <FamilyMember>[
+      FamilyMember(selfSkin, '나', 1.0, -spouseGap, false),
+      const FamilyMember('mate', '짝꿍', 0.97, spouseGap, false),
+    ];
+
+    // 아이는 앞줄(살짝 크게, 조금 아래). 수에 따라 자리를 나눈다.
+    const spots = {
+      1: [0.0],
+      2: [-0.52, 0.52],
+      3: [-0.78, 0.0, 0.78],
+    };
+    final xs = spots[kids.length] ?? const <double>[];
+    const kidNames = ['첫째', '둘째', '막내'];
+    for (var i = 0; i < kids.length && i < xs.length; i++) {
+      out.add(FamilyMember(
+          'stage${kids[i] + 1}', kidNames[i.clamp(0, 2)], 0.94, xs[i], true));
     }
     return out;
   }

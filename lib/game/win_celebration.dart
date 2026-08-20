@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../art/capy_motion.dart';
+import '../core/settings.dart';
 import '../art/capy_rig.dart';
 import '../art/effects.dart';
 import 'capy_says.dart';
@@ -63,7 +63,7 @@ class _WinCelebrationState extends State<WinCelebration>
   @override
   void initState() {
     super.initState();
-    HapticFeedback.mediumImpact();
+    Buzz.medium();
     if (_kind != _Celebration.onsen) {
       final act =
           _kind == _Celebration.dance ? CapyAct.dance : CapyAct.cheer;

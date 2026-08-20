@@ -504,12 +504,14 @@ class _CapyPerformerState extends State<CapyPerformer>
     // 맞춰 움직일 때는 시각만 보고 안무를 계산한다 — 예약도 난수도 쓰지 않는다.
     if (widget.synced) return;
     if (_act == CapyAct.idle && _t > _nextQuirk) {
-      // 셋에 하나꼴로는 고개 까딱이 아니라 하품·배 긁기 같은 큰 동작을 한다.
-      if (_rng.nextDouble() < 0.34) {
+      // **둘에 하나꼴로** 고개 까딱이 아니라 하품·배 긁기 같은 큰 동작을 한다.
+      // 셋에 하나로 뒀더니 "하품하는 건 없어?" 소리를 들었다 — 15초에 한 번은
+      // 사람이 알아채기엔 너무 드물다.
+      if (_rng.nextDouble() < 0.5) {
         _act = _idleActs[_rng.nextInt(_idleActs.length)];
         _actStart = _t;
         _actLen = _actLens[_act]!;
-        _nextQuirk = _t + _actLen + 1.4 + _rng.nextDouble() * 2.6;
+        _nextQuirk = _t + _actLen + 0.9 + _rng.nextDouble() * 1.8;
       } else {
         _quirk = 1 + _rng.nextInt(_quirkCount);
         _quirkStart = _t;
