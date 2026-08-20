@@ -26,6 +26,9 @@ CANVAS_W = 660
 # 아기와 어른의 차이가 두 배는 나야 "키웠다"가 실감난다.
 HEIGHTS = [0.50, 0.65, 0.80, 0.91, 1.00]
 
+# 배우자(성인 암컷). 어른 수컷보다 조금 작고 부드럽다.
+MATE = ('f1', 0.86)
+
 
 def cutout(img: Image.Image) -> Image.Image:
     """가장자리에서 이어진 밝은 무채색을 지운다.
@@ -95,10 +98,11 @@ def slim(im: Image.Image) -> Image.Image:
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for i, frac in enumerate(HEIGHTS, start=1):
-        src = Image.open(f'{RAW}/s{i}.png')
+    jobs = [(f's{i}', f) for i, f in enumerate(HEIGHTS, start=1)] + [MATE]
+    for name, frac in jobs:
+        src = Image.open(f'{RAW}/{name}.png')
         out = slim(place(cutout(src), frac))
-        path = f'{OUT}/s{i}.png'
+        path = f'{OUT}/{name}.png'
         out.save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB  높이 {frac:.0%}')
 

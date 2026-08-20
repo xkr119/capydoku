@@ -62,6 +62,10 @@ SPECS = [
     Spec('s5', 335, 155, 320, 272, [(240, 60), (425, 60)], 10,
          (322, 190, 75, 45),
          [(182, 502, 46, 78), (480, 502, 46, 78)], [(186, 430), (476, 430)]),
+    # 배우자 — 어른보다 작고 얼굴이 둥글다. 성인과 비슷한 몸매.
+    Spec('f1', 328, 138, 340, 300, [(262, 195), (400, 195)], 14,
+         (330, 275, 58, 36),
+         [(246, 490, 42, 72), (415, 490, 42, 72)], [(250, 418), (412, 418)]),
 ]
 
 # 눈꺼풀을 눈 위 이 배수만큼 떨어진 곳에서 떠 온다(감을 때 그만큼 내려온다).
@@ -178,7 +182,7 @@ def build(spec: Spec):
         lid.alpha_composite(crease.filter(ImageFilter.GaussianBlur(1.6)))
         parts[f'lid{"lr"[i]}'] = lid
 
-    folder = f'{OUT}/stage{spec.name[1]}'
+    folder = f'{OUT}/{"mate" if spec.name[0] == "f" else "stage" + spec.name[1]}'
     os.makedirs(folder, exist_ok=True)
     total = 0
     for k, v in parts.items():
