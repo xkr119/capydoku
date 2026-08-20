@@ -200,6 +200,51 @@ class _PoingInState extends State<PoingIn>
       );
 }
 
+/// 씹을 때 튀는 부스러기. 소리가 안 들려도 "아그작"이 보이게 하는 장치.
+class Crumbs extends StatelessWidget {
+  /// 0~1. 씹기 진행도.
+  final double progress;
+  final Color color;
+
+  const Crumbs({super.key, required this.progress, required this.color});
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: CustomPaint(
+            size: Size.infinite,
+            painter: _CrumbPainter(progress, color)),
+      );
+}
+
+class _CrumbPainter extends CustomPainter {
+  final double t;
+  final Color color;
+  _CrumbPainter(this.t, this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    final origin = Offset(size.width / 2, size.height * 0.5);
+    final rng = math.Random(9);
+    for (var i = 0; i < 9; i++) {
+      // 부스러기마다 튀어나오는 시점이 다르다 — 한꺼번에 터지면 폭발로 보인다.
+      final born = rng.nextDouble() * 0.7;
+      final life = (t - born) / 0.3;
+      if (life <= 0 || life >= 1) continue;
+      final dir = (rng.nextDouble() - 0.5) * 2;
+      final speed = 12 + rng.nextDouble() * 16;
+      // 옆으로 튀었다가 중력에 떨어진다.
+      final p = origin +
+          Offset(dir * speed * life, -speed * 0.5 * life + 46 * life * life);
+      canvas.drawCircle(p, (1.6 + rng.nextDouble() * 1.8) * (1 - life * 0.4),
+          Paint()..color = color.withValues(alpha: (1 - life) * 0.9));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrumbPainter old) => old.t != t;
+}
+
 /// 배경에 계속 떠다니는 부스러기(꽃가루·풀씨). 초원이 살아 있게 만든다.
 class DriftingMotes extends StatefulWidget {
   final int count;

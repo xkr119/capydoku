@@ -175,7 +175,31 @@ class Pet {
     return 'assets/mascot/capy_base.png';
   }
 
+  /// 주인이 지어 준 이름. 이름이 있는 것과 없는 것은 애착이 다르다.
+  static const defaultName = '카피';
+
+  String get name {
+    final n = _p.getString('pet.name')?.trim();
+    return (n == null || n.isEmpty) ? defaultName : n;
+  }
+
+  /// 이름을 붙인 적이 있는가. 없으면 홈에서 지어 달라고 조른다.
+  bool get named => (_p.getString('pet.name')?.trim() ?? '').isNotEmpty;
+
+  Future<void> rename(String value) async {
+    final v = value.trim();
+    if (v.isEmpty) {
+      await _p.remove('pet.name');
+    } else {
+      // 말풍선·칩에 들어가야 하므로 길이를 제한한다.
+      final runes = v.runes.toList();
+      await _p.setString('pet.name',
+          runes.length <= 8 ? v : String.fromCharCodes(runes.take(8)));
+    }
+  }
+
   String get statusLine {
+    if (!named) return '이름을 지어 주세요!';
     if (satiety <= 25) return '주인님... 배고파요. 당근 하나만...';
     if (mood >= 85) return '오늘은 완벽한 하루예요. 아마도.';
     if (mood <= 30) return '심심해요. 퍼즐이라도 풀어볼까요...';

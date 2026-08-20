@@ -27,6 +27,9 @@ class WinCelebration extends StatefulWidget {
   /// 돌봄 보상 문구 (예: "🥕 당근 +2"). null이면 생략.
   final String? rewardLine;
 
+  /// 오늘의 퍼즐을 깬 것이면 연속 일수. null이면 보통 레벨.
+  final int? dailyStreak;
+
   const WinCelebration({
     super.key,
     required this.level,
@@ -34,6 +37,7 @@ class WinCelebration extends StatefulWidget {
     required this.elapsed,
     this.leagueLine,
     this.rewardLine,
+    this.dailyStreak,
   });
 
   @override
@@ -123,7 +127,26 @@ class _WinCelebrationState extends State<WinCelebration>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(CapySays.titleFor(widget.level),
+                    if (widget.dailyStreak != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.24),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text('🔥 ${widget.dailyStreak}일 연속',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.white,
+                                fontFamily: 'Apple SD Gothic Neo',
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    Text(
+                        widget.dailyStreak != null
+                            ? '오늘의 퍼즐 완료!'
+                            : CapySays.titleFor(widget.level),
                         style: const TextStyle(
                             fontSize: 38,
                             color: Colors.white,
@@ -167,11 +190,13 @@ class _WinCelebrationState extends State<WinCelebration>
                     ],
                     const SizedBox(height: 26),
                     _nextButton(),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('홈으로',
-                          style: TextStyle(color: Colors.white70)),
-                    ),
+                    // 오늘의 퍼즐은 이어질 다음 판이 없다 — 나가기 하나면 된다.
+                    if (widget.dailyStreak == null)
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text('홈으로',
+                            style: TextStyle(color: Colors.white70)),
+                      ),
                   ],
                 ),
               ),
@@ -251,9 +276,10 @@ class _WinCelebrationState extends State<WinCelebration>
         shadowColor: Colors.black.withValues(alpha: 0.4),
         child: InkWell(
           borderRadius: BorderRadius.circular(999),
-          onTap: () => Navigator.pop(context, true),
+          onTap: () => Navigator.pop(context, widget.dailyStreak == null),
           child: Center(
-            child: Text('레벨 ${widget.level + 1}',
+            child: Text(
+                widget.dailyStreak != null ? '초원으로' : '레벨 ${widget.level + 1}',
                 style: const TextStyle(
                     fontSize: 22, color: Color(0xFFD9611A))),
           ),

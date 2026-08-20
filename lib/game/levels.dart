@@ -68,4 +68,29 @@ class Levels {
     }
     return candidates[(t * count).floor().clamp(0, count - 1)];
   }
+
+  // ── 오늘의 퍼즐 ───────────────────────────────────────────────────
+
+  /// 오늘의 퍼즐 크기. 레벨 진행과 무관하게 늘 어렵다 — 하루 한 판짜리
+  /// 도전이므로 쉬우면 존재 이유가 없다.
+  static const dailySize = 8;
+
+  /// 날짜(yyyymmdd)가 곧 시드. 서버 없이 전 세계가 같은 날 같은 판을 푼다.
+  ///
+  /// 시드 대역이 레벨 시드(`level*100+k`)와 절대 겹치지 않아야 한다.
+  /// 레벨 시드는 백만 레벨이어도 1억 언저리라 9억대를 쓴다.
+  static int dailySeedBase(int dateKey) => 900000000 + (dateKey % 100000) * 16;
+
+  /// 후보 중 **가장 어려운** 판을 낸다. 한 수 읽기가 있는 판을 우선한다.
+  static QueensPuzzle dailyPuzzleOf(int dateKey) {
+    final base = dailySeedBase(dateKey);
+    final candidates = [
+      for (var k = 0; k < 5; k++)
+        QueensGenerator.generate(n: dailySize, seed: base + k),
+    ]..sort((a, b) => b.difficulty.compareTo(a.difficulty));
+    for (final c in candidates) {
+      if (c.lookaheads > 0) return c;
+    }
+    return candidates.first;
+  }
 }

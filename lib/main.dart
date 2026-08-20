@@ -230,27 +230,90 @@ class _HomeScreenState extends State<HomeScreen>
     return '${League.rankOf(dateKey, dayFrac, progress.dailyScore(dateKey))}위';
   }
 
+  Future<void> _playDaily() async {
+    final (today, _) = Progress.dateKeys();
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => GameScreen(
+          level: progress.currentLevel, progress: progress, dailyKey: today),
+    ));
+    if (mounted) setState(() => pet = Pet.load(progress.prefs));
+  }
+
+  /// 이름 짓기 — 애착은 이름에서 시작한다.
+  Future<void> _rename() async {
+    final ctrl = TextEditingController(text: pet.named ? pet.name : '');
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Palette.card,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('이름을 지어 주세요',
+            style: TextStyle(fontSize: 20, color: Palette.brown)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 8,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 22, color: Palette.brown),
+          decoration: InputDecoration(
+            hintText: Pet.defaultName,
+            counterText: '',
+            filled: true,
+            fillColor: Palette.bg,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+          ),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('나중에')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF2802B)),
+            child: const Text('결정!'),
+          ),
+        ],
+      ),
+    );
+    if (value == null || !mounted) return;
+    await pet.rename(value);
+    if (!mounted) return;
+    Sfx.pet();
+    _capy.play(CapyAct.cheer);
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final current = progress.currentLevel;
     final stage = Pet.stageOf(current);
+    final (today, _) = Progress.dateKeys();
+    final dailyDone = progress.dailyDone(today);
 
     return Scaffold(
       body: LayoutBuilder(builder: (context, box) {
         final w = box.maxWidth, h = box.maxHeight;
+        final safeTop = MediaQuery.paddingOf(context).top;
 
-        // ── 씬 좌표 — 화면이 커지든 작아지든 이 비율로 배치한다 ──
+        // ── 씬 좌표 ──
+        // 카피가 화면 한가운데 위쪽에 온다. 아래는 초원과 조작부에 내준다.
         // 성장은 눈에 보여야 하지만 아기라고 점만 하게 두면 초원이 빈다.
         final grow = 0.78 + (stage.scale - 0.62) * 0.58;
-        final capyH = (h * 0.32).clamp(180.0, 300.0) * grow;
-        final feetY = h * 0.685;                        // 발이 닿는 선
+        final capyH = (h * 0.27).clamp(150.0, 260.0) * grow;
+        final feetY = h * 0.515;                        // 발이 닿는 선
+        final capyTop = feetY - capyH;
         final mouth = Offset(w / 2, feetY - capyH * 0.59);
+        // 먹이는 카피보다 앞쪽(아래) 풀밭에 둔다. 가까운 것이 아래 있어야
+        // 깊이가 생기고, 카피와 조작부 사이의 빈 잔디도 이걸로 메운다.
         const basketSize = 88.0;
-        final basketCenter =
-            Offset(w - 18 - basketSize / 2, feetY - basketSize * 0.42);
-        // 황금귤은 반대쪽 풀밭에 굴려 둔다 — 바구니 옆에 두면 서로 잡아먹는다.
-        final gyulCenter = Offset(46.0, feetY - 26);
-        final safeTop = MediaQuery.paddingOf(context).top;
+        final basketCenter = Offset(w - 20 - basketSize / 2, feetY + 74);
+        final gyulCenter = Offset(48.0, feetY + 56);
 
         return Stack(fit: StackFit.expand, children: [
           // ── 배경: 초원 ──
@@ -260,16 +323,16 @@ class _HomeScreenState extends State<HomeScreen>
           Positioned(
             left: 0,
             right: 0,
-            top: h * 0.42,
+            top: h * 0.33,
             bottom: 0,
-            child: const CustomPaint(painter: MeadowGround(horizon: 0.05)),
+            child: const CustomPaint(painter: MeadowGround(horizon: 0.04)),
           ),
 
           // ── 카피 ──
           Positioned(
             left: 0,
             right: 0,
-            top: feetY - capyH,
+            top: capyTop,
             height: capyH,
             child: Center(
               child: GestureDetector(
@@ -283,7 +346,10 @@ class _HomeScreenState extends State<HomeScreen>
                       bottom: -capyH * 0.03,
                       child: GroundShadow(width: capyH * 0.72),
                     ),
-                    CapyPerformer(height: capyH, controller: _capy),
+                    CapyPerformer(
+                        height: capyH,
+                        controller: _capy,
+                        happy: pet.mood >= 65),
                   ],
                 ),
               ),
@@ -293,19 +359,38 @@ class _HomeScreenState extends State<HomeScreen>
             Positioned(
               left: 0,
               right: 0,
-              top: feetY - capyH * 1.1,
+              top: capyTop - 10,
               child: Center(child: _HeartFloat(key: ValueKey('h$id'))),
             ),
 
-          // ── 말풍선: 머리 바로 위 ──
+          // ── 카피 머리 위: 말풍선 · 이름 · 몸무게 · 게이지 ──
           Positioned(
-            left: 14,
-            right: 14,
-            bottom: h - (feetY - capyH) + 8,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: _Bubble(text: _shout ?? pet.statusLine),
-            ),
+            left: 12,
+            right: 12,
+            bottom: h - capyTop + 6,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              _Bubble(text: _shout ?? pet.statusLine),
+              const SizedBox(height: 7),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                _NameChip(
+                    name: pet.name, named: pet.named, onTap: _rename),
+                const SizedBox(width: 7),
+                _WeightBadge(
+                    kg: pet.weightKg(current), shape: pet.shapeLabel),
+              ]),
+              const SizedBox(height: 7),
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                _Meter(
+                    icon: Icons.restaurant_rounded,
+                    color: const Color(0xFFF2802B),
+                    value: pet.satiety),
+                const SizedBox(width: 8),
+                _Meter(
+                    icon: Icons.favorite_rounded,
+                    color: const Color(0xFFE8837E),
+                    value: pet.mood),
+              ]),
+            ]),
           ),
 
           // ── 날아가는 먹이 ──
@@ -323,23 +408,42 @@ class _HomeScreenState extends State<HomeScreen>
                 // 포물선 — 위로 한 번 떴다가 입으로 떨어진다.
                 final lift = math.sin(flight * math.pi) * 78;
                 // 입에 물린 뒤엔 씹는 리듬에 맞춰 까딱거린다.
-                final wobble = math.sin(chewed * math.pi * 9) * 3 * (1 - chewed);
+                final wobble =
+                    math.sin(chewed * math.pi * 11) * 4 * (1 - chewed);
                 return Positioned(
-                  left: p.dx - 20 + wobble,
-                  top: p.dy - lift - 26,
-                  child: Transform.rotate(
-                    angle: flight * math.pi * 2.2 * (m.special ? 0.4 : 1) +
-                        wobble * 0.03,
-                    child: m.special
-                        ? Opacity(
-                            opacity: (1 - chewed).clamp(0.0, 1.0),
-                            child: GoldenTangerine(size: 40 * (1 - chewed * 0.7)))
-                        : SizedBox(
-                            width: 52 * 0.62,
-                            height: 52,
-                            child: CustomPaint(
-                                painter: CarrotPainter(eaten: chewed)),
-                          ),
+                  left: p.dx - 26 + wobble,
+                  top: p.dy - lift - 30,
+                  child: SizedBox(
+                    width: 52,
+                    height: 60,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      alignment: Alignment.center,
+                      children: [
+                        Transform.rotate(
+                          angle: flight * math.pi * 2.2 * (m.special ? 0.4 : 1) +
+                              wobble * 0.03,
+                          child: m.special
+                              ? Opacity(
+                                  opacity: (1 - chewed).clamp(0.0, 1.0),
+                                  child: GoldenTangerine(
+                                      size: 40 * (1 - chewed * 0.7)))
+                              : SizedBox(
+                                  width: 52 * 0.62,
+                                  height: 52,
+                                  child: CustomPaint(
+                                      painter: CarrotPainter(eaten: chewed)),
+                                ),
+                        ),
+                        Positioned.fill(
+                          child: Crumbs(
+                              progress: chewed,
+                              color: m.special
+                                  ? const Color(0xFFF59B12)
+                                  : const Color(0xFFF2802B)),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -373,45 +477,33 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
 
-          // ── 상태 게이지 (점수 아래, 눈에 걸리되 화면을 먹지 않게) ──
-          Positioned(
-            left: 14,
-            top: safeTop + 46,
-            child: _StatusBoard(
-              satiety: pet.satiety,
-              mood: pet.mood,
-              weight: pet.weightKg(current),
-              shape: pet.shapeLabel,
-            ),
-          ),
-
           // ── 상단 HUD ──
           Positioned(
             top: safeTop + 8,
             left: 14,
             right: 14,
             child: Row(children: [
-                _Pill(
-                  icon: Icons.star_rounded,
-                  iconColor: const Color(0xFFF4A93A),
-                  label: '${progress.totalScore}',
-                ),
-                const Spacer(),
-                _Pill(
-                  icon: Icons.emoji_events_rounded,
-                  iconColor: const Color(0xFFF4A93A),
-                  label: _leagueLabel(),
-                  onTap: () async {
-                    await Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => LeagueScreen(progress: progress),
-                    ));
-                    if (mounted) setState(() {});
-                  },
-                ),
+              _Pill(
+                icon: Icons.star_rounded,
+                iconColor: const Color(0xFFF4A93A),
+                label: '${progress.totalScore}',
+              ),
+              const Spacer(),
+              _Pill(
+                icon: Icons.emoji_events_rounded,
+                iconColor: const Color(0xFFF4A93A),
+                label: _leagueLabel(),
+                onTap: () async {
+                  await Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => LeagueScreen(progress: progress),
+                  ));
+                  if (mounted) setState(() {});
+                },
+              ),
             ]),
           ),
 
-          // ── 하단: 성장 단계 + 플레이 ──
+          // ── 하단: 성장 게이지 · 오늘의 퍼즐 · 시작 ──
           Positioned(
             left: 0,
             right: 0,
@@ -419,17 +511,23 @@ class _HomeScreenState extends State<HomeScreen>
             child: SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 0, 22, 16),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _GrowthStrip(level: current),
-                  const SizedBox(height: 12),
+                  _GrowthGauge(level: current),
+                  const SizedBox(height: 9),
+                  _DailyButton(
+                    done: dailyDone,
+                    streak: progress.dailyStreak,
+                    onTap: dailyDone ? null : _playDaily,
+                  ),
+                  const SizedBox(height: 9),
                   _PlayButton(
-                    label: progress.hasBoard(current)
+                    label: progress.hasBoard('$current')
                         ? '레벨 $current 이어서'
                         : '레벨 $current 시작',
                     onTap: () => _play(current),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Text('모든 퍼즐은 찍기 없이 100% 논리로 풀립니다',
                       style: TextStyle(
                           fontSize: 11.5,
@@ -542,112 +640,244 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// 왼쪽에 세워 둔 상태 팻말 — 포만감·기분·몸무게.
-class _StatusBoard extends StatelessWidget {
-  final int satiety, mood;
-  final double weight;
+/// 카피 이름표. 눌러서 이름을 지어 준다.
+///
+/// 이름이 없으면 "이름 짓기"로 조른다 — 이름이 붙는 순간 애착이 생긴다.
+class _NameChip extends StatelessWidget {
+  final String name;
+  final bool named;
+  final VoidCallback onTap;
+
+  const _NameChip(
+      {required this.name, required this.named, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: named ? Colors.white.withValues(alpha: 0.94) : const Color(0xFFF2802B),
+      borderRadius: BorderRadius.circular(999),
+      elevation: 2,
+      shadowColor: Palette.brown.withValues(alpha: 0.3),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(13, 5, 11, 5),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(named ? name : '이름 짓기',
+                style: TextStyle(
+                    fontSize: 17,
+                    color: named ? Palette.brown : Colors.white)),
+            const SizedBox(width: 5),
+            Icon(Icons.edit_rounded,
+                size: 14,
+                color: named ? Palette.brownSoft : Colors.white),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// 몸무게 배지 — 커 가는 걸 실감하게 하는 숫자라 크고 또렷해야 한다.
+class _WeightBadge extends StatelessWidget {
+  final double kg;
   final String shape;
 
-  const _StatusBoard({
-    required this.satiety,
-    required this.mood,
-    required this.weight,
-    required this.shape,
-  });
+  const _WeightBadge({required this.kg, required this.shape});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(11, 9, 13, 9),
+      padding: const EdgeInsets.fromLTRB(12, 5, 12, 5),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.80),
-        borderRadius: BorderRadius.circular(16),
+        color: const Color(0xFFFFE9C7).withValues(alpha: 0.96),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
           BoxShadow(
-              color: const Color(0xFF5B4232).withValues(alpha: 0.12),
-              blurRadius: 8,
-              offset: const Offset(0, 3)),
+              color: Palette.brown.withValues(alpha: 0.16),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
         ],
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _meter(Icons.restaurant_rounded, const Color(0xFFF2802B), satiety),
-        const SizedBox(height: 6),
-        _meter(Icons.favorite_rounded, const Color(0xFFE8837E), mood),
-        const SizedBox(height: 7),
-        Text('${weight.toStringAsFixed(1)}kg · $shape',
-            style: const TextStyle(fontSize: 11.5, color: Palette.brownSoft)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        // 숫자가 주인공이라 단위는 작게 붙인다.
+        Text(kg.toStringAsFixed(1),
+            style: const TextStyle(fontSize: 18, color: Palette.brown)),
+        const Text('kg',
+            style: TextStyle(fontSize: 12, color: Palette.brownSoft)),
+        const SizedBox(width: 6),
+        Text(shape,
+            style: const TextStyle(fontSize: 13, color: Color(0xFFB07A3C))),
       ]),
     );
   }
+}
 
-  Widget _meter(IconData icon, Color color, int value) {
-    return Row(children: [
-      Icon(icon, size: 14, color: color),
-      const SizedBox(width: 6),
-      SizedBox(
-        width: 58,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(begin: 0, end: value / 100),
-            duration: const Duration(milliseconds: 600),
-            curve: Curves.easeOutCubic,
-            builder: (context, v, _) => LinearProgressIndicator(
-              value: v,
-              minHeight: 7,
-              color: color,
-              backgroundColor: const Color(0xFFEDE3D4),
+/// 카피 머리 위에 뜨는 상태 게이지 하나.
+class _Meter extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final int value;
+
+  const _Meter(
+      {required this.icon, required this.color, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 4, 10, 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: [
+          BoxShadow(
+              color: Palette.brown.withValues(alpha: 0.12), blurRadius: 5),
+        ],
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 6),
+        SizedBox(
+          width: 62,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: value / 100),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => LinearProgressIndicator(
+                value: v,
+                minHeight: 8,
+                color: color,
+                backgroundColor: const Color(0xFFEDE3D4),
+              ),
             ),
           ),
         ),
-      ),
-    ]);
+      ]),
+    );
   }
 }
 
-/// 다음 성장까지 남은 판 — 목표의식을 주는 한 줄.
-class _GrowthStrip extends StatelessWidget {
+/// 다음 성장까지 — 남은 판 수를 크게 세어 준다.
+class _GrowthGauge extends StatelessWidget {
   final int level;
-  const _GrowthStrip({required this.level});
+  const _GrowthGauge({required this.level});
 
   @override
   Widget build(BuildContext context) {
     final next = Pet.nextStage(level);
     final stage = Pet.stageOf(level);
-    if (next == null) {
-      return _wrap(Text('${stage.name} · 다 컸어요',
-          style: const TextStyle(fontSize: 13, color: Palette.brown)));
-    }
-    return _wrap(Row(mainAxisSize: MainAxisSize.min, children: [
-      Text(stage.name,
-          style: const TextStyle(fontSize: 13, color: Palette.brown)),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 90,
-        child: ClipRRect(
+    final done = next == null;
+    // 이번 단계 구간 안에서의 진행도. 단계가 바뀌면 0에서 다시 찬다.
+    final from = stage.minLevel;
+    final to = next?.$1.minLevel ?? (stage.minLevel + 1);
+    final value = done ? 1.0 : ((level - from) / (to - from)).clamp(0.0, 1.0);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 9),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.90),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+              color: Palette.brown.withValues(alpha: 0.14),
+              blurRadius: 8,
+              offset: const Offset(0, 3)),
+        ],
+      ),
+      child: Column(children: [
+        Row(children: [
+          const Icon(Icons.trending_up_rounded,
+              size: 16, color: Color(0xFFF2802B)),
+          const SizedBox(width: 6),
+          const Text('다음 성장까지',
+              style: TextStyle(fontSize: 14, color: Palette.brownSoft)),
+          const Spacer(),
+          if (done)
+            const Text('다 컸어요!',
+                style: TextStyle(fontSize: 16, color: Palette.brown))
+          else ...[
+            Text('${next.$2}',
+                style: const TextStyle(
+                    fontSize: 21, color: Color(0xFFF2802B), height: 1)),
+            const Text(' 판',
+                style: TextStyle(fontSize: 14, color: Palette.brownSoft)),
+          ],
+        ]),
+        const SizedBox(height: 7),
+        ClipRRect(
           borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: (level / next.$1.minLevel).clamp(0.0, 1.0),
-            minHeight: 7,
-            color: const Color(0xFFF2802B),
-            backgroundColor: const Color(0xFFEDE3D4),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value),
+            duration: const Duration(milliseconds: 700),
+            curve: Curves.easeOutCubic,
+            builder: (context, v, _) => LinearProgressIndicator(
+              value: v,
+              minHeight: 11,
+              color: const Color(0xFFF2802B),
+              backgroundColor: const Color(0xFFEDE3D4),
+            ),
           ),
         ),
-      ),
-      const SizedBox(width: 8),
-      Text('${next.$1.name}까지 ${next.$2}판',
-          style: const TextStyle(fontSize: 12.5, color: Palette.brownSoft)),
-    ]));
+      ]),
+    );
   }
+}
 
-  Widget _wrap(Widget child) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.82),
+/// 오늘의 퍼즐 — 하루 한 판짜리 어려운 도전. 연속 기록이 재방문을 만든다.
+class _DailyButton extends StatelessWidget {
+  final bool done;
+  final int streak;
+  final VoidCallback? onTap;
+
+  const _DailyButton(
+      {required this.done, required this.streak, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = done ? const Color(0xFF6FA24E) : const Color(0xFF3E9268);
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: Material(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+        elevation: done ? 1 : 4,
+        shadowColor: Colors.black.withValues(alpha: 0.35),
+        child: InkWell(
           borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(done ? Icons.check_circle_rounded : Icons.today_rounded,
+                size: 20, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(done ? '오늘의 퍼즐 완료!' : '오늘의 퍼즐',
+                style: const TextStyle(fontSize: 18, color: Colors.white)),
+            if (streak > 0) ...[
+              const SizedBox(width: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.26),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('🔥 $streak일',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontFamily: 'Apple SD Gothic Neo',
+                        fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ]),
         ),
-        child: child,
-      );
+      ),
+    );
+  }
 }
 
 /// 시작 버튼 — 화면에서 유일하게 버튼처럼 생겨도 되는 것.

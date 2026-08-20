@@ -19,19 +19,56 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
-/// 원본 렌더 비율. 리그 위젯의 가로세로는 항상 이 비율을 따른다.
+/// 전신 렌더 비율. 리그 위젯의 가로세로는 항상 이 비율을 따른다.
 const double kCapyAspect = 651 / 900;
 
-// 목 밑동(머리 회전축)과 부위 이동량 — rig_parts.py와 같은 값이어야 한다.
-const double _pivotX = 325 / 651;
-const double _pivotY = 430 / 900;
-const double _lidRise = 34 / 900;
-const double _jawDrop = 44 / 900;
+/// 얼굴만 쓸 때의 비율.
+const double kCapyHeadAspect = 512 / 450;
 
-/// 리그 조각 다섯 장. 앱이 사는 동안 한 번만 디코딩한다.
+/// 한 벌의 조각과 그 좌표. 전신용과 얼굴용이 각각 하나씩 있다.
+///
+/// 좌표는 전부 `tool/rig_parts.py`가 출력한 값이다. 원본 렌더를 갈아끼우면
+/// 스크립트를 다시 돌려 여기 숫자를 옮겨 적어야 한다.
+class CapySkin {
+  /// 얼굴용에만 있는 흰 스티커 테두리. 머리 밑에 한 장 깐다.
+  final ui.Image? outline;
+
+  /// 전신용에만 있는 몸통.
+  final ui.Image? body;
+
+  final ui.Image head, jaw, lidL, lidR;
+
+  /// 머리 회전축(가로세로 비율 좌표).
+  final double pivotX, pivotY;
+
+  /// 눈꺼풀이 내려오는 거리, 턱이 벌어지는 거리(높이 대비).
+  final double lidRise, jawDrop;
+
+  /// 눈 위치(눈웃음 곡선을 그릴 자리).
+  final List<double> eyeX;
+  final double eyeY;
+
+  const CapySkin({
+    this.outline,
+    this.body,
+    required this.head,
+    required this.jaw,
+    required this.lidL,
+    required this.lidR,
+    required this.pivotX,
+    required this.pivotY,
+    required this.lidRise,
+    required this.jawDrop,
+    required this.eyeX,
+    required this.eyeY,
+  });
+}
+
+/// 리그 조각들. 앱이 사는 동안 한 번만 디코딩한다.
 class CapyRigImages {
-  final ui.Image body, head, jaw, lidL, lidR;
-  const CapyRigImages(this.body, this.head, this.jaw, this.lidL, this.lidR);
+  final CapySkin full;
+  final CapySkin head;
+  const CapyRigImages(this.full, this.head);
 
   static CapyRigImages? _loaded;
   static Future<CapyRigImages>? _loading;
@@ -49,10 +86,24 @@ class CapyRigImages {
             .then((f) => f.image);
       }
 
-      final parts = await Future.wait(
-          ['body', 'head', 'jaw', 'lidl', 'lidr'].map(one));
+      final p = await Future.wait([
+        'body', 'head', 'jaw', 'lidl', 'lidr', //
+        'h_outline', 'h_head', 'h_jaw', 'h_lidl', 'h_lidr',
+      ].map(one));
       return _loaded = CapyRigImages(
-          parts[0], parts[1], parts[2], parts[3], parts[4]);
+        CapySkin(
+          body: p[0], head: p[1], jaw: p[2], lidL: p[3], lidR: p[4],
+          pivotX: 325 / 651, pivotY: 430 / 900,
+          lidRise: 34 / 900, jawDrop: 44 / 900,
+          eyeX: const [174.5 / 651, 471.5 / 651], eyeY: 150 / 900,
+        ),
+        CapySkin(
+          outline: p[5], head: p[6], jaw: p[7], lidL: p[8], lidR: p[9],
+          pivotX: 0.4980, pivotY: 0.9556,
+          lidRise: 0.0756, jawDrop: 0.0978,
+          eyeX: const [0.2041, 0.7842], eyeY: 0.3378,
+        ),
+      );
     }();
   }
 }
@@ -70,6 +121,9 @@ class CapyPose {
 
   /// 눈 감김 0(뜸)~1(감음).
   final double blink;
+
+  /// 눈웃음 0~1. 감은 눈 위에 ∧ 곡선을 그린다 — 기분 좋다는 가장 빠른 신호.
+  final double smile;
 
   /// 숨쉬기 -1~1. 몸통이 세로로 늘었다 줄었다.
   final double breathe;
@@ -91,6 +145,7 @@ class CapyPose {
     this.headNod = 0,
     this.jawOpen = 0,
     this.blink = 0,
+    this.smile = 0,
     this.breathe = 0,
     this.lean = 0,
     this.hop = 0,
@@ -105,28 +160,39 @@ class CapyPose {
 class CapyRig extends StatelessWidget {
   final CapyPose pose;
 
-  /// 위젯 높이. 가로는 [kCapyAspect]로 따라온다.
+  /// 위젯 높이. 가로는 비율로 따라온다.
   final double height;
 
-  const CapyRig({super.key, required this.pose, required this.height});
+  /// 얼굴만 그린다. 퍼즐 칸처럼 작은 자리에서는 전신을 넣으면 표정이 안 보인다.
+  final bool headOnly;
+
+  const CapyRig({
+    super.key,
+    required this.pose,
+    required this.height,
+    this.headOnly = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final aspect = headOnly ? kCapyHeadAspect : kCapyAspect;
     final imgs = CapyRigImages.current;
-    final box = SizedBox(width: height * kCapyAspect, height: height);
-    if (imgs == null) return box;
+    if (imgs == null) {
+      return SizedBox(width: height * aspect, height: height);
+    }
     return SizedBox(
-      width: height * kCapyAspect,
+      width: height * aspect,
       height: height,
-      child: CustomPaint(painter: _RigPainter(imgs, pose)),
+      child: CustomPaint(
+          painter: _RigPainter(headOnly ? imgs.head : imgs.full, pose)),
     );
   }
 }
 
 class _RigPainter extends CustomPainter {
-  final CapyRigImages im;
+  final CapySkin skin;
   final CapyPose p;
-  _RigPainter(this.im, this.p);
+  _RigPainter(this.skin, this.p);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -148,38 +214,62 @@ class _RigPainter extends CustomPainter {
         1 + p.squash * 0.07, 1 + p.breathe * 0.018 - p.squash * 0.10);
     canvas.translate(-feet.dx, -feet.dy);
 
-    draw(im.body);
+    if (skin.body != null) draw(skin.body!);
 
     // ── 머리 묶음: 목 밑동을 축으로 ──
     canvas.save();
     canvas.translate(0, p.headNod * size.height * 0.035);
-    final pivot = Offset(_pivotX * size.width, _pivotY * size.height);
+    final pivot = Offset(skin.pivotX * size.width, skin.pivotY * size.height);
     canvas.translate(pivot.dx, pivot.dy);
     canvas.rotate(p.headTurn);
     // 끄덕일 때 머리가 살짝 눌린다 — 3D처럼 보이게 하는 값싼 속임수.
     canvas.scale(1, 1 - p.headNod * 0.045);
     canvas.translate(-pivot.dx, -pivot.dy);
 
-    draw(im.head);
-    if (p.blink > 0.01) {
+    // 테두리는 머리와 같이 돌아야 한다.
+    if (skin.outline != null) draw(skin.outline!);
+    draw(skin.head);
+    final lidDown = math.max(p.blink, p.smile);
+    if (lidDown > 0.01) {
       canvas.save();
-      canvas.translate(0, p.blink * size.height * _lidRise);
-      draw(im.lidL);
-      draw(im.lidR);
+      canvas.translate(0, lidDown * size.height * skin.lidRise);
+      draw(skin.lidL);
+      draw(skin.lidR);
       canvas.restore();
     }
+    if (p.smile > 0.01) _drawSmilingEyes(canvas, size, p.smile);
     canvas.save();
-    canvas.translate(0, p.jawOpen * size.height * _jawDrop);
-    draw(im.jaw);
+    canvas.translate(0, p.jawOpen * size.height * skin.jawDrop);
+    draw(skin.jaw);
     canvas.restore();
 
     canvas.restore();
     canvas.restore();
   }
 
+  /// 감은 눈 위의 ∧ — 눈꺼풀만 내리면 자는 얼굴이고, 이 선이 있어야 웃는 얼굴이다.
+  void _drawSmilingEyes(Canvas canvas, Size size, double k) {
+    final w = size.width, h = size.height;
+    final rx = w * 0.036, ry = h * 0.016;
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.017
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF35211A).withValues(alpha: 0.88 * k);
+    for (final ex in skin.eyeX) {
+      final c = Offset(ex * w, skin.eyeY * h);
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx - rx, c.dy + ry)
+          ..quadraticBezierTo(c.dx, c.dy - ry * 2.6 * k, c.dx + rx, c.dy + ry),
+        stroke,
+      );
+    }
+  }
+
   @override
   bool shouldRepaint(covariant _RigPainter old) =>
-      old.p != p || old.im != im;
+      old.p != p || old.skin != skin;
 }
 
 /// 카피가 지금 하고 있는 짓.
@@ -227,12 +317,27 @@ class CapyPerformer extends StatefulWidget {
   /// 등장하자마자 한 번 하고 갈 동작(타일에 놓인 직후의 기쁨 같은 것).
   final CapyAct? entrance;
 
+  /// 기분이 좋은가. 좋으면 가만히 있다가도 이따금 눈웃음을 짓는다.
+  final bool happy;
+
+  /// 얼굴만 그린다.
+  final bool headOnly;
+
+  /// 여러 마리가 한 몸처럼 같은 동작을 같은 순간에 한다.
+  ///
+  /// 퍼즐 판 위에서는 이게 맞다. 제각각 움직이면 시선이 흩어져서 아무것도
+  /// 안 보이고, 같이 움직이면 판 전체가 하나의 장면이 된다.
+  final bool synced;
+
   const CapyPerformer({
     super.key,
     required this.height,
     this.controller,
     this.seed = 0,
     this.entrance,
+    this.happy = false,
+    this.headOnly = false,
+    this.synced = false,
   });
 
   @override
@@ -267,17 +372,21 @@ class _CapyPerformerState extends State<CapyPerformer>
   bool _doubleBlink = false;
 
   static const _actLens = {
-    CapyAct.eat: 2.2,
+    CapyAct.eat: 2.8,
     CapyAct.cheer: 1.4,
     CapyAct.dance: 3.2,
     CapyAct.startle: 0.9,
     CapyAct.idle: 0.0,
   };
 
+  /// 무심코 하는 짓의 종류 수(1부터). 기분 좋으면 눈웃음이 하나 더 붙는다.
+  int get _quirkCount => widget.happy ? 7 : 6;
+
   @override
   void initState() {
     super.initState();
-    _phase = _rng.nextDouble() * 4; // 다같이 동시에 깜빡이면 기계 같다
+    // 맞춰 움직일 때는 위상을 흩지 않는다 — 흩으면 그게 곧 중구난방이다.
+    _phase = widget.synced ? 0 : _rng.nextDouble() * 4;
     _t = _phase;
     _nextQuirk = _t + 1.5 + _rng.nextDouble() * 3;
     _nextBlink = _t + _rng.nextDouble() * 3;
@@ -294,7 +403,11 @@ class _CapyPerformerState extends State<CapyPerformer>
       });
     }
     _ticker = Ticker((d) {
-      _t = d.inMicroseconds / 1e6 + _phase;
+      // 맞춰 움직일 때는 위젯이 언제 생겼든 같은 값이어야 하므로
+      // 티커의 경과 시간(위젯마다 다르다) 대신 전역 프레임 시각을 쓴다.
+      _t = widget.synced
+          ? SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds / 1e6
+          : d.inMicroseconds / 1e6 + _phase;
       _advance();
       setState(() {});
     })
@@ -312,11 +425,14 @@ class _CapyPerformerState extends State<CapyPerformer>
 
   void _advance() {
     if (_act != CapyAct.idle && _t - _actStart > _actLen) _act = CapyAct.idle;
+    // 맞춰 움직일 때는 시각만 보고 안무를 계산한다 — 예약도 난수도 쓰지 않는다.
+    if (widget.synced) return;
     if (_act == CapyAct.idle && _t > _nextQuirk) {
-      _quirk = 1 + _rng.nextInt(4); // 1,2 좌우 두리번 / 3 끄덕 / 4 갸웃
+      _quirk = 1 + _rng.nextInt(_quirkCount);
       _quirkStart = _t;
-      _quirkLen = _quirk == 4 ? 2.6 : 1.3;
-      _nextQuirk = _t + _quirkLen + 2.5 + _rng.nextDouble() * 4;
+      _quirkLen = const [1.3, 1.3, 1.2, 2.6, 1.6, 1.1, 2.0][_quirk - 1];
+      // 쉬는 틈이 길면 죽은 것처럼 보인다. 짧게 자주 움직인다.
+      _nextQuirk = _t + _quirkLen + 1.0 + _rng.nextDouble() * 2.4;
     }
     if (_t > _nextBlink) {
       _blinkStart = _t;
@@ -335,6 +451,66 @@ class _CapyPerformerState extends State<CapyPerformer>
   /// 0→1→0으로 갔다 오는 종. 동작 하나의 기본 포락선.
   double _bell(double p) => math.sin(p.clamp(0.0, 1.0) * math.pi);
 
+  /// 시작에 빠르게 차오르고 끝에서만 빠지는 사다리꼴 포락선.
+  double env2(double p) =>
+      math.min(1.0, math.min(p / 0.12, (1 - p) / 0.18)).clamp(0.0, 1.0);
+
+  // ── 맞춰 추는 안무 ──────────────────────────────────────────────
+  //
+  // 판 위의 카피 전부가 같은 시각에 같은 동작을 한다. 동작은 셋뿐이고
+  // 순서는 시각만으로 정해지므로 어느 칸에서 계산해도 결과가 같다.
+
+  /// 한 마디의 길이(초). 앞부분에서 동작하고 나머지는 쉰다.
+  static const _beat = 3.9;
+  static const _moveLen = 1.9;
+
+  CapyPose _syncedPoseAt(double t) {
+    final bar = (t / _beat).floor();
+    final at = t - bar * _beat;
+    // 마디 번호를 섞어 셋 중 하나를 고른다. 1-2-3-1-2-3보다 덜 기계적이다.
+    final kind = ((bar * 2654435761) & 0x7fffffff) % 3;
+
+    var headTurn = 0.0, headNod = 0.0, lean = 0.0, smile = 0.0;
+    var hop = 0.0, squash = 0.0, blink = 0.0;
+
+    final p = (at / _moveLen).clamp(0.0, 1.0);
+    if (at <= _moveLen) {
+      switch (kind) {
+        case 0: // 왼쪽 보고 → 오른쪽 보고 → 정면. 칸이 작으니 크게 돌린다.
+          headTurn = math.sin(p * math.pi * 2) * 0.42;
+          lean = math.sin(p * math.pi * 2) * 0.05;
+        case 1: // 깊게 두 번 끄덕
+          headNod = _bell((p * 2) % 1.0) * 0.95;
+          hop = _bell((p * 2) % 1.0) * 0.018;
+          squash = _bell((p * 2) % 1.0) * 0.12;
+        case 2: // 갸웃하며 눈웃음
+          final k = p < 0.3
+              ? p / 0.3
+              : p > 0.72
+                  ? (1 - p) / 0.28
+                  : 1.0;
+          headTurn = 0.26 * k;
+          lean = 0.075 * k;
+          smile = k;
+      }
+    } else {
+      // 쉬는 동안 다같이 한 번 깜빡인다.
+      final d = at - _moveLen - 0.5;
+      if (d > 0 && d < 0.22) blink = d < 0.09 ? d / 0.09 : 1 - (d - 0.09) / 0.13;
+    }
+
+    return CapyPose(
+      headTurn: headTurn,
+      headNod: headNod,
+      blink: blink,
+      smile: smile,
+      breathe: math.sin(t * 1.9),
+      lean: lean,
+      hop: hop,
+      squash: squash,
+    );
+  }
+
   CapyPose _poseAt(double t) {
     final breathe = math.sin(t * 1.9);
     var headTurn = math.sin(t * 0.7) * 0.012; // 완전 정지를 막는 미세한 흔들림
@@ -346,25 +522,46 @@ class _CapyPerformerState extends State<CapyPerformer>
     var squash = 0.0;
 
     // ── 무심코 하는 짓 ──
+    var smile = 0.0;
     final qp = (t - _quirkStart) / _quirkLen;
     if (qp >= 0 && qp <= 1) {
       final e = _bell(qp);
+      /// 앞뒤로 부드럽게 오르내리되 가운데서는 값을 유지하는 사다리꼴.
+      double hold(double edge) => qp < edge
+          ? qp / edge
+          : qp > 1 - edge
+              ? (1 - qp) / edge
+              : 1.0;
+
       switch (_quirk) {
-        case 1:
-          headTurn -= 0.20 * e;
-        case 2:
-          headTurn += 0.20 * e;
-        case 3:
-          headNod += _bell((qp * 2) % 1.0) * 0.55; // 두 번 끄덕
-        case 4:
-          // 갸웃 — 천천히 기울여 한참 보다가 돌아온다.
-          final hold = qp < 0.25
-              ? qp / 0.25
-              : qp > 0.75
-                  ? (1 - qp) / 0.25
-                  : 1.0;
-          headTurn += 0.13 * hold;
-          lean += 0.035 * hold;
+        case 1: // 왼쪽 두리번 — 몸도 살짝 따라 돈다
+          headTurn -= 0.26 * e;
+          lean -= 0.020 * e;
+        case 2: // 오른쪽 두리번
+          headTurn += 0.26 * e;
+          lean += 0.020 * e;
+        case 3: // 두 번 끄덕
+          headNod += _bell((qp * 2) % 1.0) * 0.62;
+        case 4: // 갸웃 — 천천히 기울여 한참 보다가 돌아온다
+          headTurn += 0.15 * hold(0.25);
+          lean += 0.045 * hold(0.25);
+        case 5: // 기지개 — 위로 쭉 늘였다가 툭 내려앉는다
+          final up = qp < 0.55 ? Curves.easeOut.transform(qp / 0.55) : 0.0;
+          final down = qp >= 0.55
+              ? Curves.easeOutBack.transform((qp - 0.55) / 0.45)
+              : 0.0;
+          squash -= up * 0.55 * (1 - down);
+          hop += up * 0.045 * (1 - down);
+          headNod -= up * 0.25 * (1 - down);
+          squash += down * (1 - down) * 4 * 0.20;
+        case 6: // 몸 털기 — 짧고 빠르게 부르르
+          final buzz = math.sin(qp * math.pi * 14) * e;
+          lean += buzz * 0.055;
+          shift += buzz * 0.014;
+          headTurn -= buzz * 0.07;
+        case 7: // 눈웃음 (기분 좋을 때만)
+          smile = hold(0.22);
+          headNod += 0.16 * hold(0.22);
       }
     }
 
@@ -383,14 +580,20 @@ class _CapyPerformerState extends State<CapyPerformer>
     if (ap >= 0 && ap <= 1) {
       switch (_act) {
         case CapyAct.eat:
-          // 와구와구 — 빠른 저작에 고개가 리듬을 맞춘다.
-          final chew = (math.sin(ap * math.pi * 12) + 1) / 2;
-          final env = ap < 0.12 ? ap / 0.12 : math.min(1.0, (1 - ap) / 0.2);
+          // 아그작아그작 — 턱을 크게 여닫으면서 온몸이 리듬을 탄다.
+          // 저작음이 들리는 것처럼 보이려면 턱만 움직여선 부족하다.
+          final chew = (math.sin(ap * math.pi * 18) + 1) / 2;
+          final env = ap < 0.10 ? ap / 0.10 : math.min(1.0, (1 - ap) / 0.22);
           jaw = chew * env;
-          headNod += chew * 0.22 * env;
-          headTurn += math.sin(ap * math.pi * 6) * 0.035 * env;
-          squash += chew * 0.05 * env;
-          blink = math.max(blink, env * 0.45); // 맛있어서 실눈
+          headNod += chew * 0.34 * env;
+          headTurn += math.sin(ap * math.pi * 9) * 0.075 * env;
+          lean += math.sin(ap * math.pi * 9) * 0.030 * env;
+          shift += math.sin(ap * math.pi * 9) * 0.010 * env;
+          squash += (chew - 0.5) * 0.16 * env;
+          hop += chew * 0.012 * env;
+          // 씹는 동안은 실눈, 다 삼키고 나면 눈웃음으로 마무리한다.
+          blink = math.max(blink, env * 0.5);
+          if (ap > 0.72) smile = math.max(smile, ((ap - 0.72) / 0.18).clamp(0.0, 1.0));
         case CapyAct.cheer:
           // 두 번 폴짝. 뜰 때 늘어나고 닿을 때 눌린다.
           final b = (ap * 2) % 1.0;
@@ -402,7 +605,7 @@ class _CapyPerformerState extends State<CapyPerformer>
                   ? -((b - 0.88) / 0.12) * 0.6
                   : -up * 0.25;
           headNod += up * 0.2;
-          blink = math.max(blink, 0.5);
+          smile = math.max(smile, env2(ap));
         case CapyAct.dance:
           // 좌우로 발을 옮겨 가며 흔들흔들. 몸이 기울면 고개는 관성으로 반대에
           // 남고, 이동 끝에서 반동으로 한 번 더 튄다.
@@ -414,6 +617,7 @@ class _CapyPerformerState extends State<CapyPerformer>
           headNod += math.sin(ap * math.pi * 10).abs() * 0.18 * env;
           hop = math.sin(ap * math.pi * 10).abs() * 0.055 * env;
           squash += math.cos(ap * math.pi * 10) * 0.11 * env;
+          smile = math.max(smile, env);
         case CapyAct.startle:
           final e = _bell(ap);
           hop = e * 0.05;
@@ -431,6 +635,7 @@ class _CapyPerformerState extends State<CapyPerformer>
       headNod: headNod.clamp(0.0, 1.0),
       jawOpen: jaw.clamp(0.0, 1.0),
       blink: blink.clamp(0.0, 1.0),
+      smile: smile.clamp(0.0, 1.0),
       breathe: breathe,
       lean: lean,
       hop: hop,
@@ -440,6 +645,13 @@ class _CapyPerformerState extends State<CapyPerformer>
   }
 
   @override
-  Widget build(BuildContext context) =>
-      CapyRig(pose: _poseAt(_t), height: widget.height);
+  Widget build(BuildContext context) {
+    // 시킨 동작(등장 기쁨 등)이 도는 중이면 안무보다 그게 우선이다.
+    final synced = widget.synced && _act == CapyAct.idle;
+    return CapyRig(
+      pose: synced ? _syncedPoseAt(_t) : _poseAt(_t),
+      height: widget.height,
+      headOnly: widget.headOnly,
+    );
+  }
 }

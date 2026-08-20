@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -30,7 +31,15 @@ class GameScreen extends StatefulWidget {
   final int level;
   final Progress progress;
 
-  const GameScreen({super.key, required this.level, required this.progress});
+  /// 오늘의 퍼즐이면 날짜(yyyymmdd). 이때 [level]은 무시된다.
+  final int? dailyKey;
+
+  const GameScreen({
+    super.key,
+    required this.level,
+    required this.progress,
+    this.dailyKey,
+  });
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -39,10 +48,19 @@ class GameScreen extends StatefulWidget {
 /// compute()용 최상위 함수 — 큰 보드 생성을 UI 스레드 밖에서.
 QueensPuzzle _puzzleOfIsolate(int level) => Levels.puzzleOf(level);
 
+/// 오늘의 퍼즐도 8×8이라 생성이 무겁다. 마찬가지로 아이솔레이트로.
+QueensPuzzle _dailyOfIsolate(int dateKey) => Levels.dailyPuzzleOf(dateKey);
+
 class _GameScreenState extends State<GameScreen>
     with SingleTickerProviderStateMixin {
   late BoardState board;
   bool _ready = false;
+
+  /// 오늘의 퍼즐인가. 레벨 진행·다음 레벨 이동이 전부 여기서 갈린다.
+  bool get isDaily => widget.dailyKey != null;
+
+  /// 저장 슬롯 이름. 레벨은 예전과 같은 키를 유지한다.
+  String get _slot => isDaily ? 'd${widget.dailyKey}' : '${widget.level}';
 
   /// 판 등장 연출 — 타일이 좌상단부터 다다다닥 깔린다.
   late final AnimationController _intro = AnimationController(
@@ -119,19 +137,23 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _newBoard({bool restore = false}) async {
     setState(() => _ready = false);
     // 10×10은 생성이 수백 ms — 아이솔레이트에서 만들어 프레임을 지킨다.
-    final puzzle = Levels.sizeOf(widget.level) >= 9
-        ? await compute(_puzzleOfIsolate, widget.level)
-        : Levels.puzzleOf(widget.level);
+    final puzzle = isDaily
+        ? await compute(_dailyOfIsolate, widget.dailyKey!)
+        : Levels.sizeOf(widget.level) >= 9
+            ? await compute(_puzzleOfIsolate, widget.level)
+            : Levels.puzzleOf(widget.level);
     if (!mounted) return;
-    final saved = restore ? widget.progress.loadBoard(widget.level) : null;
+    final saved =
+        restore ? widget.progress.loadBoard(_slot, puzzle.n) : null;
     board =
         saved != null ? BoardState.restore(puzzle, saved) : BoardState(puzzle);
     // 초반 레벨은 첫 카피를 미리 놓아준다 — 배우면서 시작.
-    if (saved == null && widget.level <= 3) board.placeStarter();
+    // 오늘의 퍼즐은 도전이므로 거들지 않는다.
+    if (saved == null && !isDaily && widget.level <= 3) board.placeStarter();
     capyHints = 3;
     xHints = 3;
     score = 0;
-    if (!restore) widget.progress.saveBoard(widget.level, board.cells);
+    if (!restore) widget.progress.saveBoard(_slot, board.cells);
     setState(() => _ready = true);
     _intro.forward(from: 0);
   }
@@ -236,10 +258,10 @@ class _GameScreenState extends State<GameScreen>
       _circleButton(Icons.arrow_back, () => Navigator.of(context).pop()),
       const Spacer(),
       Column(children: [
-        Text('레벨 ${widget.level}',
+        Text(isDaily ? '오늘의 퍼즐' : '레벨',
             style: const TextStyle(
                 fontSize: 15, color: Palette.brownSoft, height: 1.1)),
-        Text('${widget.level}',
+        Text(isDaily ? '${board.n}×${board.n}' : '${widget.level}',
             style: const TextStyle(
                 fontSize: 22, color: Palette.brown, height: 1.1)),
       ]),
@@ -509,7 +531,6 @@ class _GameScreenState extends State<GameScreen>
         child: _CapyToken(
           key: ValueKey('capytoken-$r-$c'),
           tint: Palette.regions[board.puzzle.regions[r][c]],
-          seed: r * 31 + c,
         ),
       );
     } else if (state == cellMark) {
@@ -565,7 +586,7 @@ class _GameScreenState extends State<GameScreen>
     Sfx.tap();
     setState(() =>
         state == cellBlank ? board.setMark(r, c) : board.clearCell(r, c));
-    widget.progress.saveBoard(widget.level, board.cells);
+    widget.progress.saveBoard(_slot, board.cells);
   }
 
   void _onPanStart((int, int)? cell) {
@@ -590,7 +611,7 @@ class _GameScreenState extends State<GameScreen>
     HapticFeedback.selectionClick();
     setState(() =>
         want == cellMark ? board.setMark(r, c) : board.clearCell(r, c));
-    widget.progress.saveBoard(widget.level, board.cells);
+    widget.progress.saveBoard(_slot, board.cells);
   }
 
   void _onLongPress((int, int)? cell) {
@@ -599,7 +620,7 @@ class _GameScreenState extends State<GameScreen>
     if (board.stateAt(r, c) == cellMark) {
       HapticFeedback.selectionClick();
       setState(() => board.clearCell(r, c));
-      widget.progress.saveBoard(widget.level, board.cells);
+      widget.progress.saveBoard(_slot, board.cells);
     }
   }
 
@@ -612,7 +633,7 @@ class _GameScreenState extends State<GameScreen>
       Sfx.place();
       setState(() {});
       _spawnScoreFly(r, c, 100 + board.n * 25);
-      widget.progress.saveBoard(widget.level, board.cells);
+      widget.progress.saveBoard(_slot, board.cells);
       if (board.isSolved) _onSolved();
       return;
     }
@@ -656,7 +677,7 @@ class _GameScreenState extends State<GameScreen>
     });
     _spawnScoreFly(r, c, 50);
     HapticFeedback.mediumImpact();
-    widget.progress.saveBoard(widget.level, board.cells);
+    widget.progress.saveBoard(_slot, board.cells);
     if (board.isSolved) _onSolved();
   }
 
@@ -694,7 +715,7 @@ class _GameScreenState extends State<GameScreen>
         if (!mounted) return;
         setState(() => board.setMark(cell.$1, cell.$2));
         if (i == cells.length - 1) {
-          widget.progress.saveBoard(widget.level, board.cells);
+          widget.progress.saveBoard(_slot, board.cells);
         }
       });
     }
@@ -940,11 +961,17 @@ class _GameScreenState extends State<GameScreen>
     }
     await widget.progress.logClear(dateKey, _watch.elapsed.inSeconds);
     await widget.progress.addScore(score);
-    await widget.progress.markCleared(widget.level);
+    if (isDaily) {
+      final (today, yesterday) = Progress.dateKeys(now);
+      await widget.progress.markDailyDone(today, yesterday);
+    } else {
+      await widget.progress.markCleared(widget.level);
+    }
     // 돌봄 보상: 당근(판 크기 비례) + 7판마다 황금귤. 클리어 자체가 기분 업.
+    // 오늘의 퍼즐은 어려운 만큼 당근을 넉넉히 준다 — 매일 오게 만드는 이유다.
     await widget.progress.addWin();
     final pet = Pet.load(widget.progress.prefs);
-    final carrotsEarned = 1 + board.n ~/ 8;
+    final carrotsEarned = isDaily ? 5 : 1 + board.n ~/ 8;
     final specialEarned = widget.progress.totalWins % 7 == 0 ? 1 : 0;
     pet
       ..addCarrots(carrotsEarned)
@@ -963,6 +990,7 @@ class _GameScreenState extends State<GameScreen>
         elapsed: _watch.elapsed,
         leagueLine: leagueLine,
         rewardLine: rewardLine,
+        dailyStreak: isDaily ? widget.progress.dailyStreak : null,
       ),
       transitionsBuilder: (context, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
@@ -1077,29 +1105,35 @@ class _XPainter extends CustomPainter {
 
 /// 칸에 놓인 카피 — 뾰잉 하고 꽂힌 뒤, 거기서 계속 산다.
 ///
-/// 등장은 한 번뿐이지만 그 뒤로도 두리번거리고 깜빡이고 숨을 쉰다.
-/// 보드 위에 카피가 여럿 놓이면 각자 다른 박자로 움직인다([seed]).
+/// **얼굴만 쓴다.** 칸이 작아 전신을 넣으면 표정이 몇 픽셀이 되고, 그러면
+/// 캐릭터가 아니라 무늬로 보인다. 흰 스티커 테두리는 칸 색과 털색이 비슷해
+/// 묻히는 걸 막는다.
+///
+/// 움직임은 판 전체가 **같은 순간에 같은 동작**을 한다(`synced`). 제각각
+/// 움직이면 시선이 흩어져 아무것도 안 보인다.
 class _CapyToken extends StatelessWidget {
   /// 칸의 색 — 터질 때 같은 색 링이 함께 퍼진다.
   final Color tint;
-  final int seed;
 
-  const _CapyToken({super.key, required this.tint, required this.seed});
+  const _CapyToken({super.key, required this.tint});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
-      final h = box.maxHeight * 0.94;
-      return Stack(alignment: Alignment.bottomCenter, children: [
-        Padding(
-          padding: EdgeInsets.only(bottom: box.maxHeight * 0.03),
-          child: PoingIn(
-            duration: const Duration(milliseconds: 480),
-            child: CapyPerformer(
-                height: h, seed: seed, entrance: CapyAct.cheer),
+      // 얼굴은 세로보다 가로가 넓다. 높이로만 맞추면 귀가 칸 밖으로 잘린다.
+      // 크게 도리질하므로 회전한 뒤에도 칸 안에 있도록 여유를 남긴다.
+      final h = math.min(box.maxHeight, box.maxWidth / kCapyHeadAspect) * 0.87;
+      return Stack(alignment: Alignment.center, children: [
+        PoingIn(
+          duration: const Duration(milliseconds: 480),
+          child: CapyPerformer(
+            height: h,
+            headOnly: true,
+            synced: true,
+            entrance: CapyAct.cheer,
           ),
         ),
-        // 반짝이는 카피 앞에서 터진다 — 뒤에 두면 몸에 가려 안 보인다.
+        // 반짝이는 카피 앞에서 터진다 — 뒤에 두면 얼굴에 가려 안 보인다.
         Positioned.fill(child: PoingBurst(tint: tint)),
       ]);
     });

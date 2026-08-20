@@ -3,8 +3,6 @@ library;
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../game/levels.dart';
-
 class Progress {
   final SharedPreferences _prefs;
 
@@ -32,20 +30,30 @@ class Progress {
     await _prefs.remove('bd.$level');
   }
 
+  /// 오늘 날짜와 어제 날짜를 yyyymmdd 정수로. 기기 로컬 시간 기준.
+  static (int today, int yesterday) dateKeys([DateTime? now]) {
+    final n = now ?? DateTime.now();
+    final y = n.subtract(const Duration(days: 1));
+    int key(DateTime d) => d.year * 10000 + d.month * 100 + d.day;
+    return (key(n), key(y));
+  }
+
   /// 풀다 만 보드 저장. 칸 하나가 문자 하나('0' 빈칸/'1' X/'2' 카피).
-  Future<void> saveBoard(int level, List<List<int>> cells) async {
+  ///
+  /// [slot]은 레벨 번호 문자열이거나 오늘의 퍼즐이면 `'d20260820'`이다.
+  /// 레벨은 `'$level'`을 그대로 쓰므로 예전 저장분(`bd.7`)이 그대로 살아 있다.
+  Future<void> saveBoard(String slot, List<List<int>> cells) async {
     final buf = StringBuffer();
     for (final row in cells) {
       for (final c in row) {
         buf.writeCharCode(0x30 + c);
       }
     }
-    await _prefs.setString('bd.$level', buf.toString());
+    await _prefs.setString('bd.$slot', buf.toString());
   }
 
-  List<List<int>>? loadBoard(int level) {
-    final raw = _prefs.getString('bd.$level');
-    final size = Levels.sizeOf(level);
+  List<List<int>>? loadBoard(String slot, int size) {
+    final raw = _prefs.getString('bd.$slot');
     if (raw == null || raw.length != size * size) return null;
     return List.generate(
       size,
@@ -53,7 +61,28 @@ class Progress {
     );
   }
 
-  bool hasBoard(int level) => _prefs.getString('bd.$level') != null;
+  bool hasBoard(String slot) => _prefs.getString('bd.$slot') != null;
+
+  // ── 오늘의 퍼즐 + 연속 기록 ───────────────────────────────────────
+
+  /// 오늘 것을 이미 깼는가.
+  bool dailyDone(int dateKey) => _prefs.getInt('daily.last') == dateKey;
+
+  /// 며칠 연속으로 오늘의 퍼즐을 깼는가.
+  int get dailyStreak => _prefs.getInt('daily.streak') ?? 0;
+
+  /// 오늘 것을 깼다고 기록하고 연속 기록을 갱신한다.
+  ///
+  /// [yesterdayKey]는 호출자가 계산해 넘긴다 — 월말·윤년 계산을 여기서
+  /// 다시 하면 두 군데가 어긋날 수 있다.
+  Future<void> markDailyDone(int dateKey, int yesterdayKey) async {
+    if (dailyDone(dateKey)) return;
+    final last = _prefs.getInt('daily.last');
+    await _prefs.setInt(
+        'daily.streak', last == yesterdayKey ? dailyStreak + 1 : 1);
+    await _prefs.setInt('daily.last', dateKey);
+    await _prefs.remove('bd.d$dateKey');
+  }
 
   // ── 트레이닝 기록 (네모로직과 같은 구조) ──────────────────────────
 

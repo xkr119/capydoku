@@ -41,10 +41,11 @@ class MeadowGround extends CustomPainter {
 
     // 앞쪽 풀포기 — 아래로 갈수록 크고 촘촘하다(가까울수록 커 보이게).
     final rng = math.Random(7);
-    for (var i = 0; i < 150; i++) {
+    for (var i = 0; i < 260; i++) {
       final x = rng.nextDouble() * w;
-      final depth = rng.nextDouble(); // 0 = 멀리, 1 = 코앞
-      final base = h * (horizon + 0.30 + depth * (0.74 - horizon));
+      // 제곱을 취해 아래쪽(가까운 곳)에 더 촘촘히 깔린다.
+      final depth = math.sqrt(rng.nextDouble());
+      final base = h * (horizon + 0.24 + depth * (0.80 - horizon));
       final tall = (7 + depth * 20) * (0.7 + rng.nextDouble() * 0.6);
       final sway = math.sin(wind + x * 0.02) * tall * 0.3;
       final bend = (rng.nextDouble() - 0.5) * tall * 0.5 + sway;
@@ -63,9 +64,9 @@ class MeadowGround extends CustomPainter {
     }
 
     // 데이지 몇 송이 — 초원이 비어 보이지 않게.
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0; i < 16; i++) {
       final c = Offset(rng.nextDouble() * w,
-          h * (horizon + 0.40 + rng.nextDouble() * (0.58 - horizon)));
+          h * (horizon + 0.30 + rng.nextDouble() * (0.72 - horizon)));
       for (var k = 0; k < 5; k++) {
         final a = k * math.pi * 2 / 5;
         canvas.drawCircle(c + Offset(math.cos(a), math.sin(a)) * 3.4, 2.4,

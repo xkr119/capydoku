@@ -101,19 +101,73 @@ def main():
         _slim(im).save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB')
 
+    _head_set(src, alpha, size, jaw, lids)
+
+
+def _head_set(src, alpha, size, jaw, lids):
+    """퍼즐 칸에 쓸 얼굴만 따로 뽑는다.
+
+    칸은 작아서 전신을 넣으면 얼굴이 몇 픽셀 안 된다. 표정이 안 보이면
+    캐릭터가 아니라 무늬가 된다. 그래서 타일은 머리만 쓴다.
+    칸 색과 털색이 비슷해 묻히므로 흰 테두리(스티커)를 함께 만든다.
+
+    몸통용 머리와 달리 아래로 길게 흐리지 않는다 — 받쳐 줄 몸이 없어서
+    흐린 자락이 그대로 보이고, 테두리도 그 자락까지 뒤집어쓴다.
+    """
+    tight = src.copy()
+    tight.putalpha(_mulL(
+        alpha, ramp(size, lambda x: head_cut_y(x) + 6, 14, invert=False)))
+
+    box = tight.split()[3].getbbox()
+    parts = {'head': tight, 'jaw': jaw, **lids}
+    cropped = {k: v.crop(box) for k, v in parts.items()}
+    W, H = cropped['head'].size
+
+    # 테두리: 머리 실루엣을 부풀려 흰색으로 채운 판. 머리 밑에 한 장 깐다.
+    grow = max(3, round(W * 0.024))
+    silhouette = cropped["head"].split()[3].point(lambda v: 255 if v > 120 else 0)
+    ring = silhouette.filter(ImageFilter.MaxFilter(grow * 2 + 1)).filter(
+        ImageFilter.GaussianBlur(1.2))
+    outline = Image.new('RGBA', (W, H), (255, 255, 255, 0))
+    outline.putalpha(ring)
+    outline = Image.composite(
+        Image.new('RGBA', (W, H), (255, 255, 255, 255)), outline, ring)
+    outline.putalpha(ring)
+
+    for name, im in (('outline', outline), *cropped.items()):
+        path = os.path.join(OUT, f'h_{name}.png')
+        _slim(im, HEAD_OUT_H).save(path, optimize=True)
+        print(f'{path}  {os.path.getsize(path) // 1024}KB')
+
+    # capy_rig.dart의 머리 전용 상수 — 원본을 바꾸면 이 값을 옮겨 적어야 한다.
+    print('\n// capy_rig.dart _head* 상수에 옮길 값 '
+          f'(crop={box}, {W}×{H})')
+    print(f'const double _headAspect = {W} / {H};')
+    print(f'const double _headPivotX = {(HEAD_CX - box[0]) / W:.4f};')
+    print(f'const double _headPivotY = {(430 - box[1]) / H:.4f};')
+    print('const List<double> _headEyeX = ['
+          f'{(EYES[0][0] - box[0]) / W:.4f}, {(EYES[1][0] - box[0]) / W:.4f}];')
+    print(f'const double _headEyeY = {(EYES[0][1] - box[1]) / H:.4f};')
+    print(f'const double _headLidRise = {LID_RISE / H:.4f};')
+    print(f'const double _headJawDrop = {44 / H:.4f};')
+
 
 # 화면에서 이보다 크게 그릴 일이 없다. 원본 900px를 그대로 싣는 건 낭비다.
 OUT_H = 760
 
+# 얼굴은 퍼즐 칸(한 변 100dp 남짓)에만 쓰므로 훨씬 작아도 된다.
+HEAD_OUT_H = 380
 
-def _slim(im):
+
+def _slim(im, out_h=None):
     """투명한 곳의 RGB를 0으로 밀고 크기를 줄인다.
 
     부위마다 캔버스는 같고 알파만 다른데, RGB에 원본 그림이 그대로 남아 있으면
     PNG가 투명 영역을 압축하지 못해 조각 하나가 780KB가 된다. 보이지 않는
     색을 지우면 같은 그림이 수십 KB로 줄어든다.
     """
-    im = im.resize((round(im.width * OUT_H / im.height), OUT_H), Image.LANCZOS)
+    h = out_h or OUT_H
+    im = im.resize((round(im.width * h / im.height), h), Image.LANCZOS)
     r, g, b, a = im.split()
     # 완전 투명한 곳만 지운다. 반투명 가장자리의 색까지 곱해 버리면 렌더러가
     # 한 번 더 알파를 곱해 테두리가 거뭇해진다.
