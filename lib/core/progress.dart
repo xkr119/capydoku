@@ -70,21 +70,24 @@ class Progress {
 
   bool hasBoard(String slot) => _prefs.getString('bd.$slot') != null;
 
-  /// 판과 **함께** 저장하는 부수 상태 — 연속 정답 콤보와 이번 판에서 주운
-  /// 당근 개수. 칸만 저장하면 앱을 껐다 켰을 때 콤보가 0부터 다시 세어져
-  /// 같은 판에서 당근이 한 번 더 나온다.
+  /// 판과 **함께** 저장하는 부수 상태 — 콤보·남은 하트·쓴 힌트 수.
   ///
-  /// 당근은 **깰 때 한꺼번에** 들어간다. 주울 때마다 넣어 주면 세 칸만 맞히고
-  /// 나갔다 들어오기를 반복해 무한히 캘 수 있다.
-  /// [hintsUsed]는 **이 판에서** 쓴 힌트 수 — 완성 보너스가 이걸로 계산된다.
-  /// 저장 안 하면 나갔다 들어와 0으로 되돌려 보너스를 캘 수 있다.
+  /// 셋 다 저장하지 않으면 **나갔다 들어오는 것만으로 되돌릴 수 있다.**
+  /// - [hearts]: 안 저장하면 홈에 갔다 오는 게 곧 하트 완충이다. 그러면
+  ///   하트가 아무 제약도 아니고, 리워드 광고를 볼 이유도 사라진다.
+  /// - [hintsUsed]: 완성 보너스가 이걸로 계산된다. 0으로 되돌리면 보너스를
+  ///   무한히 캔다.
+  /// - [combo]: 0부터 다시 세면 점수가 어긋난다.
+  ///
+  /// 가운데 자리는 원래 "이 판에서 주운 당근"이었다. 판 안에서 당근을 줍는
+  /// 규칙을 걷어내면서 비었고, 하트가 그 자리를 물려받았다(둘 다 두 자리).
   Future<void> saveBoardMeta(
-      String slot, int combo, int carrots, int hintsUsed) async {
+      String slot, int combo, int hearts, int hintsUsed) async {
     await _prefs.setInt(
-        'bdm.$slot', combo * 10000 + carrots * 100 + hintsUsed);
+        'bdm.$slot', combo * 10000 + hearts * 100 + hintsUsed);
   }
 
-  (int combo, int carrots, int hintsUsed) loadBoardMeta(String slot) {
+  (int combo, int hearts, int hintsUsed) loadBoardMeta(String slot) {
     final v = _prefs.getInt('bdm.$slot') ?? 0;
     return (v ~/ 10000, (v ~/ 100) % 100, v % 100);
   }

@@ -204,9 +204,12 @@ class _GameScreenState extends State<GameScreen>
     // 이어 풀기면 콤보도 그대로 이어야 한다. 새 판이면 0에서 시작하고
     // 저장돼 있던 값도 지운다("다시 풀기"로 힌트 보너스를 캐지 못하게).
     if (saved != null) {
-      final (combo, _, used) = widget.progress.loadBoardMeta(_slot);
+      final (combo, hearts, used) = widget.progress.loadBoardMeta(_slot);
       _combo = combo;
       _hintsUsed = used;
+      // **하트도 이어받는다.** 안 그러면 홈에 갔다 오는 것만으로 완충이라
+      // 하트가 아무 제약이 아니게 된다. 0이면 저장된 적 없는 옛 판이다.
+      if (hearts > 0) board.hearts = hearts;
     } else {
       _combo = 0;
       _hintsUsed = 0;
@@ -372,9 +375,7 @@ class _GameScreenState extends State<GameScreen>
       // 릴리스에서는 상수가 false라 트리 셰이킹으로 통째로 빠진다.
       if (kDebugMode) ...[
         _circleButton(Icons.fast_forward_rounded, _debugSolve),
-        const SizedBox(width: 8),
       ],
-      _circleButton(Icons.refresh, _confirmReset),
     ]);
   }
 
@@ -824,7 +825,7 @@ class _GameScreenState extends State<GameScreen>
   void _onCorrect(int r, int c) {
     _combo++;
     widget.progress.saveBoard(_slot, board.cells);
-    widget.progress.saveBoardMeta(_slot, _combo, 0, _hintsUsed);
+    widget.progress.saveBoardMeta(_slot, _combo, board.hearts, _hintsUsed);
   }
 
   Future<void> _onMistake(int r, int c, PlaceResult result) async {
@@ -844,7 +845,7 @@ class _GameScreenState extends State<GameScreen>
         _ => null,
       };
     });
-    widget.progress.saveBoardMeta(_slot, _combo, 0, _hintsUsed);
+    widget.progress.saveBoardMeta(_slot, _combo, board.hearts, _hintsUsed);
     await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     setState(() {
@@ -947,30 +948,6 @@ class _GameScreenState extends State<GameScreen>
       widget.progress.setHintsToday(capyHints, xHints);
     });
     if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
-  }
-
-  Future<void> _confirmReset() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: Palette.card,
-        title: Column(mainAxisSize: MainAxisSize.min, children: [
-          Image.asset('assets/mascot/capy_startled3d.png', height: 110),
-          const SizedBox(height: 10),
-          const Text('처음부터 다시 풀까요?',
-              style: TextStyle(color: Palette.brown, fontSize: 20)),
-        ]),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('취소')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('다시 풀기')),
-        ],
-      ),
-    );
-    if (ok == true) _newBoard();
   }
 
   // ── 하단 ────────────────────────────────────────────────────────────
@@ -1241,6 +1218,10 @@ class _GameScreenState extends State<GameScreen>
               final shown = Ads.showRewarded(() {
                 if (!mounted) return;
                 setState(() => board.hearts = 3);
+                // 채운 하트도 저장한다. 안 하면 홈에 갔다 오는 순간
+                // 광고를 보고 받은 하트가 저장된 옛 값으로 되돌아간다.
+                widget.progress
+                    .saveBoardMeta(_slot, _combo, board.hearts, _hintsUsed);
                 Sfx.heart();
                 Navigator.pop(context, null); // 다이얼로그 닫고 이어서 푼다
               });
