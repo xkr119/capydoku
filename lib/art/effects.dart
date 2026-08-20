@@ -5,6 +5,7 @@
 library;
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -318,4 +319,159 @@ class _MotePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MotePainter old) => old.t != t;
+}
+
+/// **크게 나타났다가 제자리로 쇽 들어간다.**
+///
+/// [PoingIn]은 0에서 부풀어 오르는 등장이라 "생겼다"로 읽힌다. 이건 반대로
+/// 화면 앞에서 큰 것이 날아와 칸에 **꽂히는** 느낌이다 — 같은 0.5초인데
+/// 훨씬 세게 들어온다. 퍼즐 칸처럼 작은 자리에 놓일 때 특히 차이가 크다.
+class PoingDrop extends StatefulWidget {
+  final Widget child;
+
+  /// 시작 배율. 1보다 훨씬 커야 "앞에서 날아왔다"로 읽힌다.
+  final double from;
+
+  final Duration duration;
+
+  const PoingDrop({
+    super.key,
+    required this.child,
+    this.from = 2.2,
+    this.duration = const Duration(milliseconds: 460),
+  });
+
+  @override
+  State<PoingDrop> createState() => _PoingDropState();
+}
+
+class _PoingDropState extends State<PoingDrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: widget.duration)..forward();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  /// 앞의 절반은 **가속**해서 내려꽂히고, 뒤의 절반은 살짝 눌렸다 되튄다.
+  /// 등속으로 줄이면 그냥 크기가 변하는 것으로만 보인다.
+  double _scale(double t) {
+    if (t < 0.52) {
+      return widget.from +
+          (0.84 - widget.from) * Curves.easeInCubic.transform(t / 0.52);
+    }
+    final p = (t - 0.52) / 0.48;
+    return 0.84 + 0.16 * const _Rebound().transform(p);
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) => Opacity(
+          // 큰 채로 선명하면 화면을 가린다. 들어오면서 짙어진다.
+          opacity: math.min(1, _c.value / 0.24),
+          child: Transform.scale(scale: _scale(_c.value), child: child),
+        ),
+        child: widget.child,
+      );
+}
+
+/// 한 번만 넘겨 치고 돌아온다. `easeOutBack`은 되튐이 커서 물컹하다.
+class _Rebound extends Curve {
+  const _Rebound();
+
+  @override
+  double transformInternal(double t) =>
+      1 + 0.34 * math.sin(t * math.pi * 1.2) * (1 - t) - (1 - t) * 0.0;
+}
+
+/// 표면을 한 번 훑고 지나가는 **광택**.
+///
+/// 이 게임에는 유리·사탕 같은 반들거림이 없어서 그림이 전체적으로 납작하게
+/// 보였다. 놓이는 순간 대각선 흰 띠가 한 번 스치면 표면이 생긴다.
+class GlossSweep extends StatefulWidget {
+  final Duration delay;
+  final Duration duration;
+
+  const GlossSweep({
+    super.key,
+    this.delay = const Duration(milliseconds: 260),
+    this.duration = const Duration(milliseconds: 420),
+  });
+
+  @override
+  State<GlossSweep> createState() => _GlossSweepState();
+}
+
+class _GlossSweepState extends State<GlossSweep>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: widget.duration);
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(widget.delay, () {
+      if (mounted) _c.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) => CustomPaint(
+              size: Size.infinite, painter: _GlossPainter(_c.value)),
+        ),
+      );
+}
+
+class _GlossPainter extends CustomPainter {
+  final double t;
+  _GlossPainter(this.t);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0 || t >= 1) return;
+    final w = size.width;
+    // 왼쪽 밖에서 오른쪽 밖까지 지나간다. 띠 폭은 칸의 절반쯤.
+    final x = -w * 0.6 + (w * 1.8) * Curves.easeInOut.transform(t);
+    final band = w * 0.34;
+    final fade = math.sin(t * math.pi);
+    canvas.save();
+    canvas.clipRRect(RRect.fromRectAndRadius(
+        Offset.zero & size, const Radius.circular(4)));
+    canvas.drawPath(
+      Path()
+        ..moveTo(x, size.height + 2)
+        ..lineTo(x + band, size.height + 2)
+        ..lineTo(x + band + size.height * 0.5, -2)
+        ..lineTo(x + size.height * 0.5, -2)
+        ..close(),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(x, 0),
+          Offset(x + band, 0),
+          [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0.55 * fade),
+            Colors.white.withValues(alpha: 0),
+          ],
+          const [0, 0.5, 1],
+        ),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _GlossPainter old) => old.t != t;
 }

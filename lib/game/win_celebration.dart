@@ -17,7 +17,7 @@ import 'capy_says.dart';
 /// 한때 김 오르는 온천 그림이 셋째 변형으로 있었다. **정지 그림이라 그 판만
 /// 카피가 아무것도 안 했다** — 세 판에 한 판은 축하가 죽은 셈이었다.
 /// 리그로 그릴 수 없는 연출은 여기에 넣지 말 것.
-enum _Celebration { dance, cheer }
+enum _Celebration { dance, wiggle, cheer }
 
 class WinCelebration extends StatefulWidget {
   final int level;
@@ -79,17 +79,41 @@ class _WinCelebrationState extends State<WinCelebration>
       // 부르면 **아무 일도 일어나지 않는다** — 리그 위젯은 아직 만들어지지도
       // 않아 컨트롤러를 듣고 있지 않다. 그래서 화면이 뜨고 3.4초를 우두커니
       // 서 있다가 그제야 춤을 췄다.
-      _loop = Timer.periodic(_actLen, (_) => _capy.play(_act));
+      _queueNext();
     }
   }
 
-  /// 반복할 동작과 그 길이. 길이는 `CapyPerformer`의 안무 길이와 같아야
-  /// 한다 — 짧으면 잘리고, 길면 그만큼 멍하니 서 있다.
-  CapyAct get _act =>
-      _kind == _Celebration.dance ? CapyAct.dance : CapyAct.cheer;
-  Duration get _actLen => _kind == _Celebration.dance
-      ? const Duration(milliseconds: 3200)
-      : const Duration(milliseconds: 1400);
+  /// 축하 한 판의 **안무**. 한 동작만 되풀이하면 세 번째부터는 배경이 된다.
+  ///
+  /// 종류마다 시작 동작이 다르고, 그다음부터는 셋을 돌아가며 낸다 —
+  /// 흔들기(dance) → 엎드려 엉덩이 털기(wiggle) → 폴짝(cheer).
+  /// **엉덩이 털기가 이 중 가장 크다**(실루엣 자체가 바뀐다).
+  static const _routine = [CapyAct.dance, CapyAct.wiggle, CapyAct.cheer];
+
+  int _step = 0;
+
+  CapyAct get _act => _routine[(_kind.index + _step) % _routine.length];
+
+  /// 각 동작의 길이. `CapyPerformer._actLens`와 같아야 한다 — 짧으면 잘리고,
+  /// 길면 그만큼 멍하니 서 있다.
+  static const _lens = {
+    CapyAct.dance: 3200,
+    CapyAct.wiggle: 2400,
+    CapyAct.cheer: 1400,
+  };
+
+  Duration get _actLen => Duration(milliseconds: _lens[_act]!);
+
+  /// 지금 동작이 끝나는 시각에 **다음** 동작을 예약한다. 동작마다 길이가
+  /// 달라서 한 주기로 반복(`Timer.periodic`)할 수가 없다.
+  void _queueNext() {
+    _loop = Timer(_actLen, () {
+      if (!mounted) return;
+      setState(() => _step++);
+      _capy.play(_act);
+      _queueNext();
+    });
+  }
 
   @override
   void dispose() {

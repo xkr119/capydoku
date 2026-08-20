@@ -7,12 +7,14 @@ library;
 import 'package:flutter/material.dart';
 
 class XPainter extends CustomPainter {
-  const XPainter();
+  final Color color;
+
+  const XPainter({this.color = Colors.white});
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white
+      ..color = color
       ..strokeWidth = size.width * 0.24
       ..strokeCap = StrokeCap.round;
     final d = size.width * 0.14;
@@ -21,16 +23,21 @@ class XPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant XPainter old) => false;
+  bool shouldRepaint(covariant XPainter old) => old.color != color;
 }
 
-/// 칸 안에 놓이는 X 한 개. 칸 폭의 66%를 차지한다.
+/// 칸 안에 놓이는 X 한 개.
 class XMark extends StatelessWidget {
-  const XMark({super.key});
+  /// 칸 폭의 몇 배인가. 틀렸을 때의 빨간 X는 더 크게 그린다.
+  final double factor;
+  final Color color;
+
+  const XMark({super.key, this.factor = 0.66, this.color = Colors.white});
 
   @override
-  Widget build(BuildContext context) => const FractionallySizedBox(
-        widthFactor: 0.66,
-        child: AspectRatio(aspectRatio: 1, child: CustomPaint(painter: XPainter())),
+  Widget build(BuildContext context) => FractionallySizedBox(
+        widthFactor: factor,
+        child: AspectRatio(
+            aspectRatio: 1, child: CustomPaint(painter: XPainter(color: color))),
       );
 }

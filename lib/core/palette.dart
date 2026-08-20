@@ -23,4 +23,22 @@ class Palette {
     Color(0xFFC2A62E), // 머스타드
     Color(0xFF4FA8A0), // 청록
   ];
+
+  /// 단색 하나를 **광택 있는 표면**으로 바꾼다.
+  ///
+  /// 위쪽을 밝히고 아래쪽을 살짝 어둡게 하는 것만으로 평면이 입체가 된다.
+  /// 흰색을 덧씌우면 색이 바래므로, 같은 색을 HSL에서 밝기만 올린다.
+  static LinearGradient glossy(Color c) {
+    final h = HSLColor.fromColor(c);
+    return LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        h.withLightness((h.lightness + 0.13).clamp(0.0, 1.0)).toColor(),
+        c,
+        h.withLightness((h.lightness - 0.055).clamp(0.0, 1.0)).toColor(),
+      ],
+      stops: const [0.0, 0.55, 1.0],
+    );
+  }
 }

@@ -513,6 +513,16 @@ enum CapyAct {
 
   /// 앞발로 배를 벅벅 긁는다.
   scratch,
+
+  /// **엎드려서 엉덩이를 흔든다.** 몸을 낮게 눌러 앞으로 숙이고, 뒤쪽을
+  /// 좌우로 빠르게 털면서 앞발을 앞으로 뻗는다.
+  ///
+  /// 이 리그가 낼 수 있는 가장 큰 동작이다. 폴짝(cheer)과 좌우 흔들기(dance)는
+  /// 둘 다 몸을 세운 채라 서로 비슷해 보였는데, 이건 실루엣 자체가 바뀐다.
+  wiggle,
+
+  /// 제자리에서 한 바퀴 돌 듯 크게 몸을 비틀었다 되돌아온다.
+  twirl,
 }
 
 /// 밖에서 카피에게 "지금 이거 해" 하고 시키는 손잡이.
@@ -623,11 +633,22 @@ class _CapyPerformerState extends State<CapyPerformer>
     CapyAct.startle: 0.9,
     CapyAct.yawn: 2.6,
     CapyAct.scratch: 2.8,
+    CapyAct.wiggle: 2.4,
+    CapyAct.twirl: 1.5,
     CapyAct.idle: 0.0,
   };
 
   /// 가만히 있을 때 저 혼자 하는 큰 동작들. 두리번거리기만 하면 심심하다.
-  static const _idleActs = [CapyAct.yawn, CapyAct.scratch];
+  ///
+  /// **크게 움직이는 것을 섞어 둔다.** 하품과 배 긁기만 돌리면 둘 다 제자리
+  /// 동작이라 초원이 정지 화면처럼 느껴졌다("역동적인 느낌이 부족해").
+  static const _idleActs = [
+    CapyAct.yawn,
+    CapyAct.scratch,
+    CapyAct.wiggle,
+    CapyAct.twirl,
+    CapyAct.cheer,
+  ];
 
   /// 무심코 하는 짓의 종류 수(1부터). 기분 좋으면 눈웃음이 하나 더 붙는다.
   int get _quirkCount => widget.happy ? 7 : 6;
@@ -675,17 +696,20 @@ class _CapyPerformerState extends State<CapyPerformer>
       // **둘에 하나꼴로** 고개 까딱이 아니라 하품·배 긁기 같은 큰 동작을 한다.
       // 셋에 하나로 뒀더니 "하품하는 건 없어?" 소리를 들었다 — 15초에 한 번은
       // 사람이 알아채기엔 너무 드물다.
-      if (_rng.nextDouble() < 0.5) {
+      // **셋에 둘은 큰 동작.** 절반이었을 때도 초원이 정지 화면처럼
+      // 느껴진다는 말을 들었다 — 고개 까딱은 멀리서 보면 안 움직이는 것과
+      // 같다. 쉬는 틈도 함께 줄인다.
+      if (_rng.nextDouble() < 0.66) {
         _act = _idleActs[_rng.nextInt(_idleActs.length)];
         _actStart = _t;
         _actLen = _actLens[_act]!;
-        _nextQuirk = _t + _actLen + 0.9 + _rng.nextDouble() * 1.8;
+        _nextQuirk = _t + _actLen + 0.5 + _rng.nextDouble() * 1.2;
       } else {
         _quirk = 1 + _rng.nextInt(_quirkCount);
         _quirkStart = _t;
         _quirkLen = const [1.3, 1.3, 1.2, 2.6, 1.6, 1.1, 2.0][_quirk - 1];
         // 쉬는 틈이 길면 죽은 것처럼 보인다. 짧게 자주 움직인다.
-        _nextQuirk = _t + _quirkLen + 1.0 + _rng.nextDouble() * 2.4;
+        _nextQuirk = _t + _quirkLen + 0.6 + _rng.nextDouble() * 1.5;
       }
     }
     if (_t > _nextBlink) {
@@ -916,31 +940,64 @@ class _CapyPerformerState extends State<CapyPerformer>
           // 두 번 폴짝. 뜰 때 늘어나고 닿을 때 눌린다.
           final b = (ap * 2) % 1.0;
           final up = math.sin(b * math.pi);
-          hop = up * 0.11;
+          hop = up * 0.16;
           squash = b < 0.12
               ? -(1 - b / 0.12) * 0.6
               : b > 0.88
                   ? -((b - 0.88) / 0.12) * 0.6
                   : -up * 0.25;
-          headNod += up * 0.2;
+          headNod += up * 0.26;
+          lean += math.sin(ap * math.pi * 4) * 0.10;   // 뜰 때마다 살짝 갸웃
           smile = math.max(smile, env2(ap));
-          armL -= up * 0.42;   // 만세
-          armR += up * 0.42;
+          armL -= up * 0.58;   // 만세
+          armR += up * 0.58;
         case CapyAct.dance:
           // 좌우로 발을 옮겨 가며 흔들흔들. 몸이 기울면 고개는 관성으로 반대에
           // 남고, 이동 끝에서 반동으로 한 번 더 튄다.
           final s = math.sin(ap * math.pi * 5);
           final env = math.min(1.0, math.min(ap / 0.10, (1 - ap) / 0.15));
-          shift = s * 0.085 * env;
-          lean += s * 0.17 * env;
-          headTurn -= s * 0.20 * env;
-          headNod += math.sin(ap * math.pi * 10).abs() * 0.18 * env;
-          hop = math.sin(ap * math.pi * 10).abs() * 0.055 * env;
-          squash += math.cos(ap * math.pi * 10) * 0.11 * env;
+          shift = s * 0.115 * env;
+          lean += s * 0.25 * env;
+          headTurn -= s * 0.28 * env;
+          headNod += math.sin(ap * math.pi * 10).abs() * 0.24 * env;
+          hop = math.sin(ap * math.pi * 10).abs() * 0.085 * env;
+          squash += math.cos(ap * math.pi * 10) * 0.16 * env;
           smile = math.max(smile, env);
           // 팔은 몸이 기우는 반대로 뻗는다 — 같이 가면 통나무처럼 보인다.
-          armL += (-0.28 - s * 0.22) * env;
-          armR += (0.28 - s * 0.22) * env;
+          armL += (-0.40 - s * 0.30) * env;
+          armR += (0.40 - s * 0.30) * env;
+        case CapyAct.wiggle:
+          // 엎드리기(앞 20%) → 엉덩이 털기(가운데) → 일어서기(뒤 20%).
+          final down = math.min(1.0, math.min(ap / 0.20, (1 - ap) / 0.20));
+          // 몸을 낮게 누른다. 앞으로 숙이는 만큼 고개도 내려간다.
+          squash += down * 0.62;
+          headNod += down * 0.30;
+          hop -= down * 0.012;
+          // 흔들기는 엎드린 동안만. 빠르고 촘촘하게 떨어야 "털었다"가 된다.
+          final w = math.sin(ap * math.pi * 16) * down;
+          shift += w * 0.055;
+          lean += w * 0.20;
+          // 고개는 반대로 남는다 — 몸만 흔들면 통나무가 흔들리는 것 같다.
+          headTurn -= w * 0.22;
+          // 앞발은 앞으로 쭉. 엎드린 개가 기지개 켜는 자세다.
+          armL -= down * 0.50;
+          armR += down * 0.50;
+          armLY = armRY = down * 0.030;
+          smile = math.max(smile, down);
+        case CapyAct.twirl:
+          // 한 바퀴 도는 것처럼 크게 비틀었다 돌아온다. 조각이 정면 한 장뿐이라
+          // 진짜로 돌릴 수는 없으니, **기울기와 가로 눌림**으로 흉내 낸다.
+          final e = _bell(ap);
+          final dir = math.sin(ap * math.pi * 2);
+          lean += dir * 0.42;
+          shift += dir * 0.10;
+          headTurn += dir * 0.34;
+          // 옆으로 돌수록 납작해 보인다 — 이게 회전으로 읽히게 하는 핵심이다.
+          squash -= e * 0.22;
+          hop += e * 0.075;
+          armL -= e * 0.55;
+          armR += e * 0.55;
+          smile = math.max(smile, e);
         case CapyAct.startle:
           final e = _bell(ap);
           hop = e * 0.05;

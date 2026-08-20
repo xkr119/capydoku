@@ -55,7 +55,7 @@ QueensPuzzle _puzzleOfIsolate(int level) => Levels.puzzleOf(level);
 QueensPuzzle _dailyOfIsolate(int dateKey) => Levels.dailyPuzzleOf(dateKey);
 
 class _GameScreenState extends State<GameScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late BoardState board;
   bool _ready = false;
 
@@ -68,6 +68,13 @@ class _GameScreenState extends State<GameScreen>
   /// 판 등장 연출 — 타일이 좌상단부터 다다다닥 깔린다.
   late final AnimationController _intro = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 900));
+
+  /// 틀렸을 때 **판 전체가 부르르 떤다.**
+  ///
+  /// 칸 하나만 빨개지면 눈이 이미 다른 데 가 있을 때 놓친다. 화면이 통째로
+  /// 흔들리면 안 볼 수가 없다 — 게다가 "아차" 하는 몸의 감각과 맞아떨어진다.
+  late final AnimationController _shake = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 420));
   final _watch = Stopwatch();
   int capyHints = 3;
   int xHints = 3;
@@ -168,6 +175,7 @@ class _GameScreenState extends State<GameScreen>
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _banner?.dispose();
     _intro.dispose();
+    _shake.dispose();
     super.dispose();
   }
 
@@ -517,7 +525,24 @@ class _GameScreenState extends State<GameScreen>
   /// 판 테두리와 타일 사이 여백. 여기도 줄여야 칸이 커진다.
   static const _boardPad = 4.0;
 
+  /// 흔들림 한 프레임의 가로 오프셋. 진폭이 줄어드는 감쇠 진동이다 —
+  /// 일정한 진폭으로 흔들면 기계가 진동하는 것처럼 보인다.
+  double get _shakeDx {
+    final t = _shake.value;
+    if (t == 0 || t == 1) return 0;
+    return math.sin(t * math.pi * 7) * 11 * (1 - t) * (1 - t);
+  }
+
   Widget _board() {
+    return AnimatedBuilder(
+      animation: _shake,
+      builder: (context, child) =>
+          Transform.translate(offset: Offset(_shakeDx, 0), child: child),
+      child: _boardBody(),
+    );
+  }
+
+  Widget _boardBody() {
     final n = board.n;
     return Container(
       key: _boardKey,
@@ -606,7 +631,10 @@ class _GameScreenState extends State<GameScreen>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color: Palette.regions[board.puzzle.regions[r][c]],
+          // **납작한 단색이 아니라 광택 있는 표면으로.** 위가 밝고 아래가
+          // 어두우면 눈이 곧바로 "빛을 받는 물체"로 읽는다 — 이 게임의
+          // 그림이 전체적으로 납작해 보이던 가장 큰 이유가 이거였다.
+          gradient: Palette.glossy(Palette.regions[board.puzzle.regions[r][c]]),
           borderRadius: BorderRadius.circular(4),
           border: isError
               ? Border.all(color: Palette.heart, width: 3)
@@ -641,12 +669,11 @@ class _GameScreenState extends State<GameScreen>
     // X·카피가 스르륵 나타나고 사라지도록 스위처로 감싼다.
     final Widget child;
     if (isError) {
-      child = FractionallySizedBox(
-          key: const ValueKey('err'),
-          widthFactor: 0.86,
-          heightFactor: 0.92,
-          child: Image.asset('assets/mascot/head_startled.png',
-              cacheHeight: 240, fit: BoxFit.contain));
+      // **빨간 X.** 예전엔 놀란 카피 얼굴을 띄웠는데, 틀린 칸에 카피가 있는
+      // 것으로 읽혀서 "놓였다"와 "놓으면 안 된다"가 같은 그림이 됐다.
+      // 여기는 카피가 못 오는 자리라는 뜻이니 X가 맞다.
+      child = const XMark(
+          key: ValueKey('err'), factor: 0.82, color: Color(0xFFE8554D));
     } else if (state == cellCapy) {
       child = SizedBox.expand(
         key: ValueKey('capy-$r-$c'),
@@ -779,6 +806,7 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _onMistake(int r, int c, PlaceResult result) async {
     HapticFeedback.heavyImpact();
     Sfx.wrong();
+    _shake.forward(from: 0);
     setState(() {
       board.hearts--;
       // 여기서 콤보가 끊긴다 — 이 판에서 못 받게 된 당근은 상단 "0/N"의
@@ -1262,8 +1290,10 @@ class _CapyToken extends StatelessWidget {
       final h =
           math.min(box.maxHeight, box.maxWidth / CapySkins.faceAspect) * 0.98;
       return Stack(alignment: Alignment.center, children: [
-        PoingIn(
-          duration: const Duration(milliseconds: 480),
+        // **앞에서 크게 날아와 칸에 꽂힌다.** 0에서 부풀어 오르던 예전 등장은
+        // "생겼다"로 읽혔지, 들어와 박히는 맛이 없었다.
+        PoingDrop(
+          duration: const Duration(milliseconds: 460),
           child: CapyPerformer(
             height: h,
             skin: 'face',
@@ -1273,6 +1303,8 @@ class _CapyToken extends StatelessWidget {
         ),
         // 반짝이는 카피 앞에서 터진다 — 뒤에 두면 얼굴에 가려 안 보인다.
         Positioned.fill(child: PoingBurst(tint: tint)),
+        // 꽂힌 직후 표면을 한 번 훑는 광택.
+        const Positioned.fill(child: GlossSweep()),
       ]);
     });
   }
