@@ -21,6 +21,11 @@ class Progress {
   /// 다음에 풀 레벨. 이보다 작으면 클리어, 크면 잠김.
   int get currentLevel => _prefs.getInt('level.current') ?? 1;
 
+  /// **디버그 전용.** 성장 단계를 눈으로 확인하려고 레벨을 직접 옮긴다.
+  /// 정식 배포 전에 이 메서드와 홈의 선택기를 함께 지울 것 — `kDebugStages`.
+  Future<void> debugSetLevel(int level) async =>
+      _prefs.setInt('level.current', level.clamp(1, 999));
+
   bool isCleared(int level) => level < currentLevel;
 
   Future<void> markCleared(int level) async {

@@ -15,13 +15,25 @@ import '../art/scenery.dart';
 import '../core/palette.dart';
 
 class SplashScreen extends StatefulWidget {
-  /// 로딩 중에 실제로 해야 하는 준비. 끝나도 최소 재생 시간은 지킨다.
+  /// 연출을 시작하기 전에 반드시 끝나야 하는 준비(카피 조각 디코딩).
+  final Future<void> Function() preload;
+
+  /// 로딩 중에 나란히 해도 되는 준비. 끝나도 최소 재생 시간은 지킨다.
   final Future<void> Function() warmUp;
 
   /// 준비와 연출이 모두 끝났을 때.
   final VoidCallback onDone;
 
-  const SplashScreen({super.key, required this.warmUp, required this.onDone});
+  /// 보여 줄 카피의 조각 이름.
+  final String skin;
+
+  const SplashScreen({
+    super.key,
+    required this.preload,
+    required this.warmUp,
+    required this.onDone,
+    required this.skin,
+  });
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -47,7 +59,7 @@ class _SplashScreenState extends State<SplashScreen>
     // 그려지는데, 그동안 등장 곡선은 계속 흘러간다. 그러면 로딩이 끝나는
     // 순간 이미 커진 카피가 툭 나타났다가 되튀며 줄어드는 것처럼 보인다.
     // (이게 "확 커졌다 줄어드는 끊기는 느낌"의 정체였다.)
-    await CapyRigImages.load();
+    await widget.preload();
     if (!mounted) return;
     final warm = widget.warmUp();
     await Future.wait<void>([warm, _c.forward()]);
@@ -148,7 +160,7 @@ class _SplashScreenState extends State<SplashScreen>
       scaleX: p / stretch,
       scaleY: p * stretch,
       alignment: Alignment.bottomCenter,
-      child: CapyRig(pose: pose, height: h),
+      child: CapyRig(pose: pose, height: h, skin: widget.skin),
     );
   }
 

@@ -991,6 +991,7 @@ class _GameScreenState extends State<GameScreen>
         leagueLine: leagueLine,
         rewardLine: rewardLine,
         dailyStreak: isDaily ? widget.progress.dailyStreak : null,
+        skin: Pet.skinOf(widget.progress.currentLevel),
       ),
       transitionsBuilder: (context, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
@@ -1122,13 +1123,14 @@ class _CapyToken extends StatelessWidget {
     return LayoutBuilder(builder: (context, box) {
       // 얼굴은 세로보다 가로가 넓다. 높이로만 맞추면 귀가 칸 밖으로 잘린다.
       // 크게 도리질하므로 회전한 뒤에도 칸 안에 있도록 여유를 남긴다.
-      final h = math.min(box.maxHeight, box.maxWidth / kCapyHeadAspect) * 0.87;
+      final h =
+          math.min(box.maxHeight, box.maxWidth / CapySkins.faceAspect) * 0.87;
       return Stack(alignment: Alignment.center, children: [
         PoingIn(
           duration: const Duration(milliseconds: 480),
           child: CapyPerformer(
             height: h,
-            headOnly: true,
+            skin: 'face',
             synced: true,
             entrance: CapyAct.cheer,
           ),

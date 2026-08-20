@@ -17,7 +17,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show ByteData, rootBundle;
 
 /// 전신 렌더 비율. 리그 위젯의 가로세로는 항상 이 비율을 따른다.
 const double kCapyAspect = 651 / 900;
@@ -44,9 +44,12 @@ class CapySkin {
   /// 눈꺼풀이 내려오는 거리, 턱이 벌어지는 거리(높이 대비).
   final double lidRise, jawDrop;
 
-  /// 눈 위치(눈웃음 곡선을 그릴 자리).
+  /// 눈 위치.
   final List<double> eyeX;
   final double eyeY;
+
+  /// 이 조각들의 가로세로 비율.
+  final double aspect;
 
   const CapySkin({
     this.body,
@@ -63,51 +66,99 @@ class CapySkin {
     required this.jawDrop,
     required this.eyeX,
     required this.eyeY,
+    required this.aspect,
   });
 }
 
-/// 리그 조각들. 앱이 사는 동안 한 번만 디코딩한다.
-class CapyRigImages {
-  final CapySkin full;
-  final CapySkin head;
-  const CapyRigImages(this.full, this.head);
+/// 캐릭터 한 마리의 조각 묶음을 이름으로 불러온다.
+///
+/// 성장 단계마다 **다른 캐릭터**를 쓴다(`assets/rig/stage1`~`stage5`, `mate`).
+/// 여섯 벌을 전부 원본 해상도로 물면 디코딩된 이미지만 60MB가 넘는다.
+/// 그래서 **화면에 그릴 크기에 맞춰** 디코딩한다 — 주인공은 크게, 배우자와
+/// 아이들은 작게. 같은 이름이라도 크기가 다르면 다른 벌로 취급한다.
+class CapySkins {
+  /// 폴더 이름 → 좌표. `tool/rig_stages.py`가 출력한 값을 옮겨 적은 것이다.
+  static const _coords = <String, List<double>>{
+    // pivotX, pivotY, lidRise, jawDrop, eyeL, eyeR, eyeY, shLx, shLy, shRx, shRy
+    'stage1': [0.4970, 0.7974, 0.0454, 0.0336, 0.4121, 0.5879, 0.6276],
+    'stage2': [0.4970, 0.5711, 0.0393, 0.0313, 0.4242, 0.5727, 0.4237,
+               0.4167, 0.6079, 0.5788, 0.6079],
+    'stage3': [0.5030, 0.4658, 0.0363, 0.0380, 0.4121, 0.5879, 0.2763,
+               0.2879, 0.5500, 0.7152, 0.5500],
+    'stage4': [0.5000, 0.4684, 0.0333, 0.0425, 0.3712, 0.6212, 0.1513,
+               0.3333, 0.4974, 0.6758, 0.4974],
+    'stage5': [0.5076, 0.4289, 0.0303, 0.0503, 0.3636, 0.6439, 0.0789,
+               0.2818, 0.5658, 0.7212, 0.5658],
+    'mate':   [0.4970, 0.4553, 0.0424, 0.0403, 0.3970, 0.6061, 0.2566,
+               0.3788, 0.5500, 0.6242, 0.5500],
+    // 퍼즐 칸에 쓰는 얼굴. 원본 카피에서 뽑았고 성장과 무관하다.
+    'face':   [0.4980, 0.9556, 0.0756, 0.0978, 0.2041, 0.7842, 0.3378],
+  };
 
-  static CapyRigImages? _loaded;
-  static Future<CapyRigImages>? _loading;
+  /// 전신 조각의 가로세로 비율(660×760 캔버스).
+  static const bodyAspect = 660 / 760;
 
-  static CapyRigImages? get current => _loaded;
+  /// 얼굴 조각의 가로세로 비율.
+  static const faceAspect = 512 / 450;
 
-  /// 스플래시에서 미리 불러 둔다 — 홈에 도착했을 때 카피가 이미 거기 있어야 한다.
-  static Future<CapyRigImages> load() {
-    if (_loaded != null) return Future.value(_loaded);
-    return _loading ??= () async {
-      Future<ui.Image> one(String n) async {
-        final data = await rootBundle.load('assets/rig/$n.png');
-        return (await ui.instantiateImageCodec(data.buffer.asUint8List()))
-            .getNextFrame()
-            .then((f) => f.image);
+  static final Map<String, CapySkin> _ready = {};
+  static final Map<String, Future<CapySkin>> _loading = {};
+
+  static String _key(String name, int px) => '$name@$px';
+
+  /// 이미 준비된 조각. 없으면 null — 위젯은 빈 자리로 그리고 기다린다.
+  static CapySkin? cached(String name, int px) => _ready[_key(name, px)];
+
+  /// [px]는 세로 몇 픽셀로 디코딩할지. 화면에 그릴 크기 × 화면 배율이면 된다.
+  static Future<CapySkin> load(String name, int px) {
+    final key = _key(name, px);
+    final done = _ready[key];
+    if (done != null) return Future.value(done);
+    return _loading[key] ??= () async {
+      final c = _coords[name]!;
+      final face = name == 'face';
+      final dir = face ? 'assets/rig' : 'assets/rig/$name';
+      final prefix = face ? 'h_' : '';
+
+      Future<ui.Image?> one(String n) async {
+        final ByteData data;
+        try {
+          data = await rootBundle.load('$dir/$prefix$n.png');
+        } on FlutterError {
+          return null; // 아기는 앞발을 나누지 않았다
+        }
+        final codec = await ui.instantiateImageCodec(
+            data.buffer.asUint8List(), targetHeight: px);
+        return (await codec.getNextFrame()).image;
       }
 
-      final p = await Future.wait([
-        'body', 'head', 'jaw', 'lidl', 'lidr', 'arml', 'armr', //
-        'h_head', 'h_jaw', 'h_lidl', 'h_lidr',
-      ].map(one));
-      return _loaded = CapyRigImages(
-        CapySkin(
-          body: p[0], head: p[1], jaw: p[2], lidL: p[3], lidR: p[4],
-          armL: p[5], armR: p[6],
-          shoulders: const [Offset(0.2550, 0.5133), Offset(0.7435, 0.5133)],
-          pivotX: 325 / 651, pivotY: 430 / 900,
-          lidRise: 34 / 900, jawDrop: 44 / 900,
-          eyeX: const [174.5 / 651, 471.5 / 651], eyeY: 150 / 900,
-        ),
-        CapySkin(
-          head: p[7], jaw: p[8], lidL: p[9], lidR: p[10],
-          pivotX: 0.4980, pivotY: 0.9556,
-          lidRise: 0.0756, jawDrop: 0.0978,
-          eyeX: const [0.2041, 0.7842], eyeY: 0.3378,
-        ),
+      final names = face
+          ? ['head', 'jaw', 'lidl', 'lidr']
+          : ['body', 'head', 'jaw', 'lidl', 'lidr', 'arml', 'armr'];
+      final p = await Future.wait(names.map(one));
+      final m = Map.fromIterables(names, p);
+
+      final skin = CapySkin(
+        body: m['body'],
+        armL: m['arml'],
+        armR: m['armr'],
+        shoulders: c.length < 11
+            ? const []
+            : [Offset(c[7], c[8]), Offset(c[9], c[10])],
+        head: m['head']!,
+        jaw: m['jaw']!,
+        lidL: m['lidl']!,
+        lidR: m['lidr']!,
+        pivotX: c[0],
+        pivotY: c[1],
+        lidRise: c[2],
+        jawDrop: c[3],
+        eyeX: [c[4], c[5]],
+        eyeY: c[6],
+        aspect: face ? faceAspect : bodyAspect,
       );
+      _loading.remove(key);
+      return _ready[key] = skin;
     }();
   }
 }
@@ -181,28 +232,31 @@ class CapyRig extends StatelessWidget {
   /// 위젯 높이. 가로는 비율로 따라온다.
   final double height;
 
-  /// 얼굴만 그린다. 퍼즐 칸처럼 작은 자리에서는 전신을 넣으면 표정이 안 보인다.
-  final bool headOnly;
+  /// 어느 캐릭터인가. `stage1`~`stage5`, `mate`, 퍼즐 칸이면 `face`.
+  final String skin;
 
   const CapyRig({
     super.key,
     required this.pose,
     required this.height,
-    this.headOnly = false,
+    required this.skin,
   });
+
+  /// 이 크기로 그릴 때 조각을 몇 픽셀로 디코딩할지.
+  static int pixelsFor(BuildContext context, double height) =>
+      (height * MediaQuery.devicePixelRatioOf(context)).round().clamp(120, 900);
 
   @override
   Widget build(BuildContext context) {
-    final aspect = headOnly ? kCapyHeadAspect : kCapyAspect;
-    final imgs = CapyRigImages.current;
-    if (imgs == null) {
-      return SizedBox(width: height * aspect, height: height);
-    }
+    final px = pixelsFor(context, height);
+    final s = CapySkins.cached(skin, px);
+    final aspect =
+        s?.aspect ?? (skin == 'face' ? CapySkins.faceAspect : CapySkins.bodyAspect);
+    if (s == null) return SizedBox(width: height * aspect, height: height);
     return SizedBox(
       width: height * aspect,
       height: height,
-      child: CustomPaint(
-          painter: _RigPainter(headOnly ? imgs.head : imgs.full, pose)),
+      child: CustomPaint(painter: _RigPainter(s, pose)),
     );
   }
 }
@@ -341,8 +395,8 @@ class CapyPerformer extends StatefulWidget {
   /// 기분이 좋은가. 좋으면 가만히 있다가도 이따금 눈웃음을 짓는다.
   final bool happy;
 
-  /// 얼굴만 그린다.
-  final bool headOnly;
+  /// 어느 캐릭터인가. `stage1`~`stage5`, `mate`, 퍼즐 칸이면 `face`.
+  final String skin;
 
   /// 여러 마리가 한 몸처럼 같은 동작을 같은 순간에 한다.
   ///
@@ -357,7 +411,7 @@ class CapyPerformer extends StatefulWidget {
     this.seed = 0,
     this.entrance,
     this.happy = false,
-    this.headOnly = false,
+    required this.skin,
     this.synced = false,
   });
 
@@ -424,12 +478,6 @@ class _CapyPerformerState extends State<CapyPerformer>
       _actLen = _actLens[_act] ?? 1.0;
     }
     widget.controller?.addListener(_onCommand);
-    // 조각이 아직 안 왔으면 도착하는 대로 다시 그린다.
-    if (CapyRigImages.current == null) {
-      CapyRigImages.load().then((_) {
-        if (mounted) setState(() {});
-      });
-    }
     _ticker = Ticker((d) {
       // 맞춰 움직일 때는 위젯이 언제 생겼든 같은 값이어야 하므로
       // 티커의 경과 시간(위젯마다 다르다) 대신 전역 프레임 시각을 쓴다.
@@ -780,10 +828,17 @@ class _CapyPerformerState extends State<CapyPerformer>
   Widget build(BuildContext context) {
     // 시킨 동작(등장 기쁨 등)이 도는 중이면 안무보다 그게 우선이다.
     final synced = widget.synced && _act == CapyAct.idle;
+    // 조각이 아직 없으면 도착하는 대로 다시 그린다.
+    final px = CapyRig.pixelsFor(context, widget.height);
+    if (CapySkins.cached(widget.skin, px) == null) {
+      CapySkins.load(widget.skin, px).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
     return CapyRig(
       pose: synced ? _syncedPoseAt(_t) : _poseAt(_t),
       height: widget.height,
-      headOnly: widget.headOnly,
+      skin: widget.skin,
     );
   }
 }

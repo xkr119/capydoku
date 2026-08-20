@@ -61,6 +61,12 @@ flutter:
   assets:
     - assets/mascot/
     - assets/rig/
+    - assets/rig/stage1/
+    - assets/rig/stage2/
+    - assets/rig/stage3/
+    - assets/rig/stage4/
+    - assets/rig/stage5/
+    - assets/rig/mate/
     - assets/scene/
     - assets/sfx/
 

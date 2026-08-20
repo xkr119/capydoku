@@ -8,8 +8,9 @@
 ///   편차는 ±25%로 클램프, 시간당 포만감 70↑이면 +7‰, 25↓이면 -7‰.
 ///   ("한 시간마다 1kg"식 선형 증가는 200kg 카피를 만든다 — 비율·상한으로 교체)
 /// - 체형: 편차 -8%↓ 홀쭉 / +8%↑ 통통 / 사이 딱좋음.
-/// - 성장(게임 레벨): 아기(1~16, 5kg) → 어린이(17~33, 15kg) →
-///   청년(34~49, 28kg) → 어른(50~, 45kg). "다음 성장까지 N판"이 게임 유도 훅.
+/// - 성장(게임 레벨): 50판마다 한 단계. 아기 → 어린이(50) → 청소년(100) →
+///   성인(150) → 어른(200). 단계마다 **다른 캐릭터를 새로 그렸다**
+///   (assets/rig/stage1~5). 어른 다음은 `Family`가 이어받는다.
 ///
 /// 오프라인 정산: 백그라운드 없이, 열 때마다 경과 시간만큼 소급 적용.
 library;
@@ -29,12 +30,18 @@ class PetStage {
 }
 
 class Pet {
+  /// 50판마다 한 단계. 다 키우는 데 200판 — 하루 열 판이면 스무 날이다.
+  /// **출시 후 이 표를 바꾸지 말 것** — 전 사용자의 카피가 갑자기 늙거나 젊어진다.
   static const stages = [
-    PetStage('아기 카피', 1, 5, 0.62),
-    PetStage('어린이 카피', 17, 15, 0.76),
-    PetStage('청년 카피', 34, 28, 0.9),
-    PetStage('어른 카피', 50, 45, 1.0),
+    PetStage('아기 카피', 1, 4, 0.50),
+    PetStage('어린이 카피', 50, 12, 0.65),
+    PetStage('청소년 카피', 100, 26, 0.80),
+    PetStage('성인 카피', 150, 42, 0.91),
+    PetStage('어른 카피', 200, 60, 1.00),
   ];
+
+  /// 이 단계가 쓰는 조각 폴더 이름.
+  static String skinOf(int level) => 'stage${stages.indexOf(stageOf(level)) + 1}';
 
   final SharedPreferences _p;
   int satiety; // 0~100
@@ -98,6 +105,8 @@ class Pet {
     _p.setInt('inv.carrot', carrots - 1);
     satiety += 22;
     mood += 4;
+    // 먹인 만큼 찐다. 시간당 정산(±7‰)만 있으면 먹이는 손맛이 없다.
+    weightDeltaPm += 3;
     _clamp();
     _save();
     return true;
@@ -108,6 +117,7 @@ class Pet {
     _p.setInt('inv.special', specials - 1);
     satiety += 30;
     mood += 18;
+    weightDeltaPm += 8;
     _clamp();
     _save();
     return true;

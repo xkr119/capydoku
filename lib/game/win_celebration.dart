@@ -30,6 +30,9 @@ class WinCelebration extends StatefulWidget {
   /// 오늘의 퍼즐을 깬 것이면 연속 일수. null이면 보통 레벨.
   final int? dailyStreak;
 
+  /// 축하할 카피의 조각 이름 — 성장 단계마다 다른 캐릭터다.
+  final String skin;
+
   const WinCelebration({
     super.key,
     required this.level,
@@ -38,6 +41,7 @@ class WinCelebration extends StatefulWidget {
     this.leagueLine,
     this.rewardLine,
     this.dailyStreak,
+    required this.skin,
   });
 
   @override
@@ -214,7 +218,8 @@ class _WinCelebrationState extends State<WinCelebration>
     switch (_kind) {
       case _Celebration.dance:
       case _Celebration.cheer:
-        capy = CapyPerformer(height: size, controller: _capy);
+        capy = CapyPerformer(
+            height: size, controller: _capy, skin: widget.skin);
       case _Celebration.onsen:
         capy = SteamOverlay(
           child: CapyIdle(

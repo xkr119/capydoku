@@ -15,8 +15,15 @@ import 'core/sfx.dart';
 import 'game/game_screen.dart';
 import 'game/league.dart';
 import 'game/league_screen.dart';
+import 'pet/family.dart';
 import 'pet/pet.dart';
 import 'ui/splash.dart';
+
+/// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프 선택기를 띄운다.
+///
+/// 성장 단계와 가족 변화는 200판 넘게 걸려서 그냥은 확인할 수가 없다.
+/// **정식 배포 전에 `false`로 바꾸고 `_DebugStageJump`를 지울 것.**
+const bool kDebugStages = true;
 
 /// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
 final routeObserver = RouteObserver<ModalRoute<void>>();
@@ -77,18 +84,24 @@ class _BootState extends State<_Boot> {
   Progress? _progress;
   bool _done = false;
 
+  /// 스플래시에 세울 카피. 진행도를 읽기 전에는 알 수 없어 아기로 시작한다.
+  String _skin = 'stage1';
+
   @override
   Widget build(BuildContext context) {
     if (_done && _progress != null) return HomeScreen(progress: _progress!);
+    final px = CapyRig.pixelsFor(context, 260);
     return SplashScreen(
-      warmUp: () async {
-        // 리그 조각을 미리 디코딩해 둔다 — 홈에 도착했을 때 카피가 이미 거기 있어야 한다.
-        final results = await Future.wait([
-          Progress.load(),
-          CapyRigImages.load(),
-        ]);
-        _progress = results[0] as Progress;
+      skin: _skin,
+      // 카피 조각은 연출을 시작하기 전에 반드시 들어와 있어야 한다.
+      preload: () async {
+        final p = await Progress.load();
+        _progress = p;
+        _skin = Pet.skinOf(p.currentLevel);
+        await CapySkins.load(_skin, px);
+        if (mounted) setState(() {});
       },
+      warmUp: () async {},
       onDone: () => setState(() => _done = true),
     );
   }
@@ -312,7 +325,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   Widget build(BuildContext context) {
     final current = progress.currentLevel;
-    final stage = Pet.stageOf(current);
     final (today, _) = Progress.dateKeys();
     final dailyDone = progress.dailyDone(today);
 
@@ -324,17 +336,24 @@ class _HomeScreenState extends State<HomeScreen>
         // ── 씬 좌표 ──
         // 위에서부터: 점수·리그 → 게이지 둘 → 말풍선 → 이름 → 카피 → 몸무게
         // → 조작부. 카피 주변에만 정보를 모아 두고 화면 구석은 비워 둔다.
-        // 성장은 눈에 보여야 하지만 아기라고 점만 하게 두면 초원이 빈다.
-        final grow = 0.78 + (stage.scale - 0.62) * 0.58;
-        final capyH = (h * 0.30).clamp(160.0, 280.0) * grow;
-        final feetY = h * 0.565;                        // 발이 닿는 선
-        final capyTop = feetY - capyH;
+        // **크기는 그림이 이미 담고 있다.** 단계별 렌더가 같은 캔버스 안에서
+        // 아기는 절반, 어른은 가득 차게 그려져 있으므로 여기서 또 줄이면
+        // 성장 차이가 두 번 곱해져 아기가 점만 해진다. 캔버스 높이는 고정.
+        // 가장 큰 어른이 캔버스를 꽉 채우므로, 이 값이 곧 어른의 키다.
+        // 더 키우면 어른의 머리가 상단 게이지를 뚫는다.
+        final capyH = (h * 0.35).clamp(210.0, 330.0);
+        final feetY = h * 0.60;                         // 발이 닿는 선
+        // 캔버스는 모든 단계가 같지만 **그림이 캔버스를 채우는 비율은 다르다**
+        // (아기는 절반). 말풍선·이름표는 캔버스가 아니라 실제 머리 위에 와야 한다.
+        final fill = Pet.stageOf(current).scale;
+        final capyTop = feetY - capyH * fill;
         final mouth = Offset(w / 2, feetY - capyH * 0.59);
 
         // 먹이 둘은 오른쪽에 같은 크기로 세로로 선다.
         const foodSize = 68.0;
         final foodX = w - 18 - foodSize / 2;
-        final basketCenter = Offset(foodX, feetY - capyH * 0.46);
+        // 먹이는 어른 카피의 어깨보다 아래로 — 위에 두면 몸에 가린다.
+        final basketCenter = Offset(foodX, feetY - capyH * 0.30);
         final gyulCenter = Offset(foodX, basketCenter.dy + foodSize + 14);
 
         return Stack(fit: StackFit.expand, children: [
@@ -354,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen>
           Positioned(
             left: 0,
             right: 0,
-            top: capyTop,
+            top: feetY - capyH,
             height: capyH,
             child: Center(
               child: GestureDetector(
@@ -365,18 +384,42 @@ class _HomeScreenState extends State<HomeScreen>
                   clipBehavior: Clip.none,
                   children: [
                     Positioned(
-                      bottom: -capyH * 0.03,
-                      child: GroundShadow(width: capyH * 0.72),
+                      bottom: -capyH * 0.02,
+                      child: GroundShadow(width: capyH * fill * 0.78),
                     ),
                     CapyPerformer(
                         height: capyH,
                         controller: _capy,
+                        skin: Pet.skinOf(current),
                         happy: pet.mood >= 65),
                   ],
                 ),
               ),
             ),
           ),
+          // ── 가족: 어른 다음에 합류한다. 주인공보다 뒤(작게)에 선다 ──
+          for (final (i, m) in Family.around(current).indexed)
+            Positioned(
+              left: 0,
+              right: 0,
+              // 아이들은 앞줄이라 발이 조금 더 아래에 있다 — 깊이가 생긴다.
+              top: feetY - capyH * m.scale + (i == 0 ? 0 : capyH * 0.05),
+              height: capyH * m.scale,
+              child: Align(
+                // 짝은 오른쪽, 아이들은 왼쪽으로 차례로 벌어진다.
+                alignment: Alignment(
+                    i == 0 ? 0.58 : -0.40 - (i - 1) * 0.28, 1),
+                child: IgnorePointer(
+                  child: CapyPerformer(
+                    height: capyH * m.scale,
+                    skin: m.skin,
+                    seed: i * 37 + 5,
+                    happy: pet.mood >= 65,
+                  ),
+                ),
+              ),
+            ),
+
           for (final id in _hearts)
             Positioned(
               left: 0,
@@ -556,6 +599,20 @@ class _HomeScreenState extends State<HomeScreen>
             ]),
           ),
 
+          // ── 디버그: 레벨 점프 (배포 전 삭제) ──
+          if (kDebugStages)
+            Positioned(
+              top: safeTop + 100,
+              right: 14,
+              child: _DebugStageJump(
+                level: current,
+                onPick: (lv) async {
+                  await progress.debugSetLevel(lv);
+                  if (mounted) setState(() {});
+                },
+              ),
+            ),
+
           // ── 하단: 성장 게이지 · 레벨 진행 · 오늘의 퍼즐 ──
           Positioned(
             left: 0,
@@ -688,6 +745,54 @@ class _Bubble extends StatelessWidget {
                 color: Palette.brown,
                 fontFamily: 'Apple SD Gothic Neo',
                 fontWeight: FontWeight.w600)),
+      ),
+    );
+  }
+}
+
+/// **디버그 전용.** 성장 단계와 가족 변화를 바로 보려고 레벨을 건너뛴다.
+/// 정식 배포 전에 이 위젯과 [kDebugStages], `Progress.debugSetLevel`을 함께 지울 것.
+class _DebugStageJump extends StatelessWidget {
+  final int level;
+  final ValueChanged<int> onPick;
+
+  const _DebugStageJump({required this.level, required this.onPick});
+
+  static const _spots = <String, int>{
+    '아기 1': 1,
+    '어린이 50': 50,
+    '청소년 100': 100,
+    '성인 150': 150,
+    '어른 200': 200,
+    '결혼 250': 250,
+    '첫아이 300': 300,
+    '둘 350': 350,
+    '셋 400': 400,
+    '독립 450': 450,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: DropdownButton<int>(
+        value: _spots.values.contains(level) ? level : null,
+        hint: const Text('DEBUG',
+            style: TextStyle(fontSize: 12, color: Colors.white)),
+        underline: const SizedBox.shrink(),
+        isDense: true,
+        dropdownColor: const Color(0xFF2B2B2B),
+        iconEnabledColor: Colors.white,
+        style: const TextStyle(fontSize: 12, color: Colors.white),
+        items: [
+          for (final e in _spots.entries)
+            DropdownMenuItem(value: e.value, child: Text(e.key)),
+        ],
+        onChanged: (v) => v == null ? null : onPick(v),
       ),
     );
   }
@@ -847,10 +952,15 @@ class _GrowthGauge extends StatelessWidget {
   Widget build(BuildContext context) {
     final next = Pet.nextStage(level);
     final stage = Pet.stageOf(level);
-    final done = next == null;
-    // 이번 단계 구간 안에서의 진행도. 단계가 바뀌면 0에서 다시 찬다.
-    final from = stage.minLevel;
-    final to = next?.$1.minLevel ?? (stage.minLevel + 1);
+    // 다 자란 뒤에는 가족 사건이 다음 목표가 된다 — 어른에서 끝나면 볼 것이 없다.
+    final event = next == null ? Family.nextEvent(level) : null;
+    final done = next == null && event == null;
+    final label = next != null ? '다음 성장까지' : (event?.$1 ?? '');
+    final left = next?.$2 ?? event?.$2 ?? 0;
+    final from = next != null
+        ? stage.minLevel
+        : level - (Family.step - left) % Family.step;
+    final to = next?.$1.minLevel ?? (from + Family.step);
     final value = done ? 1.0 : ((level - from) / (to - from)).clamp(0.0, 1.0);
 
     return Container(
@@ -870,14 +980,14 @@ class _GrowthGauge extends StatelessWidget {
           const Icon(Icons.trending_up_rounded,
               size: 16, color: Color(0xFFF2802B)),
           const SizedBox(width: 6),
-          const Text('다음 성장까지',
-              style: TextStyle(fontSize: 14, color: Palette.brownSoft)),
+          Text(label,
+              style: const TextStyle(fontSize: 14, color: Palette.brownSoft)),
           const Spacer(),
           if (done)
-            const Text('다 컸어요!',
+            const Text('대가족이에요!',
                 style: TextStyle(fontSize: 16, color: Palette.brown))
           else ...[
-            Text('${next.$2}',
+            Text('$left',
                 style: const TextStyle(
                     fontSize: 21, color: Color(0xFFF2802B), height: 1)),
             const Text(' 판',
