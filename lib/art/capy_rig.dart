@@ -1139,3 +1139,64 @@ class CapyFaceIcon extends StatelessWidget {
     );
   }
 }
+
+
+/// **자고 있는 카피.** 눈을 감고 고개를 갸웃 기울인 채 천천히 숨만 쉰다.
+///
+/// 새로 렌더한 그림이 아니라 리그에 자세를 하나 잡아 준 것이다 — 정지
+/// 그림이었다면 숨도 안 쉬었을 텐데, 이건 살아 있다.
+class CapySleeping extends StatefulWidget {
+  final String skin;
+  final double height;
+
+  const CapySleeping({super.key, required this.skin, required this.height});
+
+  @override
+  State<CapySleeping> createState() => _CapySleepingState();
+}
+
+class _CapySleepingState extends State<CapySleeping>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 3600))
+    ..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final px = CapyRig.pixelsFor(context, widget.height);
+    if (CapySkins.cached(widget.skin, px) == null) {
+      CapySkins.load(widget.skin, px).then((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value * 2 * math.pi;
+        // 들이쉴 때 몸이 부풀고 고개가 아주 조금 든다. 내쉴 때 반대.
+        final breath = math.sin(t);
+        return CapyRig(
+          pose: CapyPose(
+            blink: 1,                        // 꼭 감은 눈
+            smile: 0.5,                      // 편안한 얼굴
+            headNod: 0.34 + breath * 0.03,   // 고개를 떨군 채
+            headTurn: -0.16,                 // 갸웃
+            lean: 0.075,
+            breathe: breath,
+            squash: 0.10 - breath * 0.04,
+            armL: -0.10,
+            armR: 0.10,
+          ),
+          height: widget.height,
+          skin: widget.skin,
+        );
+      },
+    );
+  }
+}

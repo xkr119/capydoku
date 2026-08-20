@@ -124,9 +124,20 @@ class Progress {
   bool checkinPending([DateTime? now]) =>
       _prefs.getInt('checkin.day') != dateKeys(now).$1;
 
+  /// **며칠 연속으로 왔는가.** 도장판(1~7)과 달리 일곱 날을 채워도 안 끊기고
+  /// 계속 올라간다 — 하루 빠뜨렸을 때만 1로 돌아간다.
+  ///
+  /// 도장판은 "이번 주에 뭘 받나"를 보여주고, 이 숫자는 "얼마나 오래 함께
+  /// 왔나"를 보여준다. 크게 걸어 둘 값은 이쪽이다.
+  int get checkinStreak => _prefs.getInt('checkin.streak') ?? 0;
+
   /// 오늘 도장을 찍는다. 보상 지급은 호출자 몫이다.
   Future<void> markCheckin(int step, [DateTime? now]) async {
-    await _prefs.setInt('checkin.day', dateKeys(now).$1);
+    final (today, yesterday) = dateKeys(now);
+    final last = _prefs.getInt('checkin.day');
+    await _prefs.setInt(
+        'checkin.streak', last == yesterday ? checkinStreak + 1 : 1);
+    await _prefs.setInt('checkin.day', today);
     await _prefs.setInt('checkin.step', step);
   }
 

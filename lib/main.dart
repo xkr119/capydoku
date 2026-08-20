@@ -513,6 +513,10 @@ class _HomeScreenState extends State<HomeScreen>
       barrierDismissible: false,
       builder: (_) => CheckinSheet(
         step: step,
+        // 아직 안 받았으므로 오늘 것까지 세어 보여준다 — 받고 나서야
+        // 숫자가 오르면 "받았다"의 보람이 화면에 안 남는다.
+        streak: progress.checkinStreak + 1,
+        skin: Pet.skinOf(progress.currentLevel),
         onClaim: () {
           final p = Pet.load(progress.prefs);
           p.addCarrots(Progress.checkinCarrots[step - 1]);
@@ -954,6 +958,8 @@ class _HomeScreenState extends State<HomeScreen>
                       context: context,
                       builder: (_) => CheckinSheet(
                         step: step,
+                        streak: progress.checkinStreak,
+                        skin: Pet.skinOf(progress.currentLevel),
                         claimed: true,
                         onClaim: () => Navigator.of(context).pop(),
                       ),
