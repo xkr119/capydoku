@@ -9,9 +9,13 @@
 /// 그대로였다). 그건 **어느 게임에 붙여도 되는 화면**이라, 이 앱을 여는
 /// 첫 순간을 그런 것에 내주는 게 아까웠다.
 ///
-/// 지금은 이렇다. 초원에서 카피가 자고 있다 → 톡 깨운다 → 기지개를 켜고
-/// 폴짝 뛴다 → 당근이 쏟아진다. **깨우는 행동이 곧 출석**이고, 그게 이
-/// 게임에서 매일 하는 일(들여다보고 먹인다)과 같은 몸짓이다.
+/// 지금은 이렇다. 초원에서 카피가 **오늘의 선물을 안고 자고 있다** → 버튼을
+/// 누르면 깨어나 폴짝 뛰고 당근이 쏟아진다. 깨우는 행동이 곧 출석이고,
+/// 그게 이 게임에서 매일 하는 일(들여다보고 먹인다)과 같은 몸짓이다.
+///
+/// 한때는 "화면 아무 데나 누르면 깨어나요"였다. 정서는 좋았지만 **뭘 받는지,
+/// 뭘 해야 하는지가 안 보였다** — 받을 것을 카피 품에 안겨 두고 버튼에 그
+/// 개수를 적으니 누르기 전에 이미 다 읽힌다.
 ///
 /// 말투는 나른하게 — 이 앱에서 호들갑은 금지다.
 library;
@@ -92,10 +96,11 @@ class _CheckinSceneState extends State<CheckinScene>
     if (_awake) return;
     setState(() => _awake = true);
     Buzz.medium();
-    // 하품 → (길이만큼 기다렸다) 폴짝. 자다 깬 것이 먼저 읽혀야 한다.
-    _capy.play(CapyAct.yawn);
+    // 깜짝 놀라 깼다가 곧바로 신나서 폴짝. 하품부터 시키면 2.6초를 기다려야
+    // 해서, 버튼을 누른 사람에게는 그 사이가 "먹통"으로 느껴진다.
+    _capy.play(CapyAct.startle);
     Sfx.pet();
-    Timer(const Duration(milliseconds: 2500), () {
+    Timer(const Duration(milliseconds: 800), () {
       if (!mounted) return;
       _capy.play(CapyAct.cheer);
       Sfx.sparkle();
@@ -129,7 +134,8 @@ class _CheckinSceneState extends State<CheckinScene>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final capyH = (size.height * 0.24).clamp(150.0, 260.0);
+    // 카피가 이 화면의 주인공이다. 작게 두면 초원 사진에 점 하나가 된다.
+    final capyH = (size.height * 0.31).clamp(190.0, 330.0);
     return Scaffold(
       backgroundColor: const Color(0xFFF7E9C8),
       body: GestureDetector(
@@ -151,7 +157,7 @@ class _CheckinSceneState extends State<CheckinScene>
           Positioned(
             left: 0,
             right: 0,
-            top: size.height * 0.52 - capyH,
+            top: size.height * 0.62 - capyH,
             height: capyH,
             child: Center(
               child: SizedBox(
@@ -170,11 +176,19 @@ class _CheckinSceneState extends State<CheckinScene>
                             controller: _capy,
                             skin: widget.skin,
                             happy: true)
-                        : CapySleeping(skin: widget.skin, height: capyH),
+                        // **오늘 받을 것을 안고 잔다.** 무엇을 받는지 글자로
+                        // 적기 전에 그림으로 먼저 보인다.
+                        : CapySleeping(
+                            skin: widget.skin,
+                            height: capyH,
+                            food: HeldFood(
+                                watermelon: _isLast, eaten: 0),
+                          ),
                     if (!_awake)
+                      // 머리 바로 오른쪽 위. 멀리 두면 누구 잠인지 안 읽힌다.
                       Positioned(
-                          top: -capyH * 0.06,
-                          right: -capyH * 0.10,
+                          bottom: capyH * 0.66,
+                          right: capyH * 0.04,
                           child: const _Zzz()),
                   ],
                 ),
@@ -217,15 +231,15 @@ class _CheckinSceneState extends State<CheckinScene>
           // ── 글자와 도장판 ──
           SafeArea(
             child: Column(children: [
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               _StreakBadge(streak: widget.streak),
               const SizedBox(height: 6),
               Text(
                 widget.claimed
                     ? '오늘 몫은 다 받았어요'
                     : _awake
-                        ? (_isLast ? '일곱 날을 채웠네요' : '$_carrots개 챙겨 뒀어요')
-                        : '카피가 자고 있어요',
+                        ? (_isLast ? '일곱 날을 채웠네요!' : '잘 받았어요')
+                        : '카피가 안고 자고 있어요',
                 style: const TextStyle(
                     fontSize: 15,
                     color: Palette.brown,
@@ -244,36 +258,28 @@ class _CheckinSceneState extends State<CheckinScene>
                 child: SizedBox(
                   width: double.infinity,
                   height: 58,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: _awake ? 1 : 0.0,
-                    child: FilledButton(
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFE8830C),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999)),
-                      ),
-                      onPressed: _awake ? widget.onClaim : null,
-                      child: const Text('초원으로',
-                          style:
-                              TextStyle(fontSize: 19, color: Colors.white)),
+                  // **버튼 하나가 전부다.** 누르기 전에는 오늘 받을 것을
+                  // 개수까지 적어 두고, 받고 나면 나가는 문이 된다.
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFE8830C),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(999)),
+                    ),
+                    onPressed: _awake ? widget.onClaim : _wake,
+                    child: Text(
+                      _awake
+                          ? '초원으로'
+                          : _isLast
+                              ? '당근 $_carrots개 + 수박 받기'
+                              : '당근 $_carrots개 받기',
+                      style: const TextStyle(
+                          fontSize: 19, color: Colors.white),
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              // 깨우기 전에는 무엇을 해야 하는지 알려 준다. 화면 어디를 눌러도
-              // 되므로 버튼을 따로 두지 않는다 — 자는 걸 깨우는 일에 확인
-              // 버튼이 붙으면 그건 절차가 된다.
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 250),
-                opacity: _awake ? 0 : 1,
-                child: const Text('화면을 톡 누르면 깨어나요',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Palette.brownSoft,
-                        fontFamily: 'Apple SD Gothic Neo')),
-              ),
               const SizedBox(height: 18),
             ]),
           ),

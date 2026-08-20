@@ -1149,7 +1149,11 @@ class CapySleeping extends StatefulWidget {
   final String skin;
   final double height;
 
-  const CapySleeping({super.key, required this.skin, required this.height});
+  /// 안고 자는 것. null이면 빈손이다.
+  final HeldFood? food;
+
+  const CapySleeping(
+      {super.key, required this.skin, required this.height, this.food});
 
   @override
   State<CapySleeping> createState() => _CapySleepingState();
@@ -1190,11 +1194,15 @@ class _CapySleepingState extends State<CapySleeping>
             lean: 0.075,
             breathe: breath,
             squash: 0.10 - breath * 0.04,
-            armL: -0.10,
-            armR: 0.10,
+            // 뭘 안고 자면 앞발이 가슴 앞으로 모인다. 빈손이면 늘어뜨린다.
+            armL: widget.food != null ? -0.40 : -0.10,
+            armR: widget.food != null ? 0.40 : 0.10,
+            armLY: widget.food != null ? -0.035 : 0,
+            armRY: widget.food != null ? -0.035 : 0,
           ),
           height: widget.height,
           skin: widget.skin,
+          food: widget.food,
         );
       },
     );

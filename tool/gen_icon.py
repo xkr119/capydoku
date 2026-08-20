@@ -32,44 +32,83 @@ COLORS = [
 ]
 
 # 칸을 나누는 흰 선의 굵기(아이콘 크기 대비). 얇으면 48dp에서 사라진다.
-LINE_W = 0.030
+LINE_W = 0.034
 
-# 몇 칸으로 나눌까. 많으면 작게 줄었을 때 잔무늬가 된다.
-CELLS = 4
+# 몇 칸으로 나눌까. **적을수록 칸이 커서 멀리서도 읽힌다** — 4칸일 때는
+# 작게 줄이면 잔무늬가 됐다.
+CELLS = 3
+
+# 판을 이만큼 비스듬히 눕힌다. 반듯하면 UI 부품처럼 보이고, 너무 기울이면
+# 무슨 모양인지 안 읽힌다.
+GRID_TILT = -9
 
 # 어느 칸이 어느 색인가. **덩어리로 묶는다** — 체크무늬로 흩으면 퍼즐의
-# 색영역이 아니라 그냥 무늬가 된다. 이 게임의 판이 실제로 이렇게 생겼다.
+# 색영역이 아니라 그냥 무늬가 된다.
 REGIONS = [
-    [0, 0, 0, 1],
-    [0, 0, 1, 1],
-    [2, 0, 0, 1],
-    [2, 2, 0, 0],
+    [0, 0, 1],
+    [2, 0, 1],
+    [2, 0, 0],
 ]
 
 
+def _gloss(im, cells, step):
+    """칸마다 **위는 밝고 아래는 어둡게**, 그리고 왼쪽 위에 하이라이트.
+
+    단색 면은 아무리 색이 예뻐도 종이처럼 보인다. 같은 색의 밝기만 위아래로
+    벌려 주면 유리·사탕처럼 읽히고, 거기에 흰 하이라이트를 얹으면 반사가
+    생겨 입체가 된다.
+
+    **따로 그린 뒤 합성한다.** RGBA 이미지에 직접 그리면 PIL이 알파를 섞지
+    않고 그대로 덮어써서, 반투명하게 얹으려던 것이 새까만 띠가 된다.
+    """
+    over = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(over)
+    for row in range(cells):
+        for col in range(cells):
+            x0, y0 = col * step, row * step
+            # 위에서 아래로 어두워지는 그라디언트를 가로줄로 그린다.
+            for k in range(int(step)):
+                t = k / step
+                a = int(52 * (1 - t) - 34 * t)          # +밝게 → -어둡게
+                c = (255, 255, 255, a) if a > 0 else (0, 0, 0, -a)
+                d.line([(x0, y0 + k), (x0 + step, y0 + k)], fill=c)
+            # 왼쪽 위 하이라이트 — 둥근 광원이 비친 자리.
+            d.ellipse([x0 + step * 0.10, y0 + step * 0.07,
+                       x0 + step * 0.62, y0 + step * 0.34],
+                      fill=(255, 255, 255, 46))
+    im.alpha_composite(over)
+    return im
+
+
 def background(size):
-    """색영역 지도 + **흰 격자선**.
+    """색영역 지도 + **흰 격자선**, 살짝 눕히고 광택을 얹는다.
 
     한때 둥근 타일을 사이 간격을 두고 깔았는데, 그건 퍼즐판이 아니라 앱
     아이콘 모음처럼 보였다. 실제 판처럼 **면을 맞붙이고 흰 선으로 가르면**
     한눈에 "칸을 나눠 채우는 게임"으로 읽힌다(레퍼런스도 같은 문법이다).
     """
-    im = Image.new('RGBA', (size, size), COLORS[0])
+    # 눕혀도 네 귀퉁이가 비지 않도록 넉넉히 그린 뒤 잘라 낸다.
+    big = int(size * 1.75)
+    step = big / CELLS
+    im = Image.new('RGBA', (big, big), COLORS[0])
     d = ImageDraw.Draw(im)
-    step = size / CELLS
     for row in range(CELLS):
         for col in range(CELLS):
             d.rectangle([col * step, row * step,
                          (col + 1) * step, (row + 1) * step],
                         fill=COLORS[REGIONS[row][col]])
-    # 선은 면을 다 칠한 뒤에 긋는다. 칸마다 테두리를 그리면 맞닿은 자리에서
-    # 선이 두 번 겹쳐 굵기가 들쭉날쭉해진다.
-    w = max(2, round(size * LINE_W))
+    _gloss(im, CELLS, step)
+    # 선은 면과 광택을 다 올린 뒤에 긋는다. 칸마다 테두리를 그리면 맞닿은
+    # 자리에서 선이 두 번 겹쳐 굵기가 들쭉날쭉해진다.
+    w = max(3, round(size * LINE_W))
     for i in range(CELLS + 1):
         k = i * step
-        d.line([(k, 0), (k, size)], fill=(255, 255, 255, 255), width=w)
-        d.line([(0, k), (size, k)], fill=(255, 255, 255, 255), width=w)
-    return im
+        d.line([(k, -big), (k, big * 2)], fill=(255, 255, 255, 255), width=w)
+        d.line([(-big, k), (big * 2, k)], fill=(255, 255, 255, 255), width=w)
+    im = im.rotate(GRID_TILT, resample=Image.BICUBIC,
+                   center=(big / 2, big / 2))
+    o = (big - size) // 2
+    return im.crop((o, o, o + size, o + size))
 
 
 TILT = -11  # 갸웃한 각도. 정면으로 세워 두면 증명사진처럼 뻣뻣하다.
@@ -112,12 +151,12 @@ def main():
 
     # 얼굴은 크게, **왼쪽 아래 구석에서** 올라온다. 오른쪽 위로 판이 남아
     # "퍼즐 게임"으로도 읽힌다. 턱과 왼뺨은 모서리 밖으로 넘겨 잘라 낸다.
-    rising(bg, SIZE, 1.20, 0.44, 0.30).convert('RGB').save(f'{OUT}/icon.png')
+    rising(bg, SIZE, 1.32, 0.42, 0.26).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경: 바깥 1/4이 잘려 나가므로 얼굴을 조금 줄이고 가운데로
     # 당긴다. 그래도 같은 방향에서 올라오는 실루엣은 유지한다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.90, 0.46, 0.30).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 1.00, 0.45, 0.27).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
