@@ -36,6 +36,15 @@ class CarrotPainter extends CustomPainter {
 
   const CarrotPainter({this.eaten = 0});
 
+  /// 잎과 몸통의 경계(세로 비율). 몸통은 여기서 아래로 뻗는다.
+  static const bodyTop = 0.26;
+
+  /// [h] 길이의 당근을 [eaten]만큼 먹었을 때 **사라진 길이**.
+  ///
+  /// 입에 문 당근은 이만큼 끌어올려야 베어 문 자리가 입에 계속 붙어 있다.
+  /// 안 그러면 먹을수록 당근이 입에서 멀어져 허공에서 씹힌다.
+  static double gone(double h, double eaten) => h * (1 - bodyTop) * eaten;
+
   Color get _body => _carrotBody;
   Color get _shade => _carrotDark;
   Color get _leafTop => _carrotLeaf;
@@ -44,7 +53,7 @@ class CarrotPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
-    final bodyTop = h * 0.26;
+    final bodyTop = h * CarrotPainter.bodyTop;
     final bodyBottom = h - (h - bodyTop) * eaten;
 
     // ── 몸통: 위는 둥글고 아래로 뾰족해지는 원뿔 ──
@@ -139,13 +148,26 @@ class WatermelonPainter extends CustomPainter {
   /// 반짝이의 위상. 애니메이션을 걸면 별이 돌아가며 빛난다.
   final double sparklePhase;
 
-  const WatermelonPainter({this.eaten = 0, this.sparklePhase = 0});
+  /// 땅에 놓여 있는가. 입에 물고 있을 때는 발밑 그림자가 입 앞에 떠 있게
+  /// 되므로 끈다.
+  final bool grounded;
+
+  const WatermelonPainter(
+      {this.eaten = 0, this.sparklePhase = 0, this.grounded = true});
+
+  /// 반원의 중심 높이와 반지름(가로 대비). 베어 문 자리를 밖에서 계산하려면
+  /// 이 값이 필요하다.
+  static const centerY = 0.34, radius = 0.44;
+
+  /// 가로 [w]인 조각을 [eaten]만큼 먹었을 때 **베어 문 면이 내려간 거리**.
+  /// 입에 문 수박은 이만큼 끌어올려야 문 자리가 입에 붙어 있다.
+  static double gone(double w, double eaten) => w * radius * 0.92 * eaten;
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width, h = size.height;
-    final c = Offset(w / 2, h * 0.34);
-    final r = w * 0.44;
+    final c = Offset(w / 2, h * WatermelonPainter.centerY);
+    final r = w * WatermelonPainter.radius;
 
     // 특별한 먹이라는 신호 — 은은한 후광.
     canvas.drawCircle(
@@ -158,13 +180,18 @@ class WatermelonPainter extends CustomPainter {
           ]).createShader(
               Rect.fromCircle(center: Offset(w / 2, h * 0.55), radius: w * 0.52)));
 
-    // 풀밭에 놓인 물건으로 보이게 하는 그림자.
-    canvas.drawOval(
-        Rect.fromCenter(
-            center: Offset(w / 2, h * 0.86), width: r * 1.8, height: r * 0.42),
-        Paint()
-          ..color = const Color(0xFF3F5A2A).withValues(alpha: 0.20)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.16));
+    // 풀밭에 놓인 물건으로 보이게 하는 그림자. 입에 물고 있을 땐 없다 —
+    // 발밑이 아니라 입 앞에 그림자가 떠 있으면 붙여 놓은 것처럼 보인다.
+    if (grounded) {
+      canvas.drawOval(
+          Rect.fromCenter(
+              center: Offset(w / 2, h * 0.86),
+              width: r * 1.8,
+              height: r * 0.42),
+          Paint()
+            ..color = const Color(0xFF3F5A2A).withValues(alpha: 0.20)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.16));
+    }
 
     // 반원 조각: 자른 면이 위, 껍질이 아래 곡선.
     Path halfDisc(double rr) => Path()
@@ -240,7 +267,9 @@ class WatermelonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant WatermelonPainter old) =>
-      old.eaten != eaten || old.sparklePhase != sparklePhase;
+      old.eaten != eaten ||
+      old.sparklePhase != sparklePhase ||
+      old.grounded != grounded;
 }
 
 /// 당근 바구니 — 홈 화면 오른쪽에 놓인다. 누르면 당근이 날아간다.

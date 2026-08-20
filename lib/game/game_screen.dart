@@ -183,13 +183,16 @@ class _GameScreenState extends State<GameScreen>
         bottom: false,
         child: Stack(key: _rootKey, children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            // **가로 여백은 판 밖의 것들에만 준다.** 화면 전체에 여백을 두면
+            // 그만큼 판이 작아지는데, 이 게임에서 가장 커야 하는 건 판이다.
+            // 판은 _boardSide만 남기고 화면 끝까지 쓴다.
+            padding: const EdgeInsets.fromLTRB(_boardSide, 12, _boardSide, 16),
             child: Column(children: [
-              _topBar(),
+              _inset(_topBar()),
               const SizedBox(height: 12),
-              _statusPills(),
+              _inset(_statusPills()),
               const SizedBox(height: 12),
-              _ruleChips(),
+              _inset(_ruleChips()),
               const SizedBox(height: 14),
               // 남는 공간 안에서 정사각형으로 — 짧은 화면에서도 안 넘친다.
               Expanded(
@@ -198,7 +201,7 @@ class _GameScreenState extends State<GameScreen>
                 ),
               ),
               const SizedBox(height: 12),
-              _controls(),
+              _inset(_controls()),
               // 배너 자리를 비워 둔다. 실제 배너는 화면 맨 아래에 붙는다.
               if (_banner != null)
                 SizedBox(height: _banner!.size.height.toDouble() + 8),
@@ -407,6 +410,13 @@ class _GameScreenState extends State<GameScreen>
   // ── 보드 ────────────────────────────────────────────────────────────
 
   /// 타일 사이 간격. 좁을수록 칸이 커져 카피가 크게 보인다.
+  /// 판이 화면 좌우에 남기는 여백. 이것만 빼고 판이 화면을 다 쓴다.
+  static const _boardSide = 6.0;
+
+  /// 판 밖의 줄(상단 바·칩·조작부)에만 주는 여백. 판까지 밀어내지 않는다.
+  static Widget _inset(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12), child: child);
+
   static const _gap = 1.5;
 
   /// 판 테두리와 타일 사이 여백. 여기도 줄여야 칸이 커진다.

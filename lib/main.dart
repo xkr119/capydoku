@@ -552,7 +552,18 @@ class _HomeScreenState extends State<HomeScreen>
                 // 입에 물린 뒤엔 씹는 리듬에 맞춰 까딱거린다.
                 final wobble =
                     math.sin(chewT * math.pi * 22) * 4 * (1 - chewed);
-                final fw = 52 * foodScale;
+                // 날아가는 동안 **물릴 크기로 자란다.** 도착하는 순간 리그가
+                // 그대로 이어받아야 크기가 튀지 않는다 — 예전엔 바구니 크기로
+                // 날아가다 입에 닿는 순간 두 배로 커졌다.
+                final holder =
+                    m.who < lineup.length ? lineup[m.who] : lineup.first;
+                final held = capyH *
+                    holder.scale *
+                    _fillOf(holder.skin) *
+                    (m.special ? 0.38 : 0.34);
+                final fw = 52 * foodScale +
+                    (held - 52 * foodScale) *
+                        Curves.easeIn.transform(flight);
                 return Positioned(
                   left: p.dx - fw / 2 + wobble,
                   // 먹이의 **윗부분**이 입에 걸리게 둔다. 중심을 입에 맞추면
@@ -566,15 +577,24 @@ class _HomeScreenState extends State<HomeScreen>
                       alignment: Alignment.center,
                       children: [
                         Transform.rotate(
-                          angle: flight * math.pi * 2.2 * (m.special ? 0.4 : 1) +
+                          // **입에 물릴 각도로 정확히 착지한다.** 한 바퀴를
+                          // 돌되 끝나는 각이 리그가 그리는 각과 같아야 한다.
+                          // 수박은 자른 면이 위(0), 당근은 뿌리가 위로
+                          // 비스듬히(π + 기울기). 어중간하게 두면 수박이
+                          // 뒤집힌 채 입에 들어간다.
+                          angle: flight *
+                                  (math.pi * 2 +
+                                      (m.special
+                                          ? 0
+                                          : math.pi + HeldFood.carrotTilt)) +
                               wobble * 0.03,
                           child: m.special
                               ? SizedBox(
                                   width: fw,
                                   height: fw,
                                   child: CustomPaint(
-                                      painter:
-                                          WatermelonPainter(eaten: chewed)),
+                                      painter: WatermelonPainter(
+                                          eaten: chewed, grounded: false)),
                                 )
                               : SizedBox(
                                   width: fw * 0.62,

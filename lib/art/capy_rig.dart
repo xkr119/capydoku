@@ -288,6 +288,12 @@ class HeldFood {
   /// 씹는 리듬에 맞춘 흔들림(-1~1).
   final double wobble;
 
+  /// 당근을 문 각도(라디안). 똑바로 뒤집어 물면 통째로 삼키는 그림이라
+  /// 어색하다 — 비스듬히 물어야 쥐고 베어 무는 것처럼 보인다.
+  ///
+  /// 날아오는 당근도 **이 각도로 착지해야** 입에 닿는 순간 각이 안 튄다.
+  static const carrotTilt = -0.48;
+
   const HeldFood(
       {required this.watermelon, required this.eaten, this.wobble = 0});
 }
@@ -374,8 +380,15 @@ class _RigPainter extends CustomPainter {
       canvas.restore();
     }
 
-    arm(skin.armL, 0, p.armL, p.armLY);
-    arm(skin.armR, 1, p.armR, p.armRY);
+    // 앞발은 보통 몸통 바로 위 층이다. **먹이를 물고 있을 때만 맨 앞으로
+    // 올린다** — 그래야 앞발이 먹이를 앞에서 받쳐 "쥐고 먹는" 그림이 된다.
+    // 뒤에 두면 앞발이 먹이에 가려서 그냥 입에 달라붙은 먹이로 보인다.
+    void arms() {
+      arm(skin.armL, 0, p.armL, p.armLY);
+      arm(skin.armR, 1, p.armR, p.armRY);
+    }
+
+    if (food == null) arms();
 
     // ── 머리 묶음: 목 밑동을 축으로 ──
     canvas.save();
@@ -409,14 +422,25 @@ class _RigPainter extends CustomPainter {
     canvas.restore();
 
     canvas.restore();
+
+    // 쥐고 먹는 앞발은 머리 묶음 밖(=맨 앞)에 그린다. 머리와 함께 돌면
+    // 고개를 돌릴 때 앞발이 따라 돌아 어깨가 빠진 것처럼 보인다.
+    if (food != null) arms();
+
     canvas.restore();
   }
 
   /// 입 앞에 먹이를 놓는다. 크기는 캐릭터의 실제 키에 비례한다 —
   /// 캔버스 기준으로 잡으면 아기가 제 몸만 한 당근을 든다.
+  ///
+  /// **먹은 만큼 끌어올린다.** 베어 문 자리가 늘 입에 붙어 있어야 "물고
+  /// 씹는" 그림이 된다. 제자리에 두면 먹을수록 남은 먹이가 입에서 멀어져
+  /// 허공에서 씹히고, 끝에는 턱 아래 반쯤 남은 당근만 떠 있게 된다.
   void _drawFood(Canvas canvas, Size size, HeldFood f) {
     final tall = size.height * skin.fill;
-    final fh = tall * (f.watermelon ? 0.30 : 0.34);
+    // 수박은 7판에 하나 나오는 특별 먹이다. 당근보다 확실히 커야 한눈에
+    // 다른 등급으로 읽힌다.
+    final fh = tall * (f.watermelon ? 0.38 : 0.34);
     // 입보다 조금 아래에 둔다. 윗부분만 주둥이에 가려 "베어 문" 그림이 된다.
     final cx = skin.mouthX * size.width + f.wobble * fh * 0.05;
     final cy = skin.mouthY * size.height + fh * 0.06;
@@ -426,14 +450,19 @@ class _RigPainter extends CustomPainter {
     canvas.rotate(f.wobble * 0.06);
     if (f.watermelon) {
       // 자른 면이 위(입 쪽). 위에서부터 베어 먹고 껍질이 남는다.
-      canvas.translate(-fh / 2, -fh * 0.18);
-      WatermelonPainter(eaten: f.eaten).paint(canvas, Size(fh, fh));
+      // 먹은 만큼 끌어올려 베어 문 면을 입에 붙여 둔다.
+      canvas.translate(
+          -fh / 2, -fh * 0.18 - WatermelonPainter.gone(fh, f.eaten));
+      WatermelonPainter(eaten: f.eaten, grounded: false)
+          .paint(canvas, Size(fh, fh));
     } else {
       // 당근은 **뿌리(뾰족한 끝)가 위로** 입에 들어가고 잎이 아래로 내려온다.
       // 잎을 위로 두면 잎사귀를 먹는 그림이 된다.
       // 세로를 뒤집어 그린다: 로컬 y=h(뿌리 끝)가 화면의 입 높이에 온다.
+      // 문 자리를 축으로 기울여야 당근만 비스듬해지고 입은 제자리에 있다.
       final cw = fh * 0.62;
-      canvas.translate(-cw / 2, fh);
+      canvas.rotate(HeldFood.carrotTilt);
+      canvas.translate(-cw / 2, fh - CarrotPainter.gone(fh, f.eaten));
       canvas.scale(1, -1);
       CarrotPainter(eaten: f.eaten).paint(canvas, Size(cw, fh));
     }
@@ -817,10 +846,15 @@ class _CapyPerformerState extends State<CapyPerformer>
             lean += math.sin(ct * math.pi * 7) * 0.032 * gain;
             shift += math.sin(ct * math.pi * 7) * 0.012 * gain;
             squash += (chew - 0.45) * 0.17 * gain;
-            // 앞발로 붙잡고 야무지게 먹는다.
-            armL -= (0.24 + chew * 0.08) * gain;
-            armR += (0.24 + chew * 0.08) * gain;
-            armLY = armRY = -0.016 * gain;
+            // **앞발로 받쳐 들고 먹는다.** 어깨만 돌려서는 앞발이 입까지
+            // 못 올라오므로 위로 끌어올리는 값을 함께 준다. 도려낸 자리는
+            // 배 털로 메워져 있어 올려도 구멍이 안 보인다.
+            // 더 올리면 몸통에 남은 **팔 그림자**가 드러난다(팔을 도려낸
+            // 자리는 배 털로 메웠지만 그 둘레의 접촉 그림자는 원본에 남아
+            // 있다). 여기가 그 한계선이다.
+            armL -= (0.34 + chew * 0.10) * gain;
+            armR += (0.34 + chew * 0.10) * gain;
+            armLY = armRY = -0.042 * gain;
             blink = math.max(blink, 0.55);
             // 한 입 삼킬 때마다 신나서 통통 — 특별 먹이는 더 크게 뛴다.
             if (!chomping) {
