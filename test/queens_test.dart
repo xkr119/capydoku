@@ -4,8 +4,8 @@ import 'package:capydoku/engine/queens.dart';
 void main() {
   group('QueensGenerator — 상품 품질 보증', () {
     test('같은 시드는 항상 같은 퍼즐', () {
-      final a = QueensGenerator.generate(n: 7, seed: 42);
-      final b = QueensGenerator.generate(n: 7, seed: 42);
+      final a = QueensGenerator.generate(n: 7, seed: 42)!;
+      final b = QueensGenerator.generate(n: 7, seed: 42)!;
       expect(a.solution, b.solution);
       expect(a.regions, b.regions);
     });
@@ -13,7 +13,7 @@ void main() {
     test('생성 퍼즐 전수 검사 (n=5~9 각 10개): 규칙 위반 없음 + 영역당 퀸 1', () {
       for (var n = 5; n <= 9; n++) {
         for (var seed = 0; seed < 10; seed++) {
-          final p = QueensGenerator.generate(n: n, seed: seed);
+          final p = QueensGenerator.generate(n: n, seed: seed)!;
           final usedCol = <int>{}, usedRegion = <int>{};
           for (var r = 0; r < n; r++) {
             final c = p.solution[r];
@@ -37,7 +37,7 @@ void main() {
 
     test('논리 솔버가 복원한 답 = 정답 (유일해 이중 확인)', () {
       for (var seed = 100; seed < 120; seed++) {
-        final p = QueensGenerator.generate(n: 8, seed: seed);
+        final p = QueensGenerator.generate(n: 8, seed: seed)!;
         // LogicSolver.solve가 양수를 반환했다는 것 자체가 논리로 풀렸다는
         // 뜻이고, 유일해 검사를 통과했으므로 그 답은 정답과 같을 수밖에
         // 없다. 여기서는 난이도가 상식 범위인지만 본다.
@@ -50,7 +50,7 @@ void main() {
       final sw = Stopwatch()..start();
       var totalDiff = 0;
       for (var seed = 200; seed < 250; seed++) {
-        totalDiff += QueensGenerator.generate(n: 7, seed: seed).difficulty;
+        totalDiff += QueensGenerator.generate(n: 7, seed: seed)!.difficulty;
       }
       sw.stop();
       // ignore: avoid_print
@@ -61,7 +61,7 @@ void main() {
     test('골든: 7×7 시드 1은 영원히 이 배치여야 한다', () {
       // 깨지면 수열이 바뀐 것. 기대값을 고치지 말고 코드를 되돌릴 것 —
       // 출시 후에는 전 사용자의 퍼즐이 통째로 바뀐다.
-      final p = QueensGenerator.generate(n: 7, seed: 1);
+      final p = QueensGenerator.generate(n: 7, seed: 1)!;
       expect(p.solution, [5, 2, 0, 6, 4, 1, 3]);
     });
   });

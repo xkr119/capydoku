@@ -33,40 +33,52 @@ class Levels {
     return null;
   }
 
-  /// 레벨의 퍼즐. 같은 크기 구간 안에서 뒤로 갈수록 어렵다:
-  /// 후보 8개를 만들어 난이도순으로 세우고, 구간 내 진행도에 맞는 것을 집는다.
+  /// 레벨이 목표하는 난이도. `difficulty = passes + 한수읽기×3`.
+  ///
+  /// 예전에는 후보 여덟 개를 난이도순으로 세워 "구간 진행도에 맞는 것"을
+  /// 집었는데, 무한 구간(10×10)에 들어가면 진행도가 늘 0.99라 **항상 가장
+  /// 어려운 후보**를 골랐다. 후보 넷의 난이도는 시드 운이라 레벨 200이 4,
+  /// 레벨 400이 51처럼 들쭉날쭉했다. 이제는 목표를 정하고 거기에 **가까운**
+  /// 판을 찾는다 — 레벨이 오르면 반드시 어려워진다.
+  static int targetDifficulty(int level) {
+    final size = sizeOf(level);
+    if (size <= 5) return 2;
+    if (size == 6) return 4;
+    if (size == 7) return 6;
+    if (size == 8) return 8;
+    if (size == 9) return 10;
+    // 10×10 무한 구간: 300판에 걸쳐 6에서 30까지 오르고 거기서 멈춘다.
+    // 30을 넘기면 한 수 읽기가 대여섯 번씩 필요해져 사람이 못 푼다.
+    final t = ((level - 18) / 300).clamp(0.0, 1.0);
+    return (6 + 24 * t).round();
+  }
+
+  /// 레벨의 퍼즐. 목표 난이도에 가장 가까운 판을 찾는다.
   /// 전부 결정적이므로 같은 레벨은 영원히 같은 퍼즐이다.
   static QueensPuzzle puzzleOf(int level) {
     final size = sizeOf(level);
-    var start = 1;
-    int? next;
-    for (final (s, _) in segments) {
-      if (s <= level) {
-        start = s;
-      } else {
-        next = s;
-        break;
+    final target = targetDifficulty(level);
+    // 넉넉히 맞으면 더 찾지 않는다 — 대개 한두 개 만들고 끝난다.
+    final tolerance = size >= 9 ? 3 : 2;
+    final tries = size >= 9 ? 8 : 10;
+
+    QueensPuzzle? best;
+    var bestGap = 1 << 30;
+    for (var k = 0; k < tries; k++) {
+      final p = QueensGenerator.generate(n: size, seed: level * 100 + k);
+      if (p == null) continue; // 이 시드는 오래 걸린다. 다음 시드로.
+      // "찍기 같다"는 인상을 막는다: 초반에는 한 수 읽기가 없는 판만 쓴다.
+      if (level < 10 && p.lookaheads > 0) continue;
+      final gap = (p.difficulty - target).abs();
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = p;
+        if (gap <= tolerance) break;
       }
     }
-    // 마지막(무한) 구간은 15레벨에 걸쳐 최고 난도에 도달한 뒤 유지.
-    final span = next != null ? next - start : 15;
-    final t = ((level - start) / span).clamp(0.0, 0.99);
-    // 큰 보드는 생성이 느려(10×10 ≈ 200ms/개) 후보 수를 줄인다.
-    final count = size >= 9 ? 4 : (size == 8 ? 6 : 8);
-    final candidates = [
-      for (var k = 0; k < count; k++)
-        QueensGenerator.generate(n: size, seed: level * 100 + k),
-    ]..sort((a, b) => a.difficulty.compareTo(b.difficulty));
-    // "찍기 같다" 방지: 초반 레벨과 각 구간의 앞쪽 절반은 한 수 읽기가
-    // 필요 없는(단순 소거만으로 풀리는) 판을 우선한다.
-    if (level < 10 || t < 0.5) {
-      final zero = [for (final c in candidates) if (c.lookaheads == 0) c];
-      if (zero.isNotEmpty) {
-        final i = (t * zero.length).floor().clamp(0, zero.length - 1);
-        return zero[i];
-      }
-    }
-    return candidates[(t * count).floor().clamp(0, count - 1)];
+    return best ??
+        QueensGenerator.generate(
+            n: size, seed: level * 100, maxAttempts: 1 << 30)!;
   }
 
   // ── 오늘의 퍼즐 ───────────────────────────────────────────────────
@@ -86,7 +98,7 @@ class Levels {
     final base = dailySeedBase(dateKey);
     final candidates = [
       for (var k = 0; k < 5; k++)
-        QueensGenerator.generate(n: dailySize, seed: base + k),
+        QueensGenerator.generate(n: dailySize, seed: base + k)!,
     ]..sort((a, b) => b.difficulty.compareTo(a.difficulty));
     for (final c in candidates) {
       if (c.lookaheads > 0) return c;

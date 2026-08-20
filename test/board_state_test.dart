@@ -5,7 +5,7 @@ import 'package:capydoku/game/levels.dart';
 
 void main() {
   test('정답 배치 → ok (자동 X 없음), 전부 놓으면 승리', () {
-    final p = QueensGenerator.generate(n: 5, seed: 7);
+    final p = QueensGenerator.generate(n: 5, seed: 7)!;
     final b = BoardState(p);
     expect(b.tryPlace(0, p.solution[0]), PlaceResult.ok);
     // 자동 X를 깔지 않는다 — 나머지 칸은 빈 칸 그대로.
@@ -23,7 +23,7 @@ void main() {
   });
 
   test('실수 판정: 같은 행 → wrongLine, 인접 → wrongTouch', () {
-    final p = QueensGenerator.generate(n: 5, seed: 7);
+    final p = QueensGenerator.generate(n: 5, seed: 7)!;
     final b = BoardState(p);
     expect(b.tryPlace(0, p.solution[0]), PlaceResult.ok);
     // 같은 행의 다른 칸
@@ -33,7 +33,7 @@ void main() {
   });
 
   test('힌트는 남은 정답 자리를 가리킨다', () {
-    final p = QueensGenerator.generate(n: 5, seed: 7);
+    final p = QueensGenerator.generate(n: 5, seed: 7)!;
     final b = BoardState(p);
     final (r, c) = b.hintCell()!;
     expect(p.solution[r], c);
@@ -57,7 +57,7 @@ void main() {
   });
 
   test('X 힌트: 카피의 배제 칸(행·열·색·인접)을 정확히 나열한다', () {
-    final p = QueensGenerator.generate(n: 5, seed: 7);
+    final p = QueensGenerator.generate(n: 5, seed: 7)!;
     final b = BoardState(p);
     expect(b.bestHintCapy(), isNull); // 카피가 없으면 소재도 없다
     b.tryPlace(0, p.solution[0]);

@@ -13,7 +13,7 @@ Canva로 단계마다 **따로 그린** 원본(build/stage_raw/s1..s5.png)에서
 import os
 from collections import deque
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 RAW = 'build/stage_raw'
 OUT = 'assets/stages'
@@ -40,15 +40,21 @@ def cutout(img: Image.Image) -> Image.Image:
     W, H = rgb.size
     px = rgb.load()
 
-    def is_bg(p):
+    # 아래쪽에서는 기준을 낮춘다. 발밑 그림자가 옅은 무채색이라 흰 배경과
+    # 같은 잣대로는 안 지워지고, 발 사이에 흰 얼룩으로 남는다. 털은 채도가
+    # 있어서(따뜻한 갈색) 살아남고, 회색 주둥이는 위쪽이라 영향받지 않는다.
+    shadow_from = H * 0.68
+
+    def is_bg(p, y):
         r, g, b = p
-        return max(p) - min(p) < 26 and max(p) > 205
+        flat = max(p) - min(p) < 26
+        return flat and max(p) > (150 if y > shadow_from else 205)
 
     mask = bytearray(W * H)
     q = deque()
 
     def push(x, y):
-        if not mask[y * W + x] and is_bg(px[x, y]):
+        if not mask[y * W + x] and is_bg(px[x, y], y):
             mask[y * W + x] = 1
             q.append((x, y))
 
@@ -72,6 +78,57 @@ def cutout(img: Image.Image) -> Image.Image:
     out = img.convert('RGBA')
     out.putalpha(alpha)
     return out
+
+
+def drop_shadow(img: Image.Image) -> Image.Image:
+    """렌더에 구워진 바닥 그림자를 지운다.
+
+    Canva 렌더에는 발밑에 옅은 그림자가 함께 그려져 있다. 그대로 두면 카피가
+    폴짝 뛸 때 **바닥까지 같이 떠올라** 보기 싫다.
+
+    잘라내는 선을 하나로 두면 안 된다 — 그러면 다리 **사이**의 그림자가
+    발끝보다 위에 있어서 흰 얼룩으로 남는다. 그래서 **세로줄마다** 그 줄의
+    가장 아래 몸 픽셀을 찾아 거기서 자른다.
+    """
+    rgb = img.convert('RGB')
+    W, H = rgb.size
+    px = rgb.load()
+    src = img.split()[3].load()
+
+    def is_body(x, y):
+        if src[x, y] < 110:
+            return False
+        r, g, b = px[x, y]
+        # 털·발은 따뜻한 색이라 채도가 있다. 그림자는 무채색에 가깝다.
+        return (max(r, g, b) - min(r, g, b)) > 30 or max(r, g, b) < 140
+
+    keep = Image.new('L', (W, H), 0)
+    kp = keep.load()
+    ap = img.split()[3].load()
+    for x in range(W):
+        bottom = -1
+        for y in range(H - 1, -1, -1):
+            if is_body(x, y):
+                bottom = y
+                break
+        if bottom < 0:
+            continue
+        for y in range(0, bottom + 1):
+            kp[x, y] = ap[x, y]
+
+    # 세로줄마다 자르면 단면이 톱니처럼 되므로 살짝 흐린다.
+    return _with_alpha(img, keep.filter(ImageFilter.GaussianBlur(1.1)))
+
+
+def _with_alpha(img, alpha):
+    out = img.copy()
+    out.putalpha(alpha)
+    return out
+
+
+def _top_of(alpha: Image.Image) -> int:
+    box = alpha.getbbox()
+    return box[1] if box else 0
 
 
 def place(sub: Image.Image, height_frac: float) -> Image.Image:
@@ -101,7 +158,7 @@ def main():
     jobs = [(f's{i}', f) for i, f in enumerate(HEIGHTS, start=1)] + [MATE]
     for name, frac in jobs:
         src = Image.open(f'{RAW}/{name}.png')
-        out = slim(place(cutout(src), frac))
+        out = slim(place(drop_shadow(cutout(src)), frac))
         path = f'{OUT}/{name}.png'
         out.save(path, optimize=True)
         print(f'{path}  {os.path.getsize(path) // 1024}KB  높이 {frac:.0%}')

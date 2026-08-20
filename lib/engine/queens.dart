@@ -61,10 +61,19 @@ class QueensGenerator {
   static int lastAttempts = 0;
 
   /// 유일해 + 논리로만 풀리는 퍼즐이 나올 때까지 만든다. 결정적.
-  static QueensPuzzle generate({required int n, required int seed}) {
+  ///
+  /// [maxAttempts]를 넘기면 null을 준다. 시드에 따라 시도가 2만 번까지
+  /// 치솟는 경우가 있어(1.6초) 한 시드에 매달리지 말고 다음 시드로 옮기는
+  /// 편이 훨씬 빠르다.
+  static QueensPuzzle? generate(
+      {required int n, required int seed, int maxAttempts = 3000}) {
     var attempt = 0;
-    while (true) {
-      final rng = _Rng(seed * 1000 + attempt);
+    while (attempt < maxAttempts) {
+      // **시드와 시도 횟수를 섞어서** 다음 시드를 만든다. 예전에는
+      // `seed * 1000 + attempt`였는데, 어려운 판은 시도가 1000번을 훌쩍 넘어
+      // 이웃 시드와 내부 시드가 겹쳤다. 그러면 레벨 하나의 후보 네 개가
+      // 전부 같은 퍼즐이 되어(난이도 선택이 무의미해지고) 같은 일을 네 번 한다.
+      final rng = _Rng(_Rng._mix(seed ^ 0x9E3779B9) ^ _Rng._mix(attempt * 0x85EBCA6B));
       attempt++;
       final solution = _placeQueens(n, rng);
       if (solution == null) continue;
@@ -75,6 +84,8 @@ class QueensGenerator {
       lastAttempts = attempt;
       return QueensPuzzle(n, seed, solution, regions, difficulty, lookaheads);
     }
+    lastAttempts = attempt;
+    return null;
   }
 
   /// 행마다 하나씩, 열 중복·대각 인접 금지 배치를 무작위 백트래킹으로.
