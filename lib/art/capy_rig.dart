@@ -126,7 +126,11 @@ class CapyPose {
   /// 눈 감김 0(뜸)~1(감음).
   final double blink;
 
-  /// 눈웃음 0~1. 감은 눈 위에 ∧ 곡선을 그린다 — 기분 좋다는 가장 빠른 신호.
+  /// 흐뭇함 0~1. 눈을 감기고 입을 살짝 벌린다.
+  ///
+  /// 한때는 감은 눈 위에 ∧ 곡선을 그렸는데, 3D 음영 위에 얹힌 납작한 선이라
+  /// 붙여 놓은 티가 났다. **선을 그리지 말 것.** 눈을 감고 입꼬리가 살짝
+  /// 열린 얼굴이 이 캐릭터에서는 훨씬 자연스러운 흐뭇함이다.
   final double smile;
 
   /// 앞발 회전(라디안). 어깨가 축이고, +면 발이 몸 바깥으로 벌어진다.
@@ -266,7 +270,6 @@ class _RigPainter extends CustomPainter {
       draw(skin.lidR);
       canvas.restore();
     }
-    if (p.smile > 0.01) _drawSmilingEyes(canvas, size, p.smile);
     canvas.save();
     canvas.translate(0, p.jawOpen * size.height * skin.jawDrop);
     draw(skin.jaw);
@@ -274,26 +277,6 @@ class _RigPainter extends CustomPainter {
 
     canvas.restore();
     canvas.restore();
-  }
-
-  /// 감은 눈 위의 ∧ — 눈꺼풀만 내리면 자는 얼굴이고, 이 선이 있어야 웃는 얼굴이다.
-  void _drawSmilingEyes(Canvas canvas, Size size, double k) {
-    final w = size.width, h = size.height;
-    final rx = w * 0.036, ry = h * 0.016;
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.017
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF35211A).withValues(alpha: 0.88 * k);
-    for (final ex in skin.eyeX) {
-      final c = Offset(ex * w, skin.eyeY * h);
-      canvas.drawPath(
-        Path()
-          ..moveTo(c.dx - rx, c.dy + ry)
-          ..quadraticBezierTo(c.dx, c.dy - ry * 2.6 * k, c.dx + rx, c.dy + ry),
-        stroke,
-      );
-    }
   }
 
   @override
@@ -306,8 +289,11 @@ enum CapyAct {
   /// 아무것도 안 함 — 숨쉬고, 이따금 두리번거리고, 깜빡인다.
   idle,
 
-  /// 와구와구 씹기. 입에 뭔가 들어왔을 때.
+  /// 와그작와그작 씹기. 입에 뭔가 들어왔을 때.
   eat,
+
+  /// 수박 같은 특별 먹이를 만났을 때. 먹는 내내 신이 나 있다.
+  feast,
 
   /// 기쁨 — 폴짝폴짝.
   cheer,
@@ -407,7 +393,9 @@ class _CapyPerformerState extends State<CapyPerformer>
   bool _doubleBlink = false;
 
   static const _actLens = {
-    CapyAct.eat: 2.8,
+    // 먹는 건 이 게임에서 가장 큰 보람이다. 짧으면 준 보람이 없다.
+    CapyAct.eat: 5.0,
+    CapyAct.feast: 5.4,
     CapyAct.cheer: 1.4,
     CapyAct.dance: 3.2,
     CapyAct.startle: 0.9,
@@ -550,6 +538,8 @@ class _CapyPerformerState extends State<CapyPerformer>
     return CapyPose(
       headTurn: headTurn,
       headNod: headNod,
+      // 눈만 감으면 자는 얼굴이다. 입이 살짝 열려야 흐뭇한 얼굴이 된다.
+      jawOpen: smile * 0.26,
       blink: blink,
       smile: smile,
       breathe: math.sin(t * 1.9),
@@ -636,24 +626,62 @@ class _CapyPerformerState extends State<CapyPerformer>
     if (ap >= 0 && ap <= 1) {
       switch (_act) {
         case CapyAct.eat:
-          // 아그작아그작 — 턱을 크게 여닫으면서 온몸이 리듬을 탄다.
-          // 저작음이 들리는 것처럼 보이려면 턱만 움직여선 부족하다.
-          final chew = (math.sin(ap * math.pi * 18) + 1) / 2;
-          final env = ap < 0.10 ? ap / 0.10 : math.min(1.0, (1 - ap) / 0.22);
-          jaw = chew * env;
-          headNod += chew * 0.34 * env;
-          headTurn += math.sin(ap * math.pi * 9) * 0.075 * env;
-          lean += math.sin(ap * math.pi * 9) * 0.030 * env;
-          shift += math.sin(ap * math.pi * 9) * 0.010 * env;
-          squash += (chew - 0.5) * 0.16 * env;
-          hop += chew * 0.012 * env;
-          // 씹는 동안은 실눈, 다 삼키고 나면 눈웃음으로 마무리한다.
-          blink = math.max(blink, env * 0.5);
-          // 앞발로 붙잡고 먹는다.
-          armL -= (0.20 + chew * 0.05) * env;
-          armR += (0.20 + chew * 0.05) * env;
-          armLY = armRY = -0.012 * env;
-          if (ap > 0.72) smile = math.max(smile, ((ap - 0.72) / 0.18).clamp(0.0, 1.0));
+        case CapyAct.feast:
+          // 덥석 → 와그작 와그작 와그작 → 꿀꺽 → 흐뭇.
+          // 특별 먹이(feast)는 같은 흐름을 더 크게, 더 신나게 탄다.
+          final big = _act == CapyAct.feast;
+          final gain = big ? 1.45 : 1.0;
+          if (ap < 0.10) {
+            // 덥석 — 입을 크게 벌리고 고개를 앞으로 내민다.
+            final k = Curves.easeOut.transform(ap / 0.10);
+            jaw = 1.3 * k;
+            headNod += 0.45 * k;
+            squash += 0.10 * k;
+          } else if (ap < 0.80) {
+            // 와그작 와그작 — **몰아서 씹고 잠깐 쉬고**를 세 번 되풀이한다.
+            // 일정한 속도로 씹으면 기계처럼 보인다.
+            final ct = (ap - 0.10) / 0.70;
+            final inBurst = (ct * 3) % 1.0;
+            final chomping = inBurst < 0.76;
+            final chew = chomping
+                ? (1 - math.cos(inBurst / 0.76 * math.pi * 6)) / 2
+                : 0.0;
+            jaw = chew * 0.92;
+            headNod += (0.16 + chew * 0.34) * gain;
+            headTurn += math.sin(ct * math.pi * 7) * 0.085 * gain;
+            lean += math.sin(ct * math.pi * 7) * 0.032 * gain;
+            shift += math.sin(ct * math.pi * 7) * 0.012 * gain;
+            squash += (chew - 0.45) * 0.17 * gain;
+            // 앞발로 붙잡고 야무지게 먹는다.
+            armL -= (0.24 + chew * 0.08) * gain;
+            armR += (0.24 + chew * 0.08) * gain;
+            armLY = armRY = -0.016 * gain;
+            blink = math.max(blink, 0.55);
+            // 한 입 삼킬 때마다 신나서 통통 — 특별 먹이는 더 크게 뛴다.
+            if (!chomping) {
+              final j = (inBurst - 0.76) / 0.24;
+              hop += math.sin(j * math.pi) * (big ? 0.055 : 0.018);
+              smile = math.max(smile, big ? 1.0 : 0.5);
+            }
+          } else if (ap < 0.90) {
+            // 꿀꺽 — 입을 닫고 고개를 젖혔다 내린다.
+            final k = (ap - 0.80) / 0.10;
+            headNod -= math.sin(k * math.pi) * 0.42;
+            squash -= math.sin(k * math.pi) * 0.16;
+            blink = math.max(blink, 0.8);
+            armL -= 0.10;
+            armR += 0.10;
+          } else {
+            // 흐뭇 — 눈 감고 입꼬리 살짝. 특별 먹이는 만세까지.
+            final k = ((ap - 0.90) / 0.10).clamp(0.0, 1.0);
+            smile = math.max(smile, 1.0);
+            headTurn += 0.10 * math.sin(k * math.pi);
+            if (big) {
+              hop += math.sin(k * math.pi * 2).abs() * 0.075;
+              armL -= 0.40 * math.sin(k * math.pi);
+              armR += 0.40 * math.sin(k * math.pi);
+            }
+          }
         case CapyAct.cheer:
           // 두 번 폴짝. 뜰 때 늘어나고 닿을 때 눌린다.
           final b = (ap * 2) % 1.0;
@@ -723,6 +751,12 @@ class _CapyPerformerState extends State<CapyPerformer>
           break;
       }
     }
+
+    // 눈만 감으면 자는 얼굴이다. 입이 살짝 열려야 흐뭇한 얼굴이 된다.
+    jaw = math.max(jaw, smile * 0.26);
+
+    // 눈만 감으면 자는 얼굴이다. 입이 살짝 열려야 흐뭇한 얼굴이 된다.
+    jaw = math.max(jaw, smile * 0.26);
 
     return CapyPose(
       headTurn: headTurn,

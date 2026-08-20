@@ -112,6 +112,9 @@ def main():
     # ── 눈꺼풀: 눈 바로 위 이마 털을 떠 온다. 내려 덮으면 눈을 감는다 ──
     lids = {}
     for i, (ex, ey) in enumerate(EYES):
+        # 눈꺼풀은 눈보다 조금 큰 정도로만 떠 온다. **크게 뜨면 이마 털의
+        # 음영이 주변과 어긋나 눈 둘레에 고리가 생긴다**(46×42로 키웠다가
+        # 되돌렸다). 대신 완전히 감는 데만 쓰고, 반쯤 감은 상태는 안 쓴다.
         m = ellipse_mask(size, ex, ey - LID_RISE, 31.0, 27.0, blur=6)
         lid = src.copy()
         lid.putalpha(_mulL(alpha, m))

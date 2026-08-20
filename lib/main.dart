@@ -193,25 +193,38 @@ class _HomeScreenState extends State<HomeScreen>
       special: special,
       from: from,
       to: to,
+      // 날아가는 0.5초 + 먹는 5초. 먹이가 씹히는 내내 화면에 남아 있어야
+      // 사용자가 "내가 준 걸 먹고 있다"를 본다.
       ctrl: AnimationController(
-          vsync: this, duration: const Duration(milliseconds: 1180)),
+          vsync: this, duration: const Duration(milliseconds: 5500)),
     );
     // 날아가는 구간이 끝나면 입에 물린 채로 조금씩 없어진다 —
     // 그냥 사라지면 "먹었다"가 아니라 "삭제됐다"로 보인다.
     var bitten = false;
+    var lastBite = -1;
     m.ctrl.addListener(() {
-      if (bitten || m.ctrl.value < _Morsel.flightEnd) return;
-      bitten = true;
-      Sfx.munch();
-      HapticFeedback.mediumImpact();
-      _capy.play(CapyAct.eat);
+      final t = m.ctrl.value;
+      if (t < _Morsel.flightEnd) return;
+      if (!bitten) {
+        bitten = true;
+        _capy.play(special ? CapyAct.feast : CapyAct.eat);
+      }
+      // 한 입 베어 물 때마다 소리와 진동 — 5초를 무음으로 두면 길기만 하다.
+      final chewT = (t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd);
+      final bite = (chewT / 0.78 * 3).floor();
+      if (bite != lastBite && bite < 3) {
+        lastBite = bite;
+        Sfx.munch();
+        HapticFeedback.mediumImpact();
+      }
     });
     setState(() => _flying.add(m));
     m.ctrl.forward().then((_) {
       if (!mounted) return;
       setState(() => _flying.remove(m));
       m.ctrl.dispose();
-      _capy.play(CapyAct.cheer);
+      // 특별 먹이는 다 먹고 나서도 한참 신이 나 있다.
+      _capy.play(special ? CapyAct.dance : CapyAct.cheer);
     });
   }
 
@@ -402,16 +415,20 @@ class _HomeScreenState extends State<HomeScreen>
               builder: (context, _) {
                 final t = m.ctrl.value;
                 final flight = (t / _Morsel.flightEnd).clamp(0.0, 1.0);
-                final chewed =
+                // 리그의 저작 리듬(세 번 몰아 씹기)에 맞춰 한 입씩 뭉텅
+                // 사라진다. 고르게 줄면 녹아 없어지는 것처럼 보인다.
+                final chewT =
                     ((t - _Morsel.flightEnd) / (1 - _Morsel.flightEnd))
                         .clamp(0.0, 1.0);
+                final bites = (chewT / 0.78 * 3).clamp(0.0, 3.0);
+                final chewed = (bites / 3 * 1.02).clamp(0.0, 1.0);
                 final p = Offset.lerp(
                     m.from, m.to, Curves.easeInOut.transform(flight))!;
                 // 포물선 — 위로 한 번 떴다가 입으로 떨어진다.
                 final lift = math.sin(flight * math.pi) * 78;
                 // 입에 물린 뒤엔 씹는 리듬에 맞춰 까딱거린다.
                 final wobble =
-                    math.sin(chewed * math.pi * 11) * 4 * (1 - chewed);
+                    math.sin(chewT * math.pi * 22) * 4 * (1 - chewed);
                 return Positioned(
                   left: p.dx - 26 + wobble,
                   top: p.dy - lift - 30,
@@ -588,7 +605,7 @@ class _HomeScreenState extends State<HomeScreen>
 /// 날아가는 먹이 한 개.
 class _Morsel {
   /// 전체 재생 중 날아가는 구간이 끝나는 지점. 이후는 입에 물린 채 씹힌다.
-  static const flightEnd = 0.42;
+  static const flightEnd = 0.09;
 
   final int id;
   final bool special;
