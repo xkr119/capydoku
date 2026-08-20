@@ -122,6 +122,10 @@ def face(height, tilt=TILT):
     im.alpha_composite(head)
     im.alpha_composite(jaw)
     im = im.rotate(tilt, resample=Image.BICUBIC, expand=True)
+    # **회전하면서 생긴 투명 여백을 잘라 낸다.** 안 자르면 `height`가 얼굴이
+    # 아니라 여백까지 포함한 상자의 높이가 되어, 숫자를 올려도 얼굴은 그만큼
+    # 안 커진다("더 크게" 했는데 그대로인 이유가 이거였다).
+    im = im.crop(im.getbbox())
     w = round(im.width * height / im.height)
     return im.resize((w, height), Image.LANCZOS)
 
@@ -153,11 +157,11 @@ def main():
     # 했더니 얼굴이 판을 다 덮어 **타일이 하나만 보였다** — 그러면 그냥
     # 동물 사진이지 퍼즐 게임 아이콘이 아니다. 레퍼런스도 얼굴을 가운데
     # 두고 뒤로 색영역이 여러 개 보이게 잡는다.
-    rising(bg, SIZE, 0.78, 0.50, 0.22).convert('RGB').save(f'{OUT}/icon.png')
+    rising(bg, SIZE, 0.86, 0.50, 0.15).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경: 바깥 1/4이 잘려 나가므로 조금 더 줄여 가운데 66% 안에.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.62, 0.50, 0.26).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.64, 0.50, 0.22).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
