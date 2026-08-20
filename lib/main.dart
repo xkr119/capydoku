@@ -20,7 +20,7 @@ import 'pet/family.dart';
 import 'pet/family_event.dart';
 import 'pet/family_event_scene.dart';
 import 'pet/pet.dart';
-import 'ui/checkin_sheet.dart';
+import 'ui/checkin_scene.dart';
 import 'ui/home_tour.dart';
 import 'ui/settings_sheet.dart';
 import 'ui/tutorial.dart';
@@ -508,10 +508,13 @@ class _HomeScreenState extends State<HomeScreen>
   Future<void> _maybeCheckin() async {
     if (!mounted || !progress.checkinPending()) return;
     final step = progress.checkinStep();
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => CheckinSheet(
+    // **창이 아니라 장면이다.** 초원이 그대로 이어지는 것처럼 페이드로
+    // 들어간다 — 옆에서 밀고 들어오면 다른 화면으로 넘어간 것이 된다.
+    await Navigator.of(context).push(PageRouteBuilder<void>(
+      transitionDuration: const Duration(milliseconds: 420),
+      transitionsBuilder: (_, anim, _, child) =>
+          FadeTransition(opacity: anim, child: child),
+      pageBuilder: (_, _, _) => CheckinScene(
         step: step,
         // 아직 안 받았으므로 오늘 것까지 세어 보여준다 — 받고 나서야
         // 숫자가 오르면 "받았다"의 보람이 화면에 안 남는다.
@@ -522,13 +525,11 @@ class _HomeScreenState extends State<HomeScreen>
           p.addCarrots(Progress.checkinCarrots[step - 1]);
           if (step == Progress.checkinDays) p.addSpecials(1);
           progress.markCheckin(step);
-          // 도장은 도장 소리다. 판을 깬 소리를 돌려쓰면 출석이 클리어처럼
-          // 들려서, 정작 판을 깼을 때의 보람이 깎인다.
-          Sfx.stamp();
+          // 도장 소리는 장면 안에서 이미 났다(도장이 찍히는 순간).
           Navigator.of(context).pop();
         },
       ),
-    );
+    ));
     if (mounted) setState(() => pet = Pet.load(progress.prefs));
   }
 
@@ -954,16 +955,18 @@ class _HomeScreenState extends State<HomeScreen>
                     await _maybeCheckin();
                   } else {
                     // 오늘은 이미 받았다 — 도장판만 보여준다.
-                    await showDialog<void>(
-                      context: context,
-                      builder: (_) => CheckinSheet(
+                    await Navigator.of(context).push(PageRouteBuilder<void>(
+                      transitionDuration: const Duration(milliseconds: 320),
+                      transitionsBuilder: (_, anim, _, child) =>
+                          FadeTransition(opacity: anim, child: child),
+                      pageBuilder: (_, _, _) => CheckinScene(
                         step: step,
                         streak: progress.checkinStreak,
                         skin: Pet.skinOf(progress.currentLevel),
                         claimed: true,
                         onClaim: () => Navigator.of(context).pop(),
                       ),
-                    );
+                    ));
                   }
                   if (mounted) setState(() {});
                 },
