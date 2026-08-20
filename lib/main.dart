@@ -879,7 +879,8 @@ class _HomeScreenState extends State<HomeScreen>
                   // 명도가 비슷해서 후광으로는 안 떨어진다). 흰 속에 진한
                   // 테두리를 두르면 어떤 배경에서도 읽히고, 만화 로고처럼
                   // 보여서 이름이 물건이 아니라 **이름**으로 읽힌다.
-                  // 살짝 기울여 붙여 둔 것처럼 둔다.
+                  // 기울이지 않는다 — 삐뚤게 붙인 스티커처럼 두었더니
+                  // 붙인 티가 아니라 그냥 비뚤어져 보였다.
                   Align(
                     alignment: Alignment.centerLeft,
                     child: GestureDetector(
@@ -887,16 +888,13 @@ class _HomeScreenState extends State<HomeScreen>
                       onTap: _callByName,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
-                        child: Transform.rotate(
-                          angle: -0.032,
-                          child: _StickerName(
-                            text: pet.named
-                                ? (married ? '${pet.name} 가족' : pet.name)
-                                // 말풍선이 이미 조르고 있다 — 같은 문구를
-                                // 두 번 쓰면 잔소리가 된다.
-                                : '이름 없는 카피',
-                            faded: !pet.named,
-                          ),
+                        child: _StickerName(
+                          text: pet.named
+                              ? (married ? '${pet.name} 가족' : pet.name)
+                              // 말풍선이 이미 조르고 있다 — 같은 문구를
+                              // 두 번 쓰면 잔소리가 된다.
+                              : '이름 없는 카피',
+                          faded: !pet.named,
                         ),
                       ),
                     ),
