@@ -33,6 +33,10 @@ SHOULDERS = ((166.0, 462.0), (484.0, 462.0))   # 팔 회전축
 # 팔을 도려낸 자리를 메울 때 배 쪽에서 이만큼 떨어진 픽셀을 떠 온다.
 BELLY_REACH = 130
 
+# 몸통 윗부분을 목 굵기로 좁히는 구간.
+SHOULDER_Y, NECK_TOP_Y = 495.0, 330.0
+SHOULDER_HALF, NECK_HALF = 292.0, 132.0
+
 
 def head_cut_y(x: float) -> float:
     """머리와 몸통을 가르는 곡선 — 가운데는 턱까지 내려오고 양옆은 볼에서 끝난다."""
@@ -52,6 +56,26 @@ def ramp(size, y_at, span, invert):
             v = max(0.0, min(1.0, v))
             px[x, y] = int((1 - v if invert else v) * 255)
     return m
+
+
+def neck_taper(size):
+    """어깨 위쪽에서 몸통을 목 굵기로 좁힌다.
+
+    몸통 조각의 맨 위는 실루엣이 **머리 모양 그대로**다. 성장 단계나 체형에
+    따라 몸통을 옆으로 늘리면 그 머리 모양 자락이 진짜 머리 밖으로 삐져나와
+    반투명한 날개처럼 보인다. 머리가 덮어 줄 만큼만 남긴다.
+    """
+    W, H = size
+    m = Image.new('L', size, 0)
+    d = ImageDraw.Draw(m)
+    for y in range(H):
+        if y >= SHOULDER_Y:
+            half = W
+        else:
+            t = min(1.0, (SHOULDER_Y - y) / (SHOULDER_Y - NECK_TOP_Y))
+            half = SHOULDER_HALF - (SHOULDER_HALF - NECK_HALF) * t
+        d.line([(HEAD_CX - half, y), (HEAD_CX + half, y)], fill=255)
+    return m.filter(ImageFilter.GaussianBlur(7))
 
 
 def ellipse_mask(size, cx, cy, rx, ry, blur):
@@ -107,7 +131,7 @@ def main():
         patch.paste(src, (dx, 0))
         body = Image.composite(
             patch, body, ellipse_mask(size, cx, cy, rx + 10, ry + 10, blur=26))
-    body.putalpha(_mulL(alpha, body_keep))
+    body.putalpha(_mulL(_mulL(alpha, body_keep), neck_taper(size)))
 
     # ── 눈꺼풀: 눈 바로 위 이마 털을 떠 온다. 내려 덮으면 눈을 감는다 ──
     lids = {}
