@@ -17,6 +17,8 @@ import 'game/game_screen.dart';
 import 'game/league.dart';
 import 'game/league_screen.dart';
 import 'pet/family.dart';
+import 'pet/family_event.dart';
+import 'pet/family_event_scene.dart';
 import 'pet/pet.dart';
 import 'ui/settings_sheet.dart';
 import 'ui/splash.dart';
@@ -156,6 +158,9 @@ class _HomeScreenState extends State<HomeScreen>
   void initState() {
     super.initState();
     pet = Pet.load(progress.prefs);
+    // 판을 깨고 앱을 껐다 켠 경우에도 놓친 사건을 보여준다.
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _showPendingEvents());
   }
 
   @override
@@ -178,7 +183,39 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   @override
-  void didPopNext() => setState(() => pet = Pet.load(progress.prefs));
+  void didPopNext() {
+    setState(() => pet = Pet.load(progress.prefs));
+    _showPendingEvents();
+  }
+
+  /// 가족이 바뀌는 순간을 재생 중인가. 연출이 끝나면 홈으로 돌아오는데
+  /// 그때 [didPopNext]가 다시 불리므로 문을 걸어 둔다.
+  bool _eventsRunning = false;
+
+  /// **조용히 지나가면 안 되는 것들.** 성장·결혼·출산·독립은 이 게임 후반의
+  /// 유일한 사건인데, 예전에는 판을 깨고 돌아오면 식구가 그냥 하나 늘어 있고
+  /// 첫째는 어느새 사라져 있었다.
+  Future<void> _showPendingEvents() async {
+    if (_eventsRunning || !mounted) return;
+    final events = FamilyEvents.pending(progress.prefs, progress.currentLevel);
+    if (events.isEmpty) return;
+    _eventsRunning = true;
+    for (final e in events) {
+      if (!mounted) break;
+      await Navigator.of(context).push(PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 420),
+        // 같은 초원이 이어지는 것처럼 보여야 한다 — 옆에서 밀고 들어오면
+        // 다른 화면으로 넘어간 것이 된다.
+        pageBuilder: (_, _, _) =>
+            FamilyEventScene(event: e, petName: pet.name),
+        transitionsBuilder: (_, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ));
+    }
+    await FamilyEvents.markSeen(progress.prefs, progress.currentLevel);
+    _eventsRunning = false;
+    if (mounted) setState(() {});
+  }
 
   Future<void> _play(int level) async {
     await Navigator.of(context).push(MaterialPageRoute(
@@ -740,7 +777,11 @@ class _HomeScreenState extends State<HomeScreen>
                   level: current,
                   onPick: (lv) async {
                     await progress.debugSetLevel(lv);
+                    // 그 판의 사건을 다시 보려고 건너뛰는 것이므로
+                    // 본 표시도 한 칸 되돌린다(디버그 전용).
+                    await FamilyEvents.debugRewind(progress.prefs, lv);
                     if (mounted) setState(() {});
+                    await _showPendingEvents();
                   },
                 ),
               ]),

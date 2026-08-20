@@ -954,9 +954,6 @@ class _CapyPerformerState extends State<CapyPerformer>
     // 눈만 감으면 자는 얼굴이다. 입이 살짝 열려야 흐뭇한 얼굴이 된다.
     jaw = math.max(jaw, smile * 0.26);
 
-    // 눈만 감으면 자는 얼굴이다. 입이 살짝 열려야 흐뭇한 얼굴이 된다.
-    jaw = math.max(jaw, smile * 0.26);
-
     return CapyPose(
       headTurn: headTurn,
       headNod: headNod.clamp(-1.0, 1.0),

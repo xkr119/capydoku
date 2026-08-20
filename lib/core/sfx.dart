@@ -57,4 +57,20 @@ class Sfx {
 
   static void munch() => play('munch', volume: 0.8);
   static void pet() => play('pet', volume: 0.7);
+
+  // ── 가족 사건 ──
+  // 셋을 같은 소리로 때우면 결혼도 출산도 이별도 같은 사건으로 들린다.
+  // 피치와 길이가 곧 사건의 무게다(`tool/gen_voice.py`).
+
+  /// 가족이 되는 순간 — 둘이 겹쳐 부르는 화음.
+  static void love() => play('voice_love');
+
+  /// 갓 태어난 것의 소리. 아주 높고 짧다.
+  static void baby() => play('voice_baby', volume: 0.85);
+
+  /// 배웅 — 낮고 길게, 여운을 남기며 멀어진다.
+  static void bye() => play('voice_bye', volume: 0.8);
+
+  /// 무언가 일어났다는 반짝임. **화면이 내는 소리**라 목소리와 겹쳐 쓴다.
+  static void sparkle() => play('sparkle', volume: 0.7);
 }
