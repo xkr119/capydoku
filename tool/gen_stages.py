@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """성장 단계별 렌더 다섯 장을 게임 에셋으로 다듬는다.
 
-Canva로 단계마다 **따로 그린** 원본(build/stage_raw/s1..s5.png)에서 흰 배경을
+Canva로 단계마다 **따로 그린** 원본(art_src/stage_raw/s1..s5.png)에서 흰 배경을
 따내고, 발이 닿는 선을 맞추고, 단계별 상대 크기로 정렬한다. 원본은 저마다
 프레이밍이 달라서(어떤 건 크게, 어떤 건 작게 찍혀 있다) 그대로 쓰면 성장이
 뒤죽박죽이 된다. 여기서 크기 서열을 강제한다.
@@ -15,7 +15,7 @@ from collections import deque
 
 from PIL import Image, ImageDraw, ImageFilter
 
-RAW = 'build/stage_raw'
+RAW = 'art_src/stage_raw'
 OUT = 'assets/stages'
 
 # 캔버스. 화면에서 이보다 크게 그릴 일이 없다.

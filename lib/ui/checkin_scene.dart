@@ -83,11 +83,16 @@ class _CheckinSceneState extends State<CheckinScene>
   late final AnimationController _stamp = AnimationController(
       vsync: this, duration: const Duration(milliseconds: 520));
 
+  /// 고맙다며 띄우는 하트.
+  late final AnimationController _hearts = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1700));
+
   @override
   void dispose() {
     _capy.dispose();
     _rain.dispose();
     _stamp.dispose();
+    _hearts.dispose();
     super.dispose();
   }
 
@@ -100,6 +105,7 @@ class _CheckinSceneState extends State<CheckinScene>
     Buzz.medium();
     _capy.play(CapyAct.cheer);
     Sfx.sparkle();
+    _hearts.forward(from: 0);
     _pour();
   }
 
@@ -167,6 +173,11 @@ class _CheckinSceneState extends State<CheckinScene>
                       bottom: -capyH * 0.02,
                       child: GroundShadow(width: capyH * 0.62),
                     ),
+                    // 하트는 **몸 뒤**가 아니라 머리 위에서 뜬다.
+                    Positioned(
+                      bottom: capyH * 0.62,
+                      child: _HeartPop(t: _hearts),
+                    ),
                     // **오늘 받을 것을 들고 서 있다.** 무엇을 받는지 글자로
                     // 적기 전에 그림이 먼저 말한다. 건네고 나면 빈손이 된다.
                     CapyPerformer(
@@ -223,14 +234,21 @@ class _CheckinSceneState extends State<CheckinScene>
               const SizedBox(height: 10),
               _StreakBadge(streak: widget.streak),
               const SizedBox(height: 5),
+              // **짝꿍이 하는 말이다.** 화면이 설명하는 문장("오늘 몫을 받았다")과
+              // 카피가 건네는 말은 무게가 다르다 — 매일 오게 만드는 건 보상이
+              // 아니라 기다리는 사람이 있다는 쪽이다.
+              // 말투는 나른하게: 고맙다고는 하는데 호들갑은 떨지 않는다.
               Text(
                 widget.claimed
-                    ? '오늘 몫은 다 받았어요'
+                    ? '오늘 몫은 다 드렸어요. 내일 또 와요'
                     : _awake
-                        ? (_isLast ? '일곱 날을 채웠네요!' : '잘 받았어요')
-                        : '오늘 몫을 들고 기다렸어요',
+                        ? (_isLast
+                            ? '일곱 날을 다 채웠네요. 대단해요'
+                            : '오늘도 와 주셔서 고마워요')
+                        : '오늘도 오실 줄 알고 들고 있었어요',
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 16.5,
                     color: Palette.brown,
                     fontFamily: 'Apple SD Gothic Neo',
                     fontWeight: FontWeight.w700),
@@ -278,6 +296,53 @@ class _CheckinSceneState extends State<CheckinScene>
   }
 }
 
+/// 짝꿍 머리 위로 **하트가 뿅뿅** 올라온다. 고맙다는 말은 글자로도 하지만,
+/// 글자는 읽어야 하고 하트는 안 읽어도 보인다.
+class _HeartPop extends StatelessWidget {
+  final Animation<double> t;
+  const _HeartPop({required this.t});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: t,
+      builder: (context, _) {
+        if (t.value == 0) return const SizedBox.shrink();
+        return Stack(clipBehavior: Clip.none, children: [
+          for (var i = 0; i < 5; i++) _one(i),
+        ]);
+      },
+    );
+  }
+
+  Widget _one(int i) {
+    // 하나씩 시차를 두고 뜬다 — 다섯이 한꺼번에 나가면 하트가 아니라 무늬다.
+    final k = ((t.value - i * 0.12) / 0.62).clamp(0.0, 1.0);
+    if (k == 0) return const SizedBox.shrink();
+    final dx = (i.isEven ? 1 : -1) * (14 + i * 9) * Curves.easeOut.transform(k);
+    final rise = 110 * Curves.easeOutCubic.transform(k);
+    // 끝에서 옅어진다. 톡 나타났다가(작게→크게) 스르르 사라진다.
+    final fade = k < 0.18 ? k / 0.18 : (1 - (k - 0.18) / 0.82).clamp(0.0, 1.0);
+    final pop = k < 0.18 ? Curves.easeOutBack.transform(k / 0.18) : 1.0;
+    return Positioned(
+      left: dx,
+      bottom: rise,
+      child: Opacity(
+        opacity: fade,
+        child: Transform.scale(
+          scale: (0.55 + i * 0.10) * pop,
+          child: Transform.rotate(
+            angle: (i.isEven ? 0.18 : -0.18) * (1 - k),
+            child: const Icon(Icons.favorite,
+                size: 40, color: Color(0xFFE8554D)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
 class _Drop {
   final bool special;
   final double x;
@@ -323,6 +388,10 @@ class _StreakBadge extends StatelessWidget {
 
 /// 일곱 칸. **요일을 적는다** — 요일이 붙으면 도장판이 달력이 되고,
 /// 달력이 되면 "내일 또 와야지"가 저절로 읽힌다.
+///
+/// **한 줄이 아니라 두 줄(4+3)이다.** 일곱을 한 줄에 세우면 좁은 폰에서
+/// 칸이 48px까지 쪼그라들어 도장판이 아니라 눈금자로 보였다. 두 줄로 접으면
+/// 칸을 훨씬 크게 잡을 수 있고, 도장이 쿵 찍히는 맛도 그때 산다.
 class _StampRow extends StatelessWidget {
   final int step;
   final bool claimed;
@@ -336,26 +405,34 @@ class _StampRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = DateTime.now();
+    Widget cell(int i) => _Stamp(
+          day: i,
+          label: _weekdays[today.add(Duration(days: i - step)).weekday - 1],
+          current: i == step,
+          done: claimed ? i <= step : i < step,
+          // 오늘 칸만 쿵 찍히는 연출을 탄다.
+          pop: i == step ? stamp : null,
+        );
+    Widget row(List<int> days) => Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (final (k, i) in days.indexed) ...[
+              if (k > 0) const SizedBox(width: 7),
+              cell(i),
+            ],
+          ],
+        );
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      margin: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.80),
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        for (var i = 1; i <= Progress.checkinDays; i++) ...[
-          if (i > 1) const SizedBox(width: 3),
-          _Stamp(
-            day: i,
-            label: _weekdays[
-                today.add(Duration(days: i - step)).weekday - 1],
-            current: i == step,
-            done: claimed ? i <= step : i < step,
-            // 오늘 칸만 쿵 찍히는 연출을 탄다.
-            pop: i == step ? stamp : null,
-          ),
-        ],
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        row(const [1, 2, 3, 4]),
+        const SizedBox(height: 9),
+        row(const [5, 6, 7]),
       ]),
     );
   }
@@ -384,21 +461,21 @@ class _Stamp extends StatelessWidget {
     final carrots = Progress.checkinCarrots[day - 1];
     final cell = Column(mainAxisAlignment: MainAxisAlignment.center, children: [
       SizedBox(
-        height: 32,
+        height: 42,
         child: last
-            ? const Watermelon(size: 32)
-            : const Center(child: Carrot(size: 28)),
+            ? const Watermelon(size: 42)
+            : const Center(child: Carrot(size: 38)),
       ),
       Text(last ? '수박' : '$carrots',
           style: TextStyle(
-              fontSize: 12.5,
+              fontSize: 15,
               height: 1.1,
               color: current ? Palette.brown : Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo')),
     ]);
 
     Widget check = const Icon(Icons.check_rounded,
-        size: 26, color: Color(0xFF43A047));
+        size: 38, color: Color(0xFF2E7D32));
     if (pop != null) {
       // **위에서 쿵.** 그냥 나타나면 "이미 그랬던 것"으로 보이고,
       // 찍히는 순간이 있어야 오늘 받았다는 것이 남는다.
@@ -407,13 +484,19 @@ class _Stamp extends StatelessWidget {
         builder: (context, child) {
           final t = pop!.value;
           if (t == 0) return const SizedBox.shrink();
-          final drop = Curves.easeInCubic.transform(math.min(1, t / 0.45));
-          final settle = t < 0.45
-              ? 0.0
-              : Curves.easeOut.transform((t - 0.45) / 0.55);
-          return Transform.scale(
-            scale: 2.6 - 1.6 * drop - 0.0 * settle,
-            child: Opacity(opacity: drop, child: child),
+          // **쾅.** 위에서 크게 떨어져 한 번 짓눌렸다가 제자리로 돌아온다.
+          // 그냥 작아지기만 하면 "나타났다"이지 "찍혔다"가 아니다.
+          // 비뚜름하게 앉아야 손으로 찍은 도장이 된다.
+          final drop = Curves.easeInCubic.transform(math.min(1, t / 0.34));
+          final k = ((t - 0.34) / 0.66).clamp(0.0, 1.0);
+          // 착지 직후 잉크가 눌려 퍼졌다가 잦아든다.
+          final squash = math.sin(k * math.pi) * 0.18 * (1 - k * 0.4);
+          return Transform.rotate(
+            angle: -0.16 * (1 - drop) - 0.06 * (1 - k),
+            child: Transform.scale(
+              scale: (3.4 - 2.4 * drop) + squash,
+              child: Opacity(opacity: math.min(1, drop * 1.6), child: child),
+            ),
           );
         },
         child: check,
@@ -423,17 +506,17 @@ class _Stamp extends StatelessWidget {
     return Column(children: [
       Text(label,
           style: TextStyle(
-              fontSize: 12,
+              fontSize: 14,
               color: current ? const Color(0xFFE8830C) : Palette.brownSoft,
               fontFamily: 'Apple SD Gothic Neo',
               fontWeight: current ? FontWeight.w800 : FontWeight.w600)),
       const SizedBox(height: 3),
       Container(
-        width: 48,
-        height: 64,
+        width: 66,
+        height: 84,
         decoration: BoxDecoration(
           color: current ? const Color(0xFFFFF3E0) : Palette.bg,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(13),
           border: Border.all(
             color: current ? const Color(0xFFE8830C) : Colors.transparent,
             width: 2,

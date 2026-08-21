@@ -350,7 +350,11 @@ class _HomeScreenState extends State<HomeScreen>
   /// **날아가는 동안은 따로 띄우고, 입에 닿은 뒤로는 리그 안에서 그린다.**
   /// 그래야 앞발이 감싸고 주둥이가 덮어 "쥐고 베어 무는" 그림이 된다.
   HeldFood? _heldBy(int i) {
-    for (final m in _flying) {
+    // **뒤에서부터 본다.** 연달아 주면 한 식구가 둘을 물고 있을 수 있는데,
+    // 그때 그려야 하는 건 **가장 최근에 입에 닿은 것**이다. 앞에서부터
+    // 찾으면 거의 다 먹은 옛 조각이 잡혀서, 새로 던진 것이 도착해도 화면은
+    // 그대로였다("하나 먹는 동안 기다려야 한다"고 느낀 이유).
+    for (final m in _flying.reversed) {
       if (m.who != i) continue;
       final t = m.ctrl.value;
       if (t < _Morsel.flightEnd) continue;
@@ -440,6 +444,10 @@ class _HomeScreenState extends State<HomeScreen>
       if (!mounted) return;
       setState(() => _flying.remove(m));
       m.ctrl.dispose();
+      // **아직 물고 있는 게 남았으면 기뻐하지 않는다.** 연달아 주면 앞
+      // 조각이 끝나는 순간 기쁨 동작이 걸려서, 씹던 동작이 끊기고 먹이가
+      // 입에서 사라진 것처럼 보였다.
+      if (_flying.any((o) => o.who == who)) return;
       // 특별 먹이는 다 먹고 나서도 한참 신이 나 있다.
       _ctrlFor(who).play(special ? CapyAct.dance : CapyAct.cheer);
     });
@@ -720,11 +728,7 @@ class _HomeScreenState extends State<HomeScreen>
               height: capyH * m.scale,
               child: Align(
                 alignment: Alignment(m.x, 1),
-                child: GestureDetector(
-                  // **만진 식구가 반응해야 한다.** 예전엔 어디를 눌러도
-                  // 주인공만 움직여서 가족이 인형처럼 보였다.
-                  onTap: () => _touchMember(i, m, lineup.length),
-                  behavior: HitTestBehavior.opaque,
+                child: IgnorePointer(
                   // 살이 붙은 만큼 늘여 그린다. **발을 축으로** 늘여야
                   // 바닥에서 뜨거나 파묻히지 않는다.
                   child: Transform(
@@ -755,6 +759,32 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+            ),
+          // **탭 판정은 실제 몸 크기로만 받는다.** 그림은 캔버스 상자에
+          // 그려지는데 그 상자는 몸보다 훨씬 넓고, 상자째 탭을 먹으면
+          // **앞에 선 아이가 뒤에 선 부모의 탭을 투명한 여백으로 가로챈다**
+          // ("누른 애가 반응 안 한다"는 지적이 이것이다).
+          // 그리기와 따로, 뒷줄부터 깔고 앞줄을 위에 얹는다 — 겹치는 자리는
+          // 앞에 선 식구가 가져간다.
+          for (final (i, m) in lineup.indexed)
+            Positioned(
+              left: 0,
+              right: 0,
+              top: feetY -
+                  capyH * m.scale * _fillOf(m.skin) +
+                  (m.front ? capyH * 0.07 : 0),
+              height: capyH * m.scale * _fillOf(m.skin),
+              child: Align(
+                alignment: Alignment(m.x, 1),
+                child: GestureDetector(
+                  onTap: () => _touchMember(i, m, lineup.length),
+                  behavior: HitTestBehavior.opaque,
+                  child: SizedBox(
+                    width: capyH * m.scale * _fillOf(m.skin) * 0.80 * fatX,
+                    height: capyH * m.scale * _fillOf(m.skin),
                   ),
                 ),
               ),

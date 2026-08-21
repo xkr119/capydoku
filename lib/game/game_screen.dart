@@ -256,13 +256,15 @@ class _GameScreenState extends State<GameScreen>
             padding: const EdgeInsets.fromLTRB(_boardSide, 12, _boardSide, 16),
             child: Column(children: [
               _inset(_topBar()),
-              // **남는 세로는 전부 여기, 위에 둔다.** 판을 위로 붙였더니
-              // 손을 화면 위까지 올려야 해서 한 손으로 못 쓴다는 지적을
-              // 받았다. 표시·설명·판·조작부를 한 덩어리로 아래에 몰아 두고,
-              // 남는 공간은 상단 바 아래에서 흡수한다.
+              // **표시·설명·판·조작부는 한 덩어리로 움직인다.** 남는 세로는
+              // 그 덩어리의 위아래로 반씩 나눠 갖는다.
+              // 세 번 옮겼다: 판만 가운데 두면 설명과 판이 따로 놀고,
+              // 판만 위에 붙이면 손을 화면 위까지 올려야 하고, 덩어리째
+              // 아래로 몰면 **작은 판(5×5)에서 위가 휑하게 빈다.**
+              // 덩어리째 가운데가 셋 다 피한다.
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _inset(_statusPills()),
                     const SizedBox(height: 12),

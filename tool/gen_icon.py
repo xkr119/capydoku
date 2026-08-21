@@ -146,7 +146,12 @@ TILT = -11  # 갸웃한 각도. 정면으로 세워 두면 증명사진처럼 �
 # 부슬부슬해서 배경 위에 그냥 얹으면 경계가 녹아 없어진다 — 런처에서 옆
 # 아이콘들과 나란히 놓고 보면 혼자 뿌옇다. 스티커처럼 흰 선을 두르면 배경이
 # 무슨 색이든 실루엣이 딱 선다(레퍼런스도 같은 수법이다).
-OUTLINE_W = 0.038
+#
+# **굵기는 두 번 일한다.** 테두리는 얼굴 바깥으로 자라므로, 굵을수록 안전
+# 영역에 넣을 수 있는 얼굴이 작아진다(0.038이면 얼굴 높이의 7.6%를 테두리가
+# 먹는다). 얇게 잡으면 그만큼 얼굴을 키울 수 있다 — 지금 값은 "선이 있다"가
+# 겨우 읽히는 선이고, 이보다 더 줄이면 48dp에서 사라진다.
+OUTLINE_W = 0.010
 
 
 def outlined(im, width):
@@ -219,23 +224,57 @@ def rising(base, size, height_ratio, cx_ratio, top_ratio, tilt=TILT):
     return out
 
 
+# `flutter_launcher_icons`가 적응형 전경을 감싸는 inset. **매번 다시 써 넣는다** —
+# `mipmap-anydpi-v26/ic_launcher.xml`에서 지워도 도구를 돌리면 되살아난다.
+#
+# 이걸 모르고 얼굴 비율만 키우다 세 번 헛돌았다. 전경 이미지는 108dp 캔버스의
+# **가운데 68%로 줄어든 뒤** 다시 바깥 1/3이 잘린다. 즉 이미지에 0.70으로
+# 그려도 화면에서는 0.476이다("더 크게" 해도 폰에서는 그대로였던 이유).
+#
+# 그래서 아래 좌표는 **완성된 108dp 캔버스 기준**으로 적고, 그릴 때
+# [_to_image]로 되돌린다. 도구가 XML을 어떻게 쓰든 결과가 같아진다.
+FG_INSET = 0.16
+
+# 적응형 아이콘에서 실제로 보이는 영역(108dp 중 가운데 72dp).
+SAFE = 72 / 108
+
+# **카피는 아래 테두리에서 올라온다.** 가운데에 얌전히 얹으면 증명사진이고,
+# 사방에 배경이 남으면 얼굴이 작아 보인다. 아래에서 쑥 올라와 화면의 대부분을
+# 가리는 구도라야 "이 게임의 주인공"으로 읽힌다(사용자가 처음부터 원한 구도).
+#
+# 값은 **보이는 영역 대비**가 아니라 108dp 캔버스 대비다.
+# 얼굴 윗변이 보이는 영역의 30% 지점에 오고, 턱은 아래로 넘겨 자른다 —
+# 그래서 얼굴이 보이는 영역의 70%를 덮는다.
+# 얼굴이 보이는 영역의 8할 가까이 차지하고, 퍼즐판은 위쪽에 한 줄 남는다.
+# 더 키운 안(0.28/0.70)은 배경이 거의 사라져 "퍼즐 게임"이라는 신호가 같이
+# 사라졌다 — 사용자가 그걸 보고 이쪽으로 돌아왔다.
+FACE_TOP = 0.32
+FACE_H = 0.62
+
+
+def _to_image(canvas_ratio, is_length):
+    """108dp 캔버스 기준 값 → inset을 되돌린 전경 이미지 기준 값."""
+    k = 1 / (1 - 2 * FG_INSET)
+    return canvas_ratio * k if is_length else (canvas_ratio - FG_INSET) * k
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
 
     bg = background(SIZE)
     bg.save(f'{OUT}/icon_bg.png')
 
-    # **얼굴은 가운데, 턱까지 다 보이게, 사방으로 판이 남게.**
-    # 레퍼런스(Meowdoku)가 정확히 이 구도다.
-    rising(bg, SIZE, 0.86, 0.50, 0.07).convert('RGB').save(f'{OUT}/icon.png')
+    # 레거시·스토어용은 잘리지도 inset이 걸리지도 않는다. 적응형과 **같은
+    # 구도**로 맞춘다 — 아래에서 올라와 7할을 가린다.
+    rising(bg, SIZE, 0.82, 0.50, 0.23).convert('RGB').save(f'{OUT}/icon.png')
 
-    # 적응형 전경은 **보이는 영역(가운데 66%) 안에 통째로 들어와야 한다.**
-    # 그보다 크게 잡으면 흰 테두리가 위아래로 잘려 나가고, 테두리가 잘리면
-    # 있으나 마나다 — 실루엣이 딱 서 보이는 건 테두리가 한 바퀴 다 돌 때다.
-    # 0.625면 보이는 아이콘의 94%를 얼굴이 채운다.
-    # 실제로 잘린 모습은 `python3 tool/preview_icon.py`로 본다.
+    # 적응형 전경. **inset이 걸린다는 것을 계산에 넣는다**(FG_INSET 참고) —
+    # 여기 적는 숫자는 완성된 아이콘 기준이고 그림에는 되돌려 그린다.
+    # 확인은 반드시 `python3 tool/preview_icon.py`로 한다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.615, 0.50, 0.1925).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE,
+           _to_image(FACE_H, True), 0.50,
+           _to_image(FACE_TOP, False)).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')

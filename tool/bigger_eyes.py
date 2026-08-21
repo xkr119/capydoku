@@ -12,14 +12,14 @@
 눈 주위를 반경 안에서 매끄럽게 잡아 늘이므로 붙여 넣은 티가 안 나고,
 털·주둥이·귀는 건드리지 않는다.
 
-원본을 덮어쓰지 않는다 — `build/stage_raw/s4_orig.png`에 한 번만 남겨 두고
+원본을 덮어쓰지 않는다 — `art_src/stage_raw/s4_orig.png`에 한 번만 남겨 두고
 매번 거기서 다시 만든다. 그래야 배율을 몇 번이고 다시 잡을 수 있다.
 """
 import os
 
 from PIL import Image
 
-RAW = 'build/stage_raw'
+RAW = 'art_src/stage_raw'
 
 # 눈을 키울 단계와, 그 단계의 눈 중심(원본 1131×1600 좌표)·반경·배율.
 #
