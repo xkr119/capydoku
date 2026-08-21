@@ -70,9 +70,12 @@ SPECS = [
          (322, 190, 75, 45),
          [(133, 455, 61, 116), (525, 455, 60, 116)], [(160, 372), (499, 372)], [213, 447]),
     # 배우자 — 어른보다 작고 얼굴이 둥글다. 성인과 비슷한 몸매.
+    # 짝꿍은 앞발을 배 쪽으로 모으고 있어 **발톱이 안쪽 깊숙이** 들어와 있다.
+    # 왼쪽 안쪽끝을 247로 잡았더니 발톱 끝 80px이 몸통에 그대로 남아서,
+    # 팔을 들어 먹을 때 배에 발톱만 붙어 있었다(사용자 지적).
     Spec('f1', 328, 138, 340, 300, [(262, 195), (400, 195)], 14,
          (330, 275, 58, 36),
-         [(201, 478, 45, 90), (458, 478, 45, 90)], [(220, 400), (439, 400)], [247, 393]),
+         [(201, 478, 45, 90), (458, 478, 45, 90)], [(220, 400), (439, 400)], [334, 393]),
 ]
 
 # 눈꺼풀을 눈 위 이 배수만큼 떨어진 곳에서 떠 온다(감을 때 그만큼 내려온다).
@@ -246,16 +249,33 @@ def build(spec: Spec):
             other = pads[1 - i]
             arr = np.asarray(src)
             need = px1 - px0
-            if left:
-                avail = max(other[0] - px1, 8)
-                band = arr[:, px1:px1 + avail]
-                fill = np.pad(band, ((0, 0), (need, 0), (0, 0)),
-                              mode='reflect')[:, :need]
+            # 옆에서 가져올 수 있는 폭. 반대쪽 팔을 끌어오면 안 되므로
+            # 두 자국 사이만 쓴다.
+            avail = (max(other[0] - px1, 0) if left
+                     else max(px0 - other[1], 0))
+            if avail >= need * 0.45:
+                # **옆에서 반사.** 이음매에서 색이 정확히 이어진다.
+                if left:
+                    band = arr[:, px1:px1 + avail]
+                    fill = np.pad(band, ((0, 0), (need, 0), (0, 0)),
+                                  mode='reflect')[:, :need]
+                else:
+                    band = arr[:, px0 - avail:px0]
+                    fill = np.pad(band, ((0, 0), (0, need), (0, 0)),
+                                  mode='reflect')[:, -need:]
             else:
-                avail = max(px0 - other[1], 8)
-                band = arr[:, px0 - avail:px0]
-                fill = np.pad(band, ((0, 0), (0, need), (0, 0)),
-                              mode='reflect')[:, -need:]
+                # **흐리게 뭉갠 털로 메운다.**
+                #
+                # 옆이 좁으면 그 좁은 띠를 수십 번 접게 되어 배에 헤링본
+                # 무늬가 깔린다(짝꿍에서 겪었다 — 발톱이 배 안쪽 깊숙이
+                # 들어와 있어 도려낼 폭이 넓다). 위에서 끌어오는 것도 안 된다:
+                # 팔 바로 위가 이미 턱이라 얼굴이 배로 내려온다.
+                #
+                # 이 자리는 **평소에 앞발이 덮고 있고** 팔을 들 때만 잠깐
+                # 드러난다. 결이 없는 흐릿한 털은 "팔 밑 그늘"로 읽히지만,
+                # 되풀이되는 무늬나 남은 발톱은 그 순간 바로 눈에 띈다.
+                blurred = src.filter(ImageFilter.GaussianBlur(26))
+                fill = np.asarray(blurred)[:, px0:px1]
             patch = src.copy()
             strip = Image.fromarray(fill, 'RGBA')
             patch.paste(strip, (px0, 0), strip)
