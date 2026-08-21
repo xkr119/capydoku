@@ -157,10 +157,23 @@ def outlined(im, width):
     return ring
 
 
+# 아이콘에 쓸 얼굴을 어느 단계에서 뽑을까.
+#
+# **귀여움은 아기 비율에서 온다** — 큰 눈, 둥근 얼굴, 작은 주둥이. 자란
+# 카피는 주둥이가 얼굴의 절반을 차지하고 눈이 상대적으로 작아져서, 잘 만든
+# 렌더인데도 아이콘으로 줄이면 안 귀엽다는 말을 듣는다(사용자 지적).
+#
+# 어린이를 쓴다. 아기가 가장 귀엽지만 얼굴이 너무 동그래서 햄스터처럼
+# 보이고, 카피바라의 특징(뭉툭하고 넓은 주둥이)이 사라진다.
+# 판 안의 얼굴(`h_head.png`)은 그대로 청소년에서 뽑는다 — 칸에 들어가는
+# 그림은 또렷한 이목구비가 먼저다.
+ICON_FACE = 'stage2'
+
+
 def face(height, tilt=TILT):
     """리그 조각을 합쳐 얼굴 한 장으로. 살짝 갸웃하게 기울인다."""
-    head = Image.open(f'{RIG}/h_head.png').convert('RGBA')
-    jaw = Image.open(f'{RIG}/h_jaw.png').convert('RGBA')
+    head = Image.open(f'{RIG}/{ICON_FACE}/head.png').convert('RGBA')
+    jaw = Image.open(f'{RIG}/{ICON_FACE}/jaw.png').convert('RGBA')
     im = Image.new('RGBA', head.size, (0, 0, 0, 0))
     im.alpha_composite(head)
     im.alpha_composite(jaw)
