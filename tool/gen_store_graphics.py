@@ -52,7 +52,7 @@ def tilted_grid(w, h, across, tilt=-13):
     return im.crop((ox, oy, ox + w, oy + h))
 
 
-def feature(en=False):
+def feature(en=False, sub=True):
     """기울어진 판 위, 오른쪽에서 카피가 넘겨다본다. 글자는 왼쪽."""
     im = tilted_grid(W, H, across=7)
 
@@ -85,12 +85,20 @@ def feature(en=False):
         d.text((xy[0] + 3, xy[1] + 4), text, font=fnt, fill=(30, 16, 8, 190))
         d.text(xy, text, font=fnt, fill=fill)
 
-    shadowed((60, 152), 'Capydoku', font(92), (255, 255, 255, 255))
+    # 부제가 없으면 브랜드만 가운데 높이에 놓는다 — 밑에 빈 줄이 남으면
+    # 글자가 위로 떠 보인다.
+    shadowed((60, 152 if sub else 196), 'Capydoku', font(92),
+             (255, 255, 255, 255))
     # **부제는 언어마다 다르다.** 영어 목록에 한글 그래픽이 뜨면 그 자리에서
-    # "내 언어 앱이 아니다"가 된다 — 스크린샷과 같은 이유로 언어별로 뽑는다.
-    shadowed((64, 266),
-             'Capybara Logic Puzzle' if en else '카피바라 논리 퍼즐',
-             font(44), (255, 236, 200, 255))
+    # "내 언어 앱이 아니다"가 된다 — 스크린샷과 같은 이유다.
+    #
+    # 다만 콘솔에서 그래픽 이미지가 **언어별이 아니라 앱 공통**으로 잡히는
+    # 경우가 있어서, 글자 없는 판(`sub=False`)도 함께 뽑아 둔다. 한 장만
+    # 올려야 하는 상황이면 그걸 쓰면 어느 언어에서도 안 어긋난다.
+    if sub:
+        shadowed((64, 266),
+                 'Capybara Logic Puzzle' if en else '카피바라 논리 퍼즐',
+                 font(44), (255, 236, 200, 255))
     return im.convert('RGB')
 
 
@@ -100,6 +108,8 @@ def main():
         .resize((512, 512), Image.LANCZOS).save(f'{OUT}/icon_512.png')
     feature().save(f'{OUT}/feature_ko_1024x500.png')
     feature(en=True).save(f'{OUT}/feature_en_1024x500.png')
+    # 언어 공통(부제 없음). 한 장만 올려야 할 때 쓴다.
+    feature(sub=False).save(f'{OUT}/feature_any_1024x500.png')
     for n in os.listdir(OUT):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
 
