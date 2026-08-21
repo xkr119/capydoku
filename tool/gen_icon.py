@@ -16,7 +16,7 @@
   assets/icon/icon_fg.png  얼굴만(적응형 아이콘 전경, 안전영역에 맞춘 여백)
 """
 import os
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 SIZE = 1024
 RIG = 'assets/rig'
@@ -129,6 +129,33 @@ def background(size):
 
 TILT = -11  # 갸웃한 각도. 정면으로 세워 두면 증명사진처럼 뻣뻣하다.
 
+# 얼굴 둘레에 두르는 흰 테두리의 굵기(얼굴 높이 대비).
+#
+# **이게 있고 없고가 "또렷하다"와 "흐릿하다"를 가른다.** 카피 털은 가장자리가
+# 부슬부슬해서 배경 위에 그냥 얹으면 경계가 녹아 없어진다 — 런처에서 옆
+# 아이콘들과 나란히 놓고 보면 혼자 뿌옇다. 스티커처럼 흰 선을 두르면 배경이
+# 무슨 색이든 실루엣이 딱 선다(레퍼런스도 같은 수법이다).
+OUTLINE_W = 0.038
+
+
+def outlined(im, width):
+    """알파를 부풀려 흰 테두리를 만들고 그 위에 원본을 얹는다.
+
+    가장자리를 흐린 뒤 문턱을 넘는 곳만 남기는 방식이다 — `MaxFilter`로
+    부풀리면 1024px에서 몇 초씩 걸린다.
+    """
+    pad = width * 2
+    big = Image.new('RGBA', (im.width + pad * 2, im.height + pad * 2),
+                    (0, 0, 0, 0))
+    big.alpha_composite(im, (pad, pad))
+    grown = big.getchannel('A') \
+        .filter(ImageFilter.GaussianBlur(width)) \
+        .point(lambda v: 255 if v > 28 else 0)
+    ring = Image.new('RGBA', big.size, (255, 255, 255, 255))
+    ring.putalpha(grown)
+    ring.alpha_composite(big)
+    return ring
+
 
 def face(height, tilt=TILT):
     """리그 조각을 합쳐 얼굴 한 장으로. 살짝 갸웃하게 기울인다."""
@@ -143,7 +170,8 @@ def face(height, tilt=TILT):
     # 안 커진다("더 크게" 했는데 그대로인 이유가 이거였다).
     im = im.crop(im.getbbox())
     w = round(im.width * height / im.height)
-    return im.resize((w, height), Image.LANCZOS)
+    im = im.resize((w, height), Image.LANCZOS)
+    return outlined(im, max(2, round(height * OUTLINE_W)))
 
 
 def rising(base, size, height_ratio, cx_ratio, top_ratio, tilt=TILT):
@@ -171,14 +199,15 @@ def main():
 
     # **얼굴은 가운데, 턱까지 다 보이게, 사방으로 판이 남게.**
     # 레퍼런스(Meowdoku)가 정확히 이 구도다.
-    rising(bg, SIZE, 1.08, 0.50, -0.02).convert('RGB').save(f'{OUT}/icon.png')
+    rising(bg, SIZE, 0.90, 0.50, 0.05).convert('RGB').save(f'{OUT}/icon.png')
 
-    # 적응형 전경은 **훨씬 작아야 한다.** 바깥 1/3(108dp 중 36dp)이 잘려
-    # 나가므로, 가운데 66% 안에서 다시 여백을 두고 앉혀야 턱이 안 잘린다.
-    # 레거시와 같은 숫자를 쓰다가 런처에서 입이 잘린 아이콘을 세 번 냈다.
+    # 적응형 전경은 **보이는 영역(가운데 66%) 안에 통째로 들어와야 한다.**
+    # 그보다 크게 잡으면 흰 테두리가 위아래로 잘려 나가고, 테두리가 잘리면
+    # 있으나 마나다 — 실루엣이 딱 서 보이는 건 테두리가 한 바퀴 다 돌 때다.
+    # 0.625면 보이는 아이콘의 94%를 얼굴이 채운다.
     # 실제로 잘린 모습은 `python3 tool/preview_icon.py`로 본다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.755, 0.50, 0.128).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.625, 0.50, 0.1875).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
