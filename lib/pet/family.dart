@@ -33,14 +33,17 @@ class FamilyMember {
 }
 
 class Family {
-  /// 짝을 만나는 레벨. 어른(200)이 되고 한참 뒤다.
-  static const marryLevel = 250;
+  /// 짝을 만나는 레벨. 어른(120)이 되고 서른 판 뒤다.
+  ///
+  /// 성장 간격을 50 → 30판으로 당기면서 함께 앞으로 당겼다. 예전 값(250)은
+  /// 하루 20분씩 해도 45일이 걸려 **사실상 아무도 못 보는 사건**이었다.
+  static const marryLevel = 150;
 
-  /// 첫째가 태어나는 레벨.
-  static const firstBirth = 300;
+  /// 첫째가 태어나는 레벨. 결혼하고 마흔 판 뒤다.
+  static const firstBirth = 190;
 
   /// 아이가 태어나는 간격이자, 한 단계 자라는 간격.
-  static const step = 50;
+  static const step = 40;
 
   /// 아이가 이 단계에 이르면 독립해 나간다(성인 = 3단계).
   static const leaveStage = 3;
@@ -62,7 +65,7 @@ class Family {
   static (String what, int inLevels)? nextEvent(int level) {
     if (level < marryLevel) return ('짝을 만나요', marryLevel - level);
     if (level < firstBirth) return ('첫 아이가 태어나요', firstBirth - level);
-    // 이후로는 50판마다 무언가 바뀐다. 다음 눈금까지 남은 판.
+    // 이후로는 [step]판마다 무언가 바뀐다. 다음 눈금까지 남은 판.
     final left = step - ((level - firstBirth) % step);
     final kids = childStages(level);
     // 가장 큰 아이가 곧 성인이면 독립이 다음 사건이다.

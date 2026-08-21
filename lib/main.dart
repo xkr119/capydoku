@@ -1252,18 +1252,23 @@ class _DebugStageJump extends StatelessWidget {
 
   const _DebugStageJump({required this.level, required this.onPick});
 
-  static const _spots = <String, int>{
-    '아기 1': 1,
-    '어린이 50': 50,
-    '청소년 100': 100,
-    '성인 150': 150,
-    '어른 200': 200,
-    '결혼 250': 250,
-    '첫아이 300': 300,
-    '둘 350': 350,
-    '셋 400': 400,
-    '독립 450': 450,
-  };
+  /// 뛸 자리. **성장·가족 상수에서 그대로 만든다** — 손으로 적어 두면
+  /// 표를 고칠 때마다 여기가 어긋나고, 그러면 "성인"을 눌렀는데 청소년이
+  /// 나온다.
+  static Map<String, int> get _spots {
+    final out = <String, int>{};
+    for (final st in Pet.stages) {
+      out['${st.name.replaceAll(' 카피', '')} ${st.minLevel}'] = st.minLevel;
+    }
+    out['결혼 ${Family.marryLevel}'] = Family.marryLevel;
+    for (var i = 0; i < 3; i++) {
+      final lv = Family.firstBirth + Family.step * i;
+      out['${['첫아이', '둘', '셋'][i]} $lv'] = lv;
+    }
+    final leave = Family.firstBirth + Family.step * Family.leaveStage;
+    out['독립 $leave'] = leave;
+    return out;
+  }
 
   @override
   Widget build(BuildContext context) {
