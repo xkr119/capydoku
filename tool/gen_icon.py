@@ -40,8 +40,11 @@ COLORS = [
     (0, 199, 190),    # 청록 — 강조
 ]
 
-# 칸을 나누는 흰 선의 굵기(아이콘 크기 대비). 얇으면 48dp에서 사라진다.
-LINE_W = 0.034
+# 칸을 나누는 흰 선의 굵기(아이콘 크기 대비).
+#
+# 얇으면 48dp에서 사라지고, 두꺼우면 배경이 **선 그림**이 되어 얼굴과 경쟁한다.
+# 배경은 어디까지나 얼굴 뒤에 깔리는 것이라 선은 있는 듯 없는 듯해야 한다.
+LINE_W = 0.011
 
 # **완성된 아이콘 폭**을 몇 칸으로 나눌까. 눕히려고 넉넉한 캔버스에 그리지만,
 # 칸 크기는 잘라 낸 뒤의 크기로 잡아야 한다 — 큰 캔버스 기준으로 잡았더니
@@ -169,14 +172,14 @@ def main():
 
     # **얼굴은 가운데, 턱까지 다 보이게, 사방으로 판이 남게.**
     # 레퍼런스(Meowdoku)가 정확히 이 구도다.
-    rising(bg, SIZE, 0.86, 0.50, 0.09).convert('RGB').save(f'{OUT}/icon.png')
+    rising(bg, SIZE, 1.00, 0.50, 0.02).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경은 **훨씬 작아야 한다.** 바깥 1/3(108dp 중 36dp)이 잘려
     # 나가므로, 가운데 66% 안에서 다시 여백을 두고 앉혀야 턱이 안 잘린다.
     # 레거시와 같은 숫자를 쓰다가 런처에서 입이 잘린 아이콘을 세 번 냈다.
     # 실제로 잘린 모습은 `python3 tool/preview_icon.py`로 본다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.60, 0.50, 0.205).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.70, 0.50, 0.155).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
