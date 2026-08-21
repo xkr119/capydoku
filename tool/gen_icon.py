@@ -35,16 +35,21 @@ OUT = 'assets/icon'
 # 강조색을 차가운 쪽(청록)으로 잡은 건 카피 털이 따뜻한 주황이어서다.
 # 레퍼런스의 고양이는 흑백이라 주황을 써도 됐지만, 여기서 주황을 깔면
 # 얼굴이 배경에 녹는다.
+# **진한 보라 + 주황.** 레퍼런스와 같은 조합이다.
+#
+# 한때 강조색을 청록으로 뺐던 이유는 카피 털이 따뜻한 주황이라 배경에 녹을까
+# 걱정해서였다. 지금은 얼굴에 **흰 테두리**가 한 바퀴 둘려 있어서 그 문제가
+# 없다 — 레퍼런스의 고양이도 흑백이 아니라 흰 테두리 덕에 주황 위에서 뜬다.
 COLORS = [
     (109, 33, 214),   # 진보라 — 바탕
-    (0, 199, 190),    # 청록 — 강조
+    (247, 137, 12),   # 주황 — 강조
 ]
 
 # 칸을 나누는 흰 선의 굵기(아이콘 크기 대비).
 #
 # 얇으면 48dp에서 사라지고, 두꺼우면 배경이 **선 그림**이 되어 얼굴과 경쟁한다.
 # 배경은 어디까지나 얼굴 뒤에 깔리는 것이라 선은 있는 듯 없는 듯해야 한다.
-LINE_W = 0.011
+LINE_W = 0.008
 
 # **완성된 아이콘 폭**을 몇 칸으로 나눌까. 눕히려고 넉넉한 캔버스에 그리지만,
 # 칸 크기는 잘라 낸 뒤의 크기로 잡아야 한다 — 큰 캔버스 기준으로 잡았더니
@@ -101,6 +106,11 @@ def background(size):
     아이콘 모음처럼 보였다. 실제 판처럼 **면을 맞붙이고 흰 선으로 가르면**
     한눈에 "칸을 나눠 채우는 게임"으로 읽힌다(레퍼런스도 같은 문법이다).
     """
+    # **세 배로 그린 뒤 줄인다(수퍼샘플링).** 얇은 흰 선을 그대로 눕히면
+    # 회전 보간이 선을 흐려 놓아 "쨍한" 맛이 사라진다 — 크게 그려서 줄이면
+    # 계단도 없고 흐리지도 않다.
+    ss = 3
+    size = size * ss
     # 눕혀도 네 귀퉁이가 비지 않도록 넉넉히 그린 뒤 잘라 낸다.
     big = int(size * 1.75)
     # **칸 크기는 완성 크기 기준.** 큰 캔버스를 나누면 칸이 1.75배가 된다.
@@ -124,7 +134,8 @@ def background(size):
     im = im.rotate(GRID_TILT, resample=Image.BICUBIC,
                    center=(big / 2, big / 2))
     o = (big - size) // 2
-    return im.crop((o, o, o + size, o + size))
+    im = im.crop((o, o, o + size, o + size))
+    return im.resize((size // ss, size // ss), Image.LANCZOS)
 
 
 TILT = -11  # 갸웃한 각도. 정면으로 세워 두면 증명사진처럼 뻣뻣하다.
@@ -163,11 +174,10 @@ def outlined(im, width):
 # 카피는 주둥이가 얼굴의 절반을 차지하고 눈이 상대적으로 작아져서, 잘 만든
 # 렌더인데도 아이콘으로 줄이면 안 귀엽다는 말을 듣는다(사용자 지적).
 #
-# 어린이를 쓴다. 아기가 가장 귀엽지만 얼굴이 너무 동그래서 햄스터처럼
-# 보이고, 카피바라의 특징(뭉툭하고 넓은 주둥이)이 사라진다.
+# 아기를 쓴다. 가장 동그랗고 눈이 가장 크다.
 # 판 안의 얼굴(`h_head.png`)은 그대로 청소년에서 뽑는다 — 칸에 들어가는
 # 그림은 또렷한 이목구비가 먼저다.
-ICON_FACE = 'stage2'
+ICON_FACE = 'stage1'
 
 
 def face(height, tilt=TILT):
@@ -177,6 +187,11 @@ def face(height, tilt=TILT):
     im = Image.new('RGBA', head.size, (0, 0, 0, 0))
     im.alpha_composite(head)
     im.alpha_composite(jaw)
+    # **얼굴만 남긴다.** 리그의 머리 조각은 아래쪽에 목·가슴이 페더링된 채로
+    # 붙어 있는데, 그게 함께 들어오면 얼굴이 작아 보이고 흰 테두리도 목까지
+    # 늘어져 스티커 모양이 어정쩡해진다.
+    bb = im.getbbox()
+    im = im.crop((bb[0], bb[1], bb[2], bb[1] + round((bb[3] - bb[1]) * 0.745)))
     im = im.rotate(tilt, resample=Image.BICUBIC, expand=True)
     # **회전하면서 생긴 투명 여백을 잘라 낸다.** 안 자르면 `height`가 얼굴이
     # 아니라 여백까지 포함한 상자의 높이가 되어, 숫자를 올려도 얼굴은 그만큼
@@ -212,7 +227,7 @@ def main():
 
     # **얼굴은 가운데, 턱까지 다 보이게, 사방으로 판이 남게.**
     # 레퍼런스(Meowdoku)가 정확히 이 구도다.
-    rising(bg, SIZE, 0.90, 0.50, 0.05).convert('RGB').save(f'{OUT}/icon.png')
+    rising(bg, SIZE, 0.86, 0.50, 0.07).convert('RGB').save(f'{OUT}/icon.png')
 
     # 적응형 전경은 **보이는 영역(가운데 66%) 안에 통째로 들어와야 한다.**
     # 그보다 크게 잡으면 흰 테두리가 위아래로 잘려 나가고, 테두리가 잘리면
@@ -220,7 +235,7 @@ def main():
     # 0.625면 보이는 아이콘의 94%를 얼굴이 채운다.
     # 실제로 잘린 모습은 `python3 tool/preview_icon.py`로 본다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.625, 0.50, 0.1875).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.615, 0.50, 0.1925).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
