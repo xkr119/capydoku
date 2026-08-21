@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 
 import '../core/palette.dart';
 import '../core/settings.dart';
+import '../core/lang.dart';
 
 /// 안내 한 대목 — 비출 자리와 할 말.
 class TourStop {
@@ -80,7 +81,7 @@ class _HomeTourState extends State<HomeTour> {
             stop: stop,
             index: _i,
             total: widget.stops.length,
-            label: last ? widget.doneLabel : '다음',
+            label: last ? widget.doneLabel : L.t('다음', 'Next'),
             onNext: _next,
           ),
         ),

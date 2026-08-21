@@ -16,6 +16,7 @@
 library;
 
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/lang.dart';
 
 enum PetShape { slim, fit, chubby }
 
@@ -26,7 +27,17 @@ class PetStage {
 
   /// 화면 표시 크기 배율.
   final double scale;
-  const PetStage(this.name, this.minLevel, this.baseKg, this.scale);
+
+  /// 영어 이름. **표는 `const`로 두고 이름만 두 벌 들고 있는다** — 여기서
+  /// `L.t`를 부르면 표가 `const`를 잃는다. 이 표는 앱이 켜질 때마다 같은
+  /// 값이어야 하는 것이라 상수인 편이 안전하다.
+  final String nameEn;
+
+  const PetStage(
+      this.name, this.minLevel, this.baseKg, this.scale, this.nameEn);
+
+  /// 화면에 보여 줄 이름.
+  String get label => L.en ? nameEn : name;
 }
 
 class Pet {
@@ -38,11 +49,11 @@ class Pet {
   /// 그걸 못 보고 떠나는 건 만들지 않은 것과 같다.
   /// **출시 후 이 표를 바꾸지 말 것** — 전 사용자의 카피가 갑자기 늙거나 젊어진다.
   static const stages = [
-    PetStage('아기 카피', 1, 4, 0.50),
-    PetStage('어린이 카피', 30, 12, 0.65),
-    PetStage('청소년 카피', 60, 26, 0.80),
-    PetStage('성인 카피', 90, 42, 0.91),
-    PetStage('어른 카피', 120, 60, 1.00),
+    PetStage('아기 카피', 1, 4, 0.50, 'Baby Capy'),
+    PetStage('어린이 카피', 30, 12, 0.65, 'Little Capy'),
+    PetStage('청소년 카피', 60, 26, 0.80, 'Teen Capy'),
+    PetStage('성인 카피', 90, 42, 0.91, 'Grown Capy'),
+    PetStage('어른 카피', 120, 60, 1.00, 'Elder Capy'),
   ];
 
   /// 이 단계가 쓰는 조각 폴더 이름.
@@ -212,13 +223,13 @@ class Pet {
   double get heightScale => 1 + weightDeltaPm / 1000 * 0.16;
 
   String get shapeLabel => switch (shape) {
-        PetShape.slim => '홀쭉',
-        PetShape.fit => '딱 좋음',
-        PetShape.chubby => '통통',
+        PetShape.slim => L.t('홀쭉', 'Slim'),
+        PetShape.fit => L.t('딱 좋음', 'Just right'),
+        PetShape.chubby => L.t('통통', 'Chubby'),
       };
 
   /// 주인이 지어 준 이름. 이름이 있는 것과 없는 것은 애착이 다르다.
-  static const defaultName = '카피';
+  static String get defaultName => L.t('카피', 'Capy');
 
   String get name {
     final n = _p.getString('pet.name')?.trim();
@@ -241,11 +252,23 @@ class Pet {
   }
 
   String get statusLine {
-    if (!named) return '이름을 지어 주세요!';
-    if (satiety <= 25) return '주인님... 배고파요. 당근 하나만...';
-    if (mood >= 85) return '오늘은 완벽한 하루예요. 아마도.';
-    if (mood <= 30) return '심심해요. 퍼즐이라도 풀어볼까요...';
-    if (satiety >= 90) return '배불러요. 이제 눕겠습니다.';
-    return '느긋한 하루입니다. 서두를 것 없어요.';
+    if (!named) return L.t('이름을 지어 주세요!', 'Give me a name, please.');
+    if (satiety <= 25) {
+      return L.t('주인님... 배고파요. 당근 하나만...',
+          'Excuse me… one carrot? Just one.');
+    }
+    if (mood >= 85) {
+      return L.t('오늘은 완벽한 하루예요. 아마도.',
+          'Today is a perfect day. Probably.');
+    }
+    if (mood <= 30) {
+      return L.t('심심해요. 퍼즐이라도 풀어볼까요...',
+          'I am bored. A puzzle, maybe…');
+    }
+    if (satiety >= 90) {
+      return L.t('배불러요. 이제 눕겠습니다.', 'Full. Lying down now.');
+    }
+    return L.t('느긋한 하루입니다. 서두를 것 없어요.',
+        'An unhurried day. Nothing to rush for.');
   }
 }

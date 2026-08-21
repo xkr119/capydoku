@@ -13,6 +13,7 @@ import '../art/capy_rig.dart';
 import '../art/effects.dart';
 import '../art/scenery.dart';
 import '../core/palette.dart';
+import '../core/lang.dart';
 
 class SplashScreen extends StatefulWidget {
   /// 연출을 시작하기 전에 반드시 끝나야 하는 준비(카피 조각 디코딩).
@@ -230,7 +231,7 @@ class _SplashScreenState extends State<SplashScreen>
         ),
         const SizedBox(height: 10),
         Text(
-          _ready ? '준비 끝!' : '풀밭 여는 중…',
+          _ready ? L.t('준비 끝!', 'Ready!') : L.t('풀밭 여는 중…', 'Opening the meadow…'),
           style: const TextStyle(
               fontSize: 13,
               color: Palette.brownSoft,

@@ -36,6 +36,7 @@ import '../core/palette.dart';
 import '../core/progress.dart';
 import '../core/settings.dart';
 import '../core/sfx.dart';
+import '../core/lang.dart';
 
 class CheckinScene extends StatefulWidget {
   /// 오늘 찍는 칸(1~[Progress.checkinDays]).
@@ -240,12 +241,16 @@ class _CheckinSceneState extends State<CheckinScene>
               // 말투는 나른하게: 고맙다고는 하는데 호들갑은 떨지 않는다.
               Text(
                 widget.claimed
-                    ? '오늘 몫은 다 드렸어요. 내일 또 와요'
+                    ? L.t('오늘 몫은 다 드렸어요. 내일 또 와요',
+                        'All handed over for today. Come by tomorrow')
                     : _awake
                         ? (_isLast
-                            ? '일곱 날을 다 채웠네요. 대단해요'
-                            : '오늘도 와 주셔서 고마워요')
-                        : '오늘도 오실 줄 알고 들고 있었어요',
+                            ? L.t('일곱 날을 다 채웠네요. 대단해요',
+                                'Seven days straight. Impressive')
+                            : L.t('오늘도 와 주셔서 고마워요',
+                                'Thank you for coming again today'))
+                        : L.t('오늘도 오실 줄 알고 들고 있었어요',
+                        'I held onto it, knowing you would come'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 16.5,
@@ -276,10 +281,11 @@ class _CheckinSceneState extends State<CheckinScene>
                     onPressed: _awake ? widget.onClaim : _wake,
                     child: Text(
                       _awake
-                          ? '초원으로'
+                          ? L.t('초원으로', 'To the meadow')
                           : _isLast
-                              ? '당근 $_carrots개 + 수박 받기'
-                              : '당근 $_carrots개 받기',
+                              ? L.t('당근 $_carrots개 + 수박 받기',
+                                'Take $_carrots carrots + a melon')
+                              : L.t('당근 $_carrots개 받기', 'Take $_carrots carrots'),
                       style: const TextStyle(
                           fontSize: 19, color: Colors.white),
                     ),
@@ -378,7 +384,7 @@ class _StreakBadge extends StatelessWidget {
               style: const TextStyle(
                   fontSize: 40, height: 1, color: Color(0xFFE8830C))),
           const SizedBox(width: 3),
-          const Text('일째',
+          Text(L.t('일째', 'days'),
               style: TextStyle(fontSize: 17, color: Palette.brown)),
         ],
       ),
@@ -400,7 +406,9 @@ class _StampRow extends StatelessWidget {
   const _StampRow(
       {required this.step, required this.claimed, required this.stamp});
 
-  static const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+  static List<String> get _weekdays => L.pickList(
+      const ['월', '화', '수', '목', '금', '토', '일'],
+      const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
 
   @override
   Widget build(BuildContext context) {
@@ -466,7 +474,7 @@ class _Stamp extends StatelessWidget {
             ? const Watermelon(size: 42)
             : const Center(child: Carrot(size: 38)),
       ),
-      Text(last ? '수박' : '$carrots',
+      Text(last ? L.t('수박', 'Melon') : '$carrots',
           style: TextStyle(
               fontSize: 15,
               height: 1.1,

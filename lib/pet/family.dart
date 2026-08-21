@@ -11,6 +11,8 @@
 /// 태어나거나, 첫째가 떠나거나. 끝이 없다.
 library;
 
+import '../core/lang.dart';
+
 /// 화면에 서 있는 식구 하나.
 class FamilyMember {
   /// 조각 폴더 이름(`stage1`~`stage5`, `mate`).
@@ -63,16 +65,20 @@ class Family {
 
   /// 다음에 벌어질 일과 남은 판 수. 더 없으면 null.
   static (String what, int inLevels)? nextEvent(int level) {
-    if (level < marryLevel) return ('짝을 만나요', marryLevel - level);
-    if (level < firstBirth) return ('첫 아이가 태어나요', firstBirth - level);
+    if (level < marryLevel) {
+      return (L.t('짝을 만나요', 'Meets a partner'), marryLevel - level);
+    }
+    if (level < firstBirth) {
+      return (L.t('첫 아이가 태어나요', 'First baby arrives'), firstBirth - level);
+    }
     // 이후로는 [step]판마다 무언가 바뀐다. 다음 눈금까지 남은 판.
     final left = step - ((level - firstBirth) % step);
     final kids = childStages(level);
     // 가장 큰 아이가 곧 성인이면 독립이 다음 사건이다.
     if (kids.isNotEmpty && kids.first == leaveStage - 1) {
-      return ('첫째가 독립해요', left);
+      return (L.t('첫째가 독립해요', 'Eldest moves out'), left);
     }
-    return ('새 아이가 태어나요', left);
+    return (L.t('새 아이가 태어나요', 'A new baby arrives'), left);
   }
 
   /// 화면에 설 식구 전부(주인공 포함). 왼쪽부터 순서대로다.
@@ -82,15 +88,15 @@ class Family {
   /// - 결혼하면 **주인공이 왼쪽으로 비키고 짝이 옆에 바짝 붙어 선다**(살짝 겹침).
   /// - 아이가 하나면 부부 사이 앞, 둘이면 각자 앞, 셋이면 사이사이 앞줄에.
   static List<FamilyMember> lineup(int level, String selfSkin) {
-    final me = FamilyMember(selfSkin, '나', 1.0, 0, false);
+    final me = FamilyMember(selfSkin, L.t('나', 'Me'), 1.0, 0, false);
     if (!married(level)) return [me];
 
     final kids = childStages(level);
     // 부부는 가운데를 기준으로 좌우로 벌어진다. 겹치도록 간격을 좁게.
     const spouseGap = 0.46;
     final out = <FamilyMember>[
-      FamilyMember(selfSkin, '나', 1.0, -spouseGap, false),
-      const FamilyMember('mate', '짝꿍', 0.97, spouseGap, false),
+      FamilyMember(selfSkin, L.t('나', 'Me'), 1.0, -spouseGap, false),
+      FamilyMember('mate', L.t('짝꿍', 'Partner'), 0.97, spouseGap, false),
     ];
 
     // 아이는 앞줄(살짝 크게, 조금 아래). 수에 따라 자리를 나눈다.
@@ -100,7 +106,8 @@ class Family {
       3: [-0.78, 0.0, 0.78],
     };
     final xs = spots[kids.length] ?? const <double>[];
-    const kidNames = ['첫째', '둘째', '막내'];
+    final kidNames = L.pickList(const ['첫째', '둘째', '막내'],
+        const ['Eldest', 'Middle', 'Youngest']);
     for (var i = 0; i < kids.length && i < xs.length; i++) {
       out.add(FamilyMember(
           'stage${kids[i] + 1}', kidNames[i.clamp(0, 2)], 0.94, xs[i], true));

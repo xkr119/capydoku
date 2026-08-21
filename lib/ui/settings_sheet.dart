@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../core/palette.dart';
 import '../core/settings.dart';
 import '../core/sfx.dart';
+import '../core/lang.dart';
 
 class SettingsSheet extends StatefulWidget {
   /// 이름 바꾸기. 홈에서만 넘겨준다 — 게임 화면에서는 이름을 바꿀 일이 없다.
@@ -33,9 +34,33 @@ class _SettingsSheetState extends State<SettingsSheet> {
       backgroundColor: Palette.card,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
       contentPadding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
-      title: const Text('설정',
+      title: Text(L.t('설정', 'Settings'),
           style: TextStyle(fontSize: 20, color: Palette.brown)),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
+        // 언어. **기기 설정을 따르는 것이 기본**이지만 고를 수 있어야 한다 —
+        // 한국에 사는 영어 사용자, 해외에 사는 한국어 사용자가 둘 다 있다.
+        ListTile(
+          leading: const Icon(Icons.translate_rounded,
+              color: Color(0xFFF2802B)),
+          title: Text(L.t('언어', 'Language'),
+              style: const TextStyle(fontSize: 16, color: Palette.brown)),
+          trailing: DropdownButton<Lang>(
+            value: L.pick,
+            underline: const SizedBox.shrink(),
+            onChanged: (v) async {
+              if (v == null) return;
+              await L.setPick(v);
+              if (context.mounted) setState(() {});
+            },
+            items: [
+              DropdownMenuItem(
+                  value: Lang.auto,
+                  child: Text(L.t('기기 설정', 'System'))),
+              const DropdownMenuItem(value: Lang.ko, child: Text('한국어')),
+              const DropdownMenuItem(value: Lang.en, child: Text('English')),
+            ],
+          ),
+        ),
         if (widget.onHelp != null)
           ListTile(
             onTap: () async {
@@ -44,9 +69,9 @@ class _SettingsSheetState extends State<SettingsSheet> {
             },
             leading:
                 const Icon(Icons.help_outline_rounded, color: Color(0xFFF2802B)),
-            title: const Text('설명',
+            title: Text(L.t('설명', 'How to play'),
                 style: TextStyle(fontSize: 16, color: Palette.brown)),
-            subtitle: const Text('규칙과 조작법 다시 보기',
+            subtitle: Text(L.t('규칙과 조작법 다시 보기', 'Rules and controls again'),
                 style: TextStyle(
                     fontSize: 12,
                     color: Palette.brownSoft,
@@ -61,9 +86,9 @@ class _SettingsSheetState extends State<SettingsSheet> {
               await widget.onRename!();
             },
             leading: const Icon(Icons.edit_rounded, color: Color(0xFFF2802B)),
-            title: const Text('이름 바꾸기',
+            title: Text(L.t('이름 바꾸기', 'Rename'),
                 style: TextStyle(fontSize: 16, color: Palette.brown)),
-            subtitle: const Text('카피를 뭐라고 부를까요',
+            subtitle: Text(L.t('카피를 뭐라고 부를까요', 'What should we call your capy'),
                 style: TextStyle(
                     fontSize: 12,
                     color: Palette.brownSoft,
@@ -73,8 +98,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
           ),
         _row(
           icon: Icons.volume_up_rounded,
-          label: '소리',
-          hint: '카피 목소리와 효과음',
+          label: L.t('소리', 'Sound'),
+          hint: L.t('카피 목소리와 효과음', 'Capy voice and effects'),
           value: Settings.sound,
           onChanged: (v) async {
             await Settings.setSound(v);
@@ -84,8 +109,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ),
         _row(
           icon: Icons.vibration_rounded,
-          label: '진동',
-          hint: '칸을 누를 때의 손맛',
+          label: L.t('진동', 'Vibration'),
+          hint: L.t('칸을 누를 때의 손맛', 'A nudge when you tap a tile'),
           value: Settings.haptics,
           onChanged: (v) async {
             await Settings.setHaptics(v);
@@ -97,7 +122,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('닫기'),
+          child: Text(L.t('닫기', 'Close')),
         ),
       ],
     );

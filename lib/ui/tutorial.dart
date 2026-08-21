@@ -16,6 +16,7 @@ import '../art/capy_rig.dart';
 import '../art/x_mark.dart';
 import '../core/palette.dart';
 import '../core/settings.dart';
+import '../core/lang.dart';
 
 /// 설명에 쓰는 예시 판.
 ///
@@ -106,7 +107,8 @@ class RulesTutorial extends StatefulWidget {
   /// "닫기"처럼 상황에 맞는 말이 와야 한다.
   final String doneLabel;
 
-  const RulesTutorial({super.key, this.doneLabel = '알겠어요'});
+  RulesTutorial({super.key, String? doneLabel})
+      : doneLabel = doneLabel ?? L.t('알겠어요', 'Got it');
 
   @override
   State<RulesTutorial> createState() => _RulesTutorialState();
@@ -118,16 +120,18 @@ class _RulesTutorialState extends State<RulesTutorial> {
 
   late final List<_Step> _steps = [
     _Step(
-      '한 줄에 한 마리씩',
-      '가로줄·세로줄, 그리고 **색깔 영역**마다\n카피바라를 딱 한 마리씩 놓으세요.',
+      L.t('한 줄에 한 마리씩', 'One per line'),
+      L.t('가로줄·세로줄, 그리고 **색깔 영역**마다\n카피바라를 딱 한 마리씩 놓으세요.',
+          'Every row, every column, and every **color region**\ngets exactly one capybara.'),
       _MiniBoard(
         regions: TutorialBoard.regions,
         capy: TutorialBoard.placed,
       ),
     ),
     _Step(
-      '서로 붙으면 안 돼요',
-      '옆도, 위아래도, **대각선으로도** 맞닿으면 안 됩니다.\n한 칸은 띄우세요.',
+      L.t('서로 붙으면 안 돼요', 'They must not touch'),
+      L.t('옆도, 위아래도, **대각선으로도** 맞닿으면 안 됩니다.\n한 칸은 띄우세요.',
+          'Not side by side, not stacked, not even **diagonally**.\nLeave a gap.'),
       const _MiniBoard(
         regions: TutorialBoard.regions,
         capy: {(1, 1), (2, 2)},
@@ -135,18 +139,20 @@ class _RulesTutorialState extends State<RulesTutorial> {
       ),
     ),
     _Step(
-      '아닌 칸은 지워 두세요',
-      '한 번 탭하면 X, 한 번 더 탭하면 카피.\n**쭉 끌면** 여러 칸에 한꺼번에 X가 찍힙니다.',
+      L.t('아닌 칸은 지워 두세요', 'Rule out the rest'),
+      L.t('한 번 탭하면 X, 한 번 더 탭하면 카피.\n**쭉 끌면** 여러 칸에 한꺼번에 X가 찍힙니다.',
+          'Tap once for X, twice for a capy.\n**Drag** to mark a whole run at once.'),
       const _MiniBoard(
         regions: TutorialBoard.regions,
         capy: {(0, 1)},
         mark: {(0, 0), (0, 2), (0, 3), (1, 0), (1, 1), (1, 2)},
       ),
     ),
-    const _Step(
-      '찍지 않아도 됩니다',
-      '모든 판은 논리만으로 풀립니다.\n틀리면 하트를 하나 잃으니, 확실할 때만 놓으세요.',
-      _Hearts(),
+    _Step(
+      L.t('찍지 않아도 됩니다', 'No guessing needed'),
+      L.t('모든 판은 논리만으로 풀립니다.\n틀리면 하트를 하나 잃으니, 확실할 때만 놓으세요.',
+          'Every board is solvable by logic alone.\nA wrong tile costs a heart — only place what you know.'),
+      const _Hearts(),
     ),
   ];
 
@@ -180,7 +186,7 @@ class _RulesTutorialState extends State<RulesTutorial> {
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('건너뛰기',
+              child: Text(L.t('건너뛰기', 'Skip'),
                   style: TextStyle(color: Palette.brownSoft, fontSize: 15)),
             ),
           ),
@@ -219,7 +225,7 @@ class _RulesTutorialState extends State<RulesTutorial> {
                       borderRadius: BorderRadius.circular(999)),
                 ),
                 onPressed: _next,
-                child: Text(_last ? widget.doneLabel : '다음',
+                child: Text(_last ? widget.doneLabel : L.t('다음', 'Next'),
                     style: const TextStyle(fontSize: 20, color: Colors.white)),
               ),
             ),

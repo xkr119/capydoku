@@ -2,6 +2,8 @@
 /// 레벨·점수로 결정적으로 골라서 같은 판엔 같은 말을 한다.
 library;
 
+import '../core/lang.dart';
+
 /// 초원에서 만지는 상대가 누구인가.
 enum CapyRole {
   /// 아직 혼자인 주인공. 자라는 중이라 아이들과 같은 말투를 쓴다.
@@ -18,20 +20,28 @@ enum CapyRole {
 }
 
 class CapySays {
-  static const titles = [
-    '느긋함',
-    '평온',
-    '무심한 천재',
-    '당근값 했다',
-    '기분 좋다',
-    '유유자적',
-    '완벽... 아마도',
-    '물 흐르듯',
-    '조용한 승리',
-    '역시 그쪽',
-    '한 수 위',
+  // ── 두 언어 ──────────────────────────────────────────────────────
+  //
+  // **번역이 아니라 다시 쓴 것이다.** 이 캐릭터는 게으르고 센치하고 살짝
+  // 웃긴데, 직역하면 그 셋이 전부 날아가고 평범한 퍼즐 게임 문구가 된다.
+  // 줄 수와 줄바꿈 자리는 맞춰 두었다 — 말풍선 크기가 문구마다 흔들리면
+  // 화면이 덜컹거린다.
+  //
+  // 새 문구를 넣을 때는 **두 목록에 함께** 넣을 것. 한쪽만 늘리면 인덱스로
+  // 고르는 자리에서 언어에 따라 다른 말이 나온다.
+
+  static const _titlesKo = [
+    '느긋함', '평온', '무심한 천재', '당근값 했다', '기분 좋다', '유유자적',
+    '완벽... 아마도', '물 흐르듯', '조용한 승리', '역시 그쪽', '한 수 위',
     '오늘도 무사히',
   ];
+  static const _titlesEn = [
+    'Unhurried', 'Calm', 'Casual Genius', 'Worth the Carrot', 'Rather Nice',
+    'Drifting Along', 'Perfect… Probably', 'Like Water', 'A Quiet Win',
+    'Knew It Was You', 'One Step Ahead', 'Safe Again Today',
+  ];
+
+  static List<String> get titles => L.pickList(_titlesKo, _titlesEn);
 
   /// 판을 깨고 나서 카피가 하는 말.
   ///
@@ -41,7 +51,7 @@ class CapySays {
   ///
   /// 말투는 하나로 묶여 있다 — **자랑하지 않고, 재촉하지 않고, 살짝 웃긴다.**
   /// "대단해요!" 같은 건 이 캐릭터가 할 말이 아니다.
-  static const comments = [
+  static const _commentsKo = [
     '서두르지 않아도 결국 풀리는군요.\n카피는 알고 있었어요.',
     '음... 잘했어요.\n이제 좀 누워도 되죠?',
     '논리는 완벽했고,\n카피는 졸렸어요.',
@@ -73,13 +83,55 @@ class CapySays {
     '이 판은 오래 기억날 것 같아요.\n아마 내일까지.',
     '고생했어요.\n간식은 카피가 먹을게요.',
   ];
+  static const _commentsEn = [
+    'No rush, and it came out anyway.\nCapy knew it would.',
+    'Mm… nicely done.\nMay we lie down now?',
+    'The logic was flawless.\nCapy was sleepy.',
+    'This earns one more carrot,\nI would say.',
+    'Nothing to hurry for.\nThe answer was sitting there regardless.',
+    "That is today's thinking done.\nThe rest goes to tomorrow's me.",
+    'Flawless. Skipping the applause,\nthough. Effort.',
+    'That flowed like water.\nWater… I would like some water.',
+    'Capy was so moved\nit shut its eyes for three seconds.',
+    'Nothing to fault here.\nFaulting is effort anyway.',
+    'Quite fast,\nfor something taken slowly.',
+    'Peace on this board is secured.\nCapy will lie back down.',
+    'You could cross without one wrong tile,\nand you did exactly that.',
+    'You solved it in your head\nand the hand just followed, did it not?',
+    'I never said it was hard.\n(A little, inside.)',
+    'A day like this is for lying\nflat in the grass, honestly.',
+    'Capy was watching.\nIncluding the part where you hesitated.',
+    'Quietly, certainly.\nCapy prefers it done that way.',
+    'That last move just now —\nrather good.',
+    'It is nothing once solved.\nThey all are, beforehand.',
+    "Good work.\nToday's share may end here.",
+    'Capy could never solve this.\nShort legs.',
+    'Not one mistake,\nso there is nothing to say.',
+    'I knew you would finish.\nWhy watch otherwise.',
+    'Is this talent by now?\nOr simply diligence.',
+    'Nice sun today.\nNice board as well.',
+    'It took a while,\nwhich is precisely why it lands.',
+    'Watching you think\nmade me hungry. Only me.',
+    'This one will be remembered.\nUntil tomorrow, probably.',
+    'Well done.\nCapy will handle the snack.',
+  ];
 
-  static const failComments = [
+  static List<String> get comments => L.pickList(_commentsKo, _commentsEn);
+
+  static const _failKo = [
     '괜찮아요. 당근은 또 자라니까요.',
     '카피도 가끔 물에 빠져요.\n다시 떠오르면 되죠.',
     '오늘은 여기까지가\n우리의 최선이었던 걸로.',
     '실수 세 번은 낮잠 신호예요.\n한숨 자고 다시?',
   ];
+  static const _failEn = [
+    'It is fine. Carrots grow back.',
+    'Capy falls in the water sometimes.\nYou simply float back up.',
+    'Let us call this\nour best for today.',
+    'Three mistakes is a nap signal.\nSleep on it and return?',
+  ];
+
+  static List<String> get failComments => L.pickList(_failKo, _failEn);
 
   static String titleFor(int level) => titles[level % titles.length];
 
@@ -91,7 +143,7 @@ class CapySays {
 
   /// 이름을 눌렀을 때 — 부르면 대답은 하는데, 딱 그만큼만 한다.
   /// 신나게 반기면 이 캐릭터가 아니다.
-  static const calledByName = [
+  static const _calledKo = [
     '...네.',
     '불렀어요? 저 여기 있어요.',
     '음. 듣고 있어요.',
@@ -102,12 +154,31 @@ class CapySays {
     '지금은... 좀 그래요.',
     '부르는 건 좋은데, 움직이는 건 별개예요.',
   ];
+  static const _calledEn = [
+    '…Yes.',
+    'You called? I am right here.',
+    'Mm. Listening.',
+    'What. I am busy.',
+    'Call once more and I will come.',
+    'Good name. Not that I chose it.',
+    'Yes, yes. Anything.',
+    'Right now… not ideal.',
+    'Calling is fine. Moving is a separate matter.',
+  ];
+
+  static List<String> get calledByName => L.pickList(_calledKo, _calledEn);
 
   /// 아직 이름이 없을 때.
-  static const noName = [
+  static const _noNameKo = [
     '이름이 없어서 대답을 못 하겠어요.',
     '뭐라고 부르실 건데요?',
   ];
+  static const _noNameEn = [
+    'I have no name, so I cannot answer.',
+    'What will you call me?',
+  ];
+
+  static List<String> get noName => L.pickList(_noNameKo, _noNameEn);
 
   // ── 먹을 때 ────────────────────────────────────────────────────────
   //
@@ -118,31 +189,47 @@ class CapySays {
   // 밝고 호들갑스러운 문구는 이 캐릭터가 아니다(아기만 예외 — 아기는 원래
   // 온몸으로 좋아한다).
 
-  static const _eating = [
-    // 아기 — 단어 두 개를 못 넘긴다.
+  static const _eatingKo = [
     ['냠! 냠!', '이거 조아!', '으음— 마시써!', '또! 또 줘요!', '아그작!'],
-    // 어린이 — 신나서 재잘거린다.
     ['우와, 제일 좋아하는 거예요!', '아그작아그작! 이 소리 좋아요.',
       '하나 더 주면 안 돼요?', '이만큼 먹으면 커지죠?', '맛있다아—'],
-    // 청소년 — 좋으면서 아닌 척한다.
     ['뭐... 나쁘지 않네요.', '고맙긴 한데, 배는 아직 안 찼어요.',
       '이 맛 좀 아는 편이거든요.', '급하게 먹진 않을게요. 여유롭게.',
       '음. 합격이에요.'],
-    // 성인 — 여유롭고 나른하다.
     ['천천히 먹을게요. 어차피 안 도망가니까.', '이 시간이 하루 중 제일 좋아요.',
       '잘 먹겠습니다. 오늘도 수고하셨어요.', '아삭한 게 좋네요. 인생도 이랬으면.',
       '급할 거 없죠. 당근은 여기 있고 저도 여기 있으니까.'],
-    // 어른 — 느긋하고 관조적이다. 말수가 다시 줄어든다.
     ['좋군요.', '이만하면 충분한 하루입니다.', '잘 먹었어요. 늘 그렇듯이.',
       '오래 살고 볼 일이에요. 이런 것도 먹고.', '고맙습니다. 진심으로.'],
   ];
+  static const _eatingEn = [
+    ['Nom! Nom!', 'I like dis!', 'Mmm— yummy!', 'More! More!', 'Crunch!'],
+    ['Wow, my favorite!', 'Crunch crunch! I love that sound.',
+      'Could I have one more?', 'If I eat this much I get big, right?',
+      'So goooood—'],
+    ['Well… not bad.', 'Thanks, though I am not full yet.',
+      'I know a thing or two about this flavor.',
+      'I will not rush it. Slowly.', 'Mm. It passes.'],
+    ['I will take my time. It is not running off.',
+      'This is the best hour of the day.',
+      'Thank you for the meal. You worked hard today.',
+      'Crisp. I wish life were.',
+      'No hurry. The carrot is here and so am I.'],
+    ['Good.', 'This is enough of a day.', 'That was good. As always.',
+      'Worth living long for. Even this.', 'Thank you. Truly.'],
+  ];
 
-  static const _eatingMate = [
+  static const _eatingMateKo = [
     '어머, 저도요?', '고마워요. 잘 먹을게요.', '애들 먼저 주지 그랬어요.',
     '이런 건 같이 먹어야 맛있죠.', '음— 이거 참 좋네요.',
   ];
+  static const _eatingMateEn = [
+    'Oh my, me as well?', 'Thank you. I will eat well.',
+    'You should have given the children first.',
+    'Something like this tastes better shared.', 'Mmm— this is quite nice.',
+  ];
 
-  static const _watermelon = [
+  static const _watermelonKo = [
     ['수바! 수바!', '차가워! 좋아!', '와아아—'],
     ['수박이다! 진짜 수박!', '오늘 무슨 날이에요?', '이거 아껴 먹을래요.'],
     ['수박은... 좀 특별하죠.', '이건 인정. 최고예요.', '오늘 운이 좋네요.'],
@@ -150,6 +237,19 @@ class CapySays {
       '이건 천천히, 아주 천천히 먹을게요.'],
     ['수박이군요. 오랜만입니다.', '이런 걸 아직도 챙겨 주시다니.',
       '살면서 이만한 게 몇 없어요.'],
+  ];
+  static const _watermelonEn = [
+    ['Melo! Melo!', 'Cold! I like!', 'Waaah—'],
+    ['A melon! A real melon!', 'What day is it today?',
+      'I want to make this last.'],
+    ['Melon is… somewhat special.', 'This one I will grant. The best.',
+      'Lucky day.'],
+    ['A melon. So there are days like this.',
+      'A whole summer packed inside.',
+      'This one I will eat slowly. Very slowly.'],
+    ['A melon. It has been a while.',
+      'To think you still look after me like this.',
+      'Few things in a life come close.'],
   ];
 
   /// 조각 이름(`stage1`~`stage5`, `mate`)을 단계 번호로.
@@ -161,26 +261,47 @@ class CapySays {
 
   /// 쓰다듬었을 때 **자란 정도에 따라** 하는 말. 아직 혼자일 때의 주인공과
   /// 아이들이 함께 쓴다 — 둘 다 "자라는 중인 카피"다.
-  static const _touchYoung = [
+  static const _touchYoungKo = [
     ['히히— 간지러!', '또! 또 해줘요!', '헤헷.', '여기 있었구나!'],
     ['어? 저 불렀어요?', '저 오늘 착했어요.', '히히, 좋아요.', '같이 놀아요!'],
     ['아, 머리 헝클어져요.', '뭐, 싫진 않아요.', '...한 번만 더요.', '알았어요, 알았어.'],
     ['이제 다 컸는데요.', '고마워요. 진짜로.', '음, 좋네요.', '이러다 정들겠어요.'],
     ['언제 이렇게 컸는지 몰라요.', '늘 고맙습니다.', '편안하네요.', '오래 이러고 싶어요.'],
   ];
+  static const _touchYoungEn = [
+    ['Hehe— tickles!', 'Again! Do it again!', 'Hehet.', 'There you are!'],
+    ['Huh? Did you call me?', 'I was good today.', 'Hehe, I like it.',
+      'Play with me!'],
+    ['Ah, you are messing up my fur.', 'Well, I do not hate it.',
+      '…One more time.', 'Fine, fine.'],
+    ['I am all grown now, you know.', 'Thank you. Really.',
+      'Mm, that is nice.', 'I might get attached at this rate.'],
+    ['I do not know when I got this old.', 'Always grateful.',
+      'Comfortable.', 'I could stay like this a long while.'],
+  ];
 
   /// **아빠**(가족이 생긴 뒤의 주인공). 말수가 줄고 대신 식구를 챙긴다.
-  static const _touchDad = [
+  static const _touchDadKo = [
     '어, 왔어요?', '애들은 잘 있어요.', '나는 늘 여기 있죠.',
     '오늘도 수고 많았어요.', '음— 좋다.', '한숨 돌리고 가요.',
     '햇볕이 딱 좋네요.',
   ];
+  static const _touchDadEn = [
+    'Oh, you came.', 'The kids are fine.', 'I am always right here.',
+    'You worked hard today too.', 'Mm— nice.',
+    'Catch your breath before you go.', 'The sun is just right.',
+  ];
 
   /// **엄마**(짝꿍).
-  static const _touchMom = [
+  static const _touchMomKo = [
     '어머, 왜요?', '애들 보는데…', '오늘도 오셨네요.',
     '음— 나른하다.', '같이 좀 쉬어요.', '풀 냄새 좋죠?',
     '저녁엔 수박 어때요?',
+  ];
+  static const _touchMomEn = [
+    'Oh my, what is it?', 'The children are watching…',
+    'You came again today.', 'Mm— so drowsy.', 'Rest with me a while.',
+    'The grass smells good, does it not?', 'Melon for the evening?',
   ];
 
   /// 쓰다듬은 식구가 누구인가. 같은 말을 돌려 쓰면 다섯이 한 사람처럼 들린다.
@@ -189,9 +310,10 @@ class CapySays {
   /// 있다**(다 자란 첫째와 아빠는 그림이 같다).
   static String touched(String skin, CapyRole role, {int salt = 0}) {
     final pool = switch (role) {
-      CapyRole.dad => _touchDad,
-      CapyRole.mom => _touchMom,
-      _ => _touchYoung[_stageOfSkin(skin).clamp(0, 4)],
+      CapyRole.dad => L.pickList(_touchDadKo, _touchDadEn),
+      CapyRole.mom => L.pickList(_touchMomKo, _touchMomEn),
+      _ => L.pickList(_touchYoungKo, _touchYoungEn)[
+          _stageOfSkin(skin).clamp(0, 4)],
     };
     return pool[salt.abs() % pool.length];
   }
@@ -200,11 +322,16 @@ class CapySays {
   static String eating(String skin, {required bool watermelon, int salt = 0}) {
     final stage = _stageOfSkin(skin);
     if (stage < 0) {
-      return watermelon
-          ? '수박이네요! 이건 다 같이 먹어야죠.'
-          : _eatingMate[salt.abs() % _eatingMate.length];
+      if (watermelon) {
+        return L.t('수박이네요! 이건 다 같이 먹어야죠.',
+            'A melon! This one we share.');
+      }
+      final mate = L.pickList(_eatingMateKo, _eatingMateEn);
+      return mate[salt.abs() % mate.length];
     }
-    final pool = watermelon ? _watermelon[stage] : _eating[stage];
+    final pool = watermelon
+        ? L.pickList(_watermelonKo, _watermelonEn)[stage]
+        : L.pickList(_eatingKo, _eatingEn)[stage];
     return pool[salt.abs() % pool.length];
   }
 }

@@ -25,6 +25,7 @@ import 'board_state.dart';
 import 'capy_says.dart';
 import 'win_celebration.dart';
 import 'levels.dart';
+import '../core/lang.dart';
 
 /// 퍼즐 한 판. 레벨 번호가 퍼즐을 결정하므로 화면은 상태를 저장하지 않는다.
 ///
@@ -231,7 +232,7 @@ class _GameScreenState extends State<GameScreen>
                 child:
                     Image.asset('assets/mascot/capy_base.png', height: 160)),
             const SizedBox(height: 14),
-            const Text('판을 준비하는 중...',
+            Text(L.t('판을 준비하는 중...', 'Setting up the board…'),
                 style: TextStyle(fontSize: 16, color: Palette.brownSoft)),
           ]),
         ),
@@ -350,7 +351,7 @@ class _GameScreenState extends State<GameScreen>
       _circleButton(Icons.arrow_back, () => Navigator.of(context).pop()),
       const Spacer(),
       Column(children: [
-        Text(isDaily ? '오늘의 퍼즐' : '레벨',
+        Text(isDaily ? L.t('오늘의 퍼즐', 'Daily') : L.t('레벨', 'Level'),
             style: const TextStyle(
                 fontSize: 16, color: Palette.brownSoft, height: 1.1)),
         Text(isDaily ? '${board.n}×${board.n}' : '${widget.level}',
@@ -359,7 +360,7 @@ class _GameScreenState extends State<GameScreen>
       ]),
       const SizedBox(width: 42),
       Column(children: [
-        const Text('점수',
+        Text(L.t('점수', 'Score'),
             style: TextStyle(
                 fontSize: 16, color: Palette.brownSoft, height: 1.1)),
         TweenAnimationBuilder<int>(
@@ -468,7 +469,9 @@ class _GameScreenState extends State<GameScreen>
     );
   }
 
-  static const _ruleTexts = ['색깔마다\n카피 1마리', '행·열마다\n카피 1마리', '서로 붙기\n없기'];
+  static List<String> get _ruleTexts => L.pickList(
+      const ['색깔마다\n카피 1마리', '행·열마다\n카피 1마리', '서로 붙기\n없기'],
+      const ['One per\ncolor', 'One per\nrow & column', 'Never\ntouching']);
 
   /// 규칙 셋. **한 장의 흰 카드에 몰아넣지 않는다** — 셋이 각각 다른 규칙인데
   /// 한 덩어리로 보이면 눈이 어디서 끊어야 할지 모른다. 레퍼런스도 칸을
@@ -477,7 +480,7 @@ class _GameScreenState extends State<GameScreen>
   Future<void> _openRules() async {
     Buzz.select();
     await Navigator.of(context).push<bool>(MaterialPageRoute(
-      builder: (_) => const RulesTutorial(doneLabel: '계속 풀기'),
+      builder: (_) => RulesTutorial(doneLabel: L.t('계속 풀기', 'Keep solving')),
     ));
   }
 
@@ -877,7 +880,7 @@ class _GameScreenState extends State<GameScreen>
       capyHints--;
       _hintsUsed++;
       board.tryPlace(r, c);
-      _floats.add(_FloatText(_floatId++, r, c, '여기!'));
+      _floats.add(_FloatText(_floatId++, r, c, L.t('여기!', 'Here!')));
     });
     Sfx.hint();
     _saveHints();
@@ -892,7 +895,8 @@ class _GameScreenState extends State<GameScreen>
   void _saveHints() {
     widget.progress.setHintsToday(capyHints, xHints);
     if (capyHints <= 0 || xHints <= 0) {
-      _toast('오늘 힌트를 다 썼어요 — 자정에 다시 채워져요');
+      _toast(L.t('오늘 힌트를 다 썼어요 — 자정에 다시 채워져요',
+          'Out of hints for today — they refill at midnight'));
     }
   }
 
@@ -903,12 +907,12 @@ class _GameScreenState extends State<GameScreen>
     }
     final capy = board.bestHintCapy();
     if (capy == null) {
-      _toast('먼저 카피를 한 마리 놓아보세요');
+      _toast(L.t('먼저 카피를 한 마리 놓아보세요', 'Place a capy first'));
       return;
     }
     final ex = board.exclusionsOf(capy.$1, capy.$2);
     if (ex.isEmpty) {
-      _toast('지금은 지울 칸이 없어요');
+      _toast(L.t('지금은 지울 칸이 없어요', 'Nothing to rule out right now'));
       return;
     }
     Buzz.select();
@@ -957,7 +961,10 @@ class _GameScreenState extends State<GameScreen>
       // 충전분도 하루 풀에 적는다 — 안 적으면 다음 판에서 사라진다.
       widget.progress.setHintsToday(capyHints, xHints);
     });
-    if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
+    if (!shown) {
+      _toast(L.t('광고를 불러오는 중이에요. 잠시 후 다시!',
+          'Loading the ad — try again in a moment'));
+    }
   }
 
   // ── 하단 ────────────────────────────────────────────────────────────
@@ -965,14 +972,14 @@ class _GameScreenState extends State<GameScreen>
   Widget _controls() {
     return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
       _hintButton(
-        label: '카피 위치',
+        label: L.t('카피 위치', 'Find a capy'),
         badge: capyHints,
         child: const CapyFaceIcon(width: 46, ring: true),
         onTap: _useCapyHint,
       ),
       const SizedBox(width: 50),
       _hintButton(
-        label: 'X 위치',
+        label: L.t('X 위치', 'Rule out'),
         badge: xHints,
         // 전구가 아니라 **발바닥**이다. 둘 다 "어디인지"를 짚는 힌트라
         // 얼굴과 발바닥 한 쌍으로 두는 편이 무엇을 하는 버튼인지 빠르다.
@@ -1061,11 +1068,13 @@ class _GameScreenState extends State<GameScreen>
           borderRadius: BorderRadius.circular(16),
           elevation: 6,
           shadowColor: Palette.brown.withValues(alpha: 0.4),
-          child: const Padding(
-            padding: EdgeInsets.fromLTRB(18, 14, 18, 14),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
             child: Text(
-              '이 카피의 행·열·같은 색·인접 칸에는\n다른 카피가 올 수 없어요 — 제외!',
-              style: TextStyle(
+              L.t('이 카피의 행·열·같은 색·인접 칸에는\n다른 카피가 올 수 없어요 — 제외!',
+                  'No other capy can share this row, column, color,\n'
+                      'or touch it — ruled out!'),
+              style: const TextStyle(
                   fontSize: 15,
                   height: 1.45,
                   color: Palette.brown,
@@ -1090,12 +1099,12 @@ class _GameScreenState extends State<GameScreen>
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(999)),
               ),
-              child: const Text('적용', style: TextStyle(fontSize: 20)),
+              child: Text(L.t('적용', 'Apply'), style: const TextStyle(fontSize: 20)),
             ),
           ),
           TextButton(
             onPressed: () => setState(() => _xPreview = null),
-            child: const Text('취소',
+            child: Text(L.t('취소', 'Cancel'),
                 style: TextStyle(color: Palette.brownSoft, fontSize: 15)),
           ),
         ]),
@@ -1204,7 +1213,7 @@ class _GameScreenState extends State<GameScreen>
               child:
                   Image.asset('assets/mascot/capy_cry.png', height: 150)),
           const SizedBox(height: 12),
-          const Text('하트가 없어요...',
+          Text(L.t('하트가 없어요...', 'Out of hearts…'),
               style: TextStyle(fontSize: 22, color: Palette.brown)),
           const SizedBox(height: 4),
           Text(CapySays.failCommentFor(widget.level),
@@ -1221,7 +1230,7 @@ class _GameScreenState extends State<GameScreen>
           // 가로로 흐르다 줄바꿈되면서 크기도 정렬도 제각각이었고 무엇보다
           // **광고 버튼이 가운데에 끼여** 눈에 안 들어왔다.
           _FailButton(
-            label: '하트 3개 받기',
+            label: L.t('하트 3개 받기', 'Get 3 hearts'),
             icon: Icons.play_circle_fill_rounded,
             kind: _FailButtonKind.primary,
             onTap: () {
@@ -1235,18 +1244,21 @@ class _GameScreenState extends State<GameScreen>
                 Sfx.heart();
                 Navigator.pop(context, null); // 다이얼로그 닫고 이어서 푼다
               });
-              if (!shown) _toast('광고를 불러오는 중이에요. 잠시 후 다시!');
+              if (!shown) {
+      _toast(L.t('광고를 불러오는 중이에요. 잠시 후 다시!',
+          'Loading the ad — try again in a moment'));
+    }
             },
           ),
           const SizedBox(height: 8),
           _FailButton(
-            label: '다시 풀기',
+            label: L.t('다시 풀기', 'Try again'),
             kind: _FailButtonKind.secondary,
             onTap: () => Navigator.pop(context, true),
           ),
           const SizedBox(height: 2),
           _FailButton(
-            label: '홈으로',
+            label: L.t('홈으로', 'Home'),
             kind: _FailButtonKind.quiet,
             onTap: () => Navigator.pop(context, false),
           ),

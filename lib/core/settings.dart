@@ -7,6 +7,7 @@ library;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'lang.dart';
 import 'sfx.dart';
 
 class Settings {
@@ -20,6 +21,7 @@ class Settings {
 
   static void load(SharedPreferences prefs) {
     _p = prefs;
+    L.load(prefs);
     _sound = prefs.getBool('set.sound') ?? true;
     _haptics = prefs.getBool('set.haptics') ?? true;
     Sfx.enabled = _sound;

@@ -25,6 +25,7 @@ import 'ui/home_tour.dart';
 import 'ui/settings_sheet.dart';
 import 'ui/tutorial.dart';
 import 'ui/splash.dart';
+import 'core/lang.dart';
 
 /// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프·먹이 채우기를 띄운다.
 ///
@@ -209,7 +210,7 @@ class _HomeScreenState extends State<HomeScreen>
     _bootRunning = true;
     try {
       if (!progress.rulesSeen) {
-        await _showRules(doneLabel: '레벨 1 시작');
+        await _showRules(doneLabel: L.t('레벨 1 시작', 'Start level 1'));
         await progress.markRulesSeen();
         if (!mounted) return;
         _bootRunning = false;      // 판에서 돌아오면 이 흐름을 다시 탄다
@@ -257,27 +258,39 @@ class _HomeScreenState extends State<HomeScreen>
     final stops = <TourStop>[
       TourStop(
         hole: _rectOf(_kMeters),
-        title: '배고픔과 기분',
-        body: '시간이 지나면 배가 고파지고 기분도 가라앉아요.\n'
-            '들여다봐 주는 게 이 카피에게는 일과입니다.',
+        title: L.t('배고픔과 기분', 'Hunger and mood'),
+        body: L.t(
+            '시간이 지나면 배가 고파지고 기분도 가라앉아요.\n'
+                '들여다봐 주는 게 이 카피에게는 일과입니다.',
+            'Left alone, it gets hungry and its mood sinks.\n'
+                'Looking in on it is the whole job.'),
       ),
       TourStop(
         hole: _rectOf(_kBasket),
-        title: '먹이 주기',
-        body: '판을 깨면 당근이 쌓입니다. 눌러서 던져 주세요.\n'
-            '일곱 판마다 나오는 수박은 온 가족이 나눠 먹어요.',
+        title: L.t('먹이 주기', 'Feeding'),
+        body: L.t(
+            '판을 깨면 당근이 쌓입니다. 눌러서 던져 주세요.\n'
+                '일곱 판마다 나오는 수박은 온 가족이 나눠 먹어요.',
+            'Solved boards earn carrots. Tap to toss one over.\n'
+                'Every seventh board brings a melon — the family shares it.'),
       ),
       TourStop(
         hole: _rectOf(_kGrowth),
-        title: '자라납니다',
-        body: '판을 깰수록 몸집이 커지고, 생김새도 말투도 달라져요.\n'
-            '아기에서 어른까지 다섯 단계, 그다음엔 가족이 생깁니다.',
+        title: L.t('자라납니다', 'It grows'),
+        body: L.t(
+            '판을 깰수록 몸집이 커지고, 생김새도 말투도 달라져요.\n'
+                '아기에서 어른까지 다섯 단계, 그다음엔 가족이 생깁니다.',
+            'It grows as you solve — new look, new way of talking.\n'
+                'Five stages from baby to elder, then a family.'),
       ),
       TourStop(
         hole: _rectOf(_kDaily),
-        title: '오늘의 퍼즐',
-        body: '하루 한 판, 조금 어려운 문제가 열립니다.\n'
-            '며칠 연속으로 깼는지 세어 드려요.',
+        title: L.t('오늘의 퍼즐', 'Daily puzzle'),
+        body: L.t(
+            '하루 한 판, 조금 어려운 문제가 열립니다.\n'
+                '며칠 연속으로 깼는지 세어 드려요.',
+            'One harder board opens each day.\n'
+                'We count how many days you keep it up.'),
       ),
     ];
     await Navigator.of(context).push<bool>(PageRouteBuilder(
@@ -285,7 +298,9 @@ class _HomeScreenState extends State<HomeScreen>
       barrierDismissible: false,
       transitionDuration: const Duration(milliseconds: 240),
       pageBuilder: (_, _, _) => HomeTour(
-          stops: stops, doneLabel: '레벨 ${progress.currentLevel} 시작'),
+          stops: stops,
+            doneLabel: L.t('레벨 ${progress.currentLevel} 시작',
+                'Start level ${progress.currentLevel}')),
       transitionsBuilder: (_, anim, _, child) =>
           FadeTransition(opacity: anim, child: child),
     ));
@@ -381,7 +396,9 @@ class _HomeScreenState extends State<HomeScreen>
     if (!ok) {
       _shakeOf(special).forward(from: 0);
       Buzz.select();
-      _say(special ? '수박이 없네…' : '당근이 없어…');
+      _say(special
+          ? L.t('수박이 없네…', 'No melon left…')
+          : L.t('당근이 없어…', 'No carrots left…'));
       return;
     }
     Buzz.light();
@@ -586,7 +603,7 @@ class _HomeScreenState extends State<HomeScreen>
         backgroundColor: Palette.card,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('이름을 지어 주세요',
+        title: Text(L.t('이름을 지어 주세요', 'Give it a name'),
             style: TextStyle(fontSize: 20, color: Palette.brown)),
         content: TextField(
           controller: ctrl,
@@ -609,12 +626,12 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('나중에')),
+              child: Text(L.t('나중에', 'Later'))),
           FilledButton(
             onPressed: () => Navigator.pop(context, ctrl.text),
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFF2802B)),
-            child: const Text('결정!'),
+            child: Text(L.t('결정!', 'Done!')),
           ),
         ],
       ),
@@ -990,7 +1007,7 @@ class _HomeScreenState extends State<HomeScreen>
               _Pill(
                 icon: Icons.calendar_month_rounded,
                 iconColor: const Color(0xFFE8830C),
-                label: '${progress.checkinStep()}일',
+                label: L.t('${progress.checkinStep()}일', '${progress.checkinStep()}d'),
                 onTap: () async {
                   final step = progress.checkinStep();
                   if (progress.checkinPending()) {
@@ -1020,7 +1037,7 @@ class _HomeScreenState extends State<HomeScreen>
                       context: context,
                       builder: (_) => SettingsSheet(
                             onRename: _rename,
-                            onHelp: () => _showRules(doneLabel: '닫기'),
+                            onHelp: () => _showRules(doneLabel: L.t('닫기', 'Close')),
                           ));
                   if (mounted) setState(() {});
                 },
@@ -1123,10 +1140,12 @@ class _HomeScreenState extends State<HomeScreen>
                         padding: const EdgeInsets.fromLTRB(6, 0, 12, 8),
                         child: _StickerName(
                           text: pet.named
-                              ? (married ? '${pet.name} 가족' : pet.name)
+                              ? (married
+                                    ? L.t('${pet.name} 가족', '${pet.name} family')
+                                    : pet.name)
                               // 말풍선이 이미 조르고 있다 — 같은 문구를
                               // 두 번 쓰면 잔소리가 된다.
-                              : '이름 없는 카피',
+                              : L.t('이름 없는 카피', 'A capy with no name'),
                           faded: !pet.named,
                         ),
                       ),
@@ -1136,8 +1155,8 @@ class _HomeScreenState extends State<HomeScreen>
                   const SizedBox(height: 9),
                   _PlayButton(
                     label: progress.hasBoard('$current')
-                        ? '레벨 $current 이어서'
-                        : '레벨 $current 시작',
+                        ? L.t('레벨 $current 이어서', 'Resume level $current')
+                        : L.t('레벨 $current 시작', 'Start level $current'),
                     onTap: () {
                       Sfx.tap();
                       _play(current);
@@ -1156,7 +1175,8 @@ class _HomeScreenState extends State<HomeScreen>
                           },
                   ),
                   const SizedBox(height: 8),
-                  Text('모든 퍼즐은 찍기 없이 100% 논리로 풀립니다',
+                  Text(L.t('모든 퍼즐은 찍기 없이 100% 논리로 풀립니다',
+                'Every puzzle is 100% logic. No guessing.'),
                       style: TextStyle(
                           fontSize: 11.5,
                           color: Palette.brown.withValues(alpha: 0.8),
@@ -1471,7 +1491,8 @@ class _GrowthGauge extends StatelessWidget {
     // 다 자란 뒤에는 가족 사건이 다음 목표가 된다 — 어른에서 끝나면 볼 것이 없다.
     final event = next == null ? Family.nextEvent(level) : null;
     final done = next == null && event == null;
-    final label = next != null ? '다음 성장까지' : (event?.$1 ?? '');
+    final label =
+        next != null ? L.t('다음 성장까지', 'Next stage in') : (event?.$1 ?? '');
     final left = next?.$2 ?? event?.$2 ?? 0;
     final from = next != null
         ? stage.minLevel
@@ -1500,13 +1521,13 @@ class _GrowthGauge extends StatelessWidget {
               style: const TextStyle(fontSize: 14, color: Palette.brownSoft)),
           const Spacer(),
           if (done)
-            const Text('대가족이에요!',
+            Text(L.t('대가족이에요!', 'A big family!'),
                 style: TextStyle(fontSize: 16, color: Palette.brown))
           else ...[
             Text('$left',
                 style: const TextStyle(
                     fontSize: 21, color: Color(0xFFF2802B), height: 1)),
-            const Text(' 판',
+            Text(L.t(' 판', ' boards'),
                 style: TextStyle(fontSize: 14, color: Palette.brownSoft)),
           ],
         ]),
@@ -1557,7 +1578,9 @@ class _DailyButton extends StatelessWidget {
             Icon(done ? Icons.check_circle_rounded : Icons.today_rounded,
                 size: 20, color: Colors.white),
             const SizedBox(width: 8),
-            Text(done ? '오늘의 퍼즐 완료!' : '오늘의 퍼즐',
+            Text(done
+              ? L.t('오늘의 퍼즐 완료!', 'Daily puzzle done!')
+              : L.t('오늘의 퍼즐', 'Daily puzzle'),
                 style: const TextStyle(fontSize: 18, color: Colors.white)),
             if (streak > 0) ...[
               const SizedBox(width: 10),
@@ -1568,7 +1591,7 @@ class _DailyButton extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.26),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text('🔥 $streak일',
+                child: Text(L.t('🔥 $streak일', '🔥 ${streak}d'),
                     style: const TextStyle(
                         fontSize: 13,
                         color: Colors.white,

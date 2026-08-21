@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'family.dart';
 import 'pet.dart';
+import '../core/lang.dart';
 
 enum FamilyEventKind {
   /// 한 단계 자랐다(50·100·150·200판). 그림이 통째로 바뀐다.
@@ -39,20 +40,24 @@ class FamilyEvent {
   /// 화면 아래에 뜨는 한 줄. 이름이 들어가야 남의 집 일로 안 읽힌다.
   (String title, String line) words(String name) => switch (kind) {
         FamilyEventKind.grow => (
-            '${Pet.stageOf(level).name}가 되었어요',
-            '$name, 한 뼘 더 자랐네요.',
+            L.t('${Pet.stageOf(level).label}가 되었어요',
+                'Now a ${Pet.stageOf(level).label}'),
+            L.t('$name, 한 뼘 더 자랐네요.', '$name grew a little taller.'),
           ),
         FamilyEventKind.marry => (
-            '가족이 되었어요',
-            '$name${_wa(name)} 짝꿍이 서로를 알아봤어요.',
+            L.t('가족이 되었어요', 'A family now'),
+            L.t('$name${_wa(name)} 짝꿍이 서로를 알아봤어요.',
+                '$name and a partner found each other.'),
           ),
         FamilyEventKind.birth => (
-            '아기가 태어났어요',
-            '$name 가족이 하나 늘었습니다.',
+            L.t('아기가 태어났어요', 'A baby arrived'),
+            L.t('$name 가족이 하나 늘었습니다.',
+                'The $name family is one bigger.'),
           ),
         FamilyEventKind.leave => (
-            '첫째가 독립했어요',
-            '잘 지내렴. 가끔 놀러 오고.',
+            L.t('첫째가 독립했어요', 'The eldest moved out'),
+            L.t('잘 지내렴. 가끔 놀러 오고.',
+                'Take care. Come by sometimes.'),
           ),
       };
 

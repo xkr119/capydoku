@@ -7,6 +7,7 @@ import '../core/settings.dart';
 import '../art/capy_rig.dart';
 import '../art/effects.dart';
 import 'capy_says.dart';
+import '../core/lang.dart';
 
 /// 판을 깬 직후의 보상 화면.
 ///
@@ -180,7 +181,7 @@ class _WinCelebrationState extends State<WinCelebration>
                           color: Colors.white.withValues(alpha: 0.24),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text('🔥 ${widget.dailyStreak}일 연속',
+                        child: Text(L.t('🔥 ${widget.dailyStreak}일 연속', '🔥 ${widget.dailyStreak}-day streak'),
                             style: const TextStyle(
                                 fontSize: 16,
                                 color: Colors.white,
@@ -212,12 +213,12 @@ class _WinCelebrationState extends State<WinCelebration>
                     const SizedBox(height: 26),
                     // 오늘의 퍼즐은 이어질 다음 판이 없다 — 나가기 하나면 된다.
                     if (widget.dailyStreak != null)
-                      _button('초원으로', primary: true, next: false)
+                      _button(L.t('초원으로', 'To the meadow'), primary: true, next: false)
                     else ...[
-                      _button('다음 레벨 ${widget.level + 1}',
+                      _button(L.t('다음 레벨 ${widget.level + 1}', 'Next: Level ${widget.level + 1}'),
                           primary: true, next: true),
                       const SizedBox(height: 10),
-                      _button('홈으로', primary: false, next: false),
+                      _button(L.t('홈으로', 'Home'), primary: false, next: false),
                     ],
                   ],
                 ),
@@ -237,7 +238,7 @@ class _WinCelebrationState extends State<WinCelebration>
   Widget _title(double screenH) {
     final text = Text(
         widget.dailyStreak != null
-            ? '오늘의 퍼즐 완료!'
+            ? L.t('오늘의 퍼즐 완료!', 'Daily puzzle done!')
             : CapySays.titleFor(widget.level),
         textAlign: TextAlign.center,
         style: const TextStyle(fontSize: 38, color: Colors.white, shadows: [
@@ -314,11 +315,11 @@ class _WinCelebrationState extends State<WinCelebration>
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(children: [
-        cell('⭐️', '${widget.score}', '점수'),
-        cell('⏱', '$mm:$ss', '시간'),
-        cell('🥕', '+${widget.carrots}', '당근'),
+        cell('⭐️', '${widget.score}', L.t('점수', 'Score')),
+        cell('⏱', '$mm:$ss', L.t('시간', 'Time')),
+        cell('🥕', '+${widget.carrots}', L.t('당근', 'Carrots')),
         // 수박은 일곱 판에 한 번뿐이다. 받은 날에만 칸이 하나 는다.
-        if (widget.special) cell('🍉', '+1', '수박'),
+        if (widget.special) cell('🍉', '+1', L.t('수박', 'Melon')),
       ]),
     );
   }

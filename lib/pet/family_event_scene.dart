@@ -24,6 +24,7 @@ import '../core/sfx.dart';
 import 'family.dart';
 import 'family_event.dart';
 import 'pet.dart';
+import '../core/lang.dart';
 
 /// 무대에 선 식구 하나. [FamilyMember]와 같은 좌표계를 쓴다.
 class _Actor {
@@ -692,10 +693,11 @@ class _Caption extends StatelessWidget {
         AnimatedOpacity(
           opacity: showHint ? 1 : 0,
           duration: const Duration(milliseconds: 400),
-          child: const Padding(
-            padding: EdgeInsets.only(top: 10),
-            child: Text('화면을 탭하면 계속',
-                style: TextStyle(fontSize: 12, color: Palette.brownSoft)),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Text(L.t('화면을 탭하면 계속', 'Tap anywhere to continue'),
+                style: const TextStyle(
+                    fontSize: 12, color: Palette.brownSoft)),
           ),
         ),
       ]),
