@@ -102,8 +102,9 @@ flutter build appbundle --release
 - 데이터 안전(Data safety) 답변 → `store/data_safety.md`
 - 개인정보처리방침 → `store/privacy.md` (아래 "호스팅" 참고)
 - 스크린샷 → `store/screenshots/ko/`, `store/screenshots/en/` (언어별로 따로)
-- 아이콘 512×512 → `store/graphics/icon_512.png`
-- 피처 그래픽 1024×500 → `store/graphics/feature_1024x500.png`
+- 아이콘 512×512 → `store/graphics/icon_512.png` (**언어 공통** — 글자가 없다)
+- 피처 그래픽 1024×500 → **언어별**
+  `store/graphics/feature_ko_1024x500.png` / `feature_en_1024x500.png`
 
 ### 개인정보처리방침 호스팅
 
@@ -163,7 +164,9 @@ Play에는 **그냥 `en`이 없다.** 영어 변형이 여럿인데(`en-GB`·`en
 등)는 한국어 등록정보를 본다. 바꾸려면 스토어 설정 → 앱 세부정보(계정에 따라
 잠겨 있기도 하다). 폐쇄 테스트에는 영향이 없다 — 테스터를 직접 고르므로.
 
-**스크린샷은 언어마다 따로 올린다.** 안 올리면 기본 언어 것이 그대로 쓰여
+**그림도 언어마다 따로 올린다.** 스크린샷과 피처 그래픽에는 **글자가 박혀
+있어서** 기본 언어 것이 그대로 쓰이면 영어 목록에 한글이 뜬다. 아이콘만
+글자가 없어 언어 공통이다. 안 올리면 기본 언어 것이 그대로 쓰여
 영어 목록에 한국어 화면이 뜬다 — `store/screenshots/en/`을 `en-US`에 올릴 것.
 
 출시 노트는 언어 탭을 하나씩 돌지 않고 **태그로 한 번에** 붙여 넣을 수 있다:

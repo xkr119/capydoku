@@ -52,7 +52,7 @@ def tilted_grid(w, h, across, tilt=-13):
     return im.crop((ox, oy, ox + w, oy + h))
 
 
-def feature():
+def feature(en=False):
     """기울어진 판 위, 오른쪽에서 카피가 넘겨다본다. 글자는 왼쪽."""
     im = tilted_grid(W, H, across=7)
 
@@ -86,7 +86,11 @@ def feature():
         d.text(xy, text, font=fnt, fill=fill)
 
     shadowed((60, 152), 'Capydoku', font(92), (255, 255, 255, 255))
-    shadowed((64, 266), '카피바라 논리 퍼즐', font(44), (255, 236, 200, 255))
+    # **부제는 언어마다 다르다.** 영어 목록에 한글 그래픽이 뜨면 그 자리에서
+    # "내 언어 앱이 아니다"가 된다 — 스크린샷과 같은 이유로 언어별로 뽑는다.
+    shadowed((64, 266),
+             'Capybara Logic Puzzle' if en else '카피바라 논리 퍼즐',
+             font(44), (255, 236, 200, 255))
     return im.convert('RGB')
 
 
@@ -94,7 +98,8 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     Image.open('assets/icon/icon.png').convert('RGB') \
         .resize((512, 512), Image.LANCZOS).save(f'{OUT}/icon_512.png')
-    feature().save(f'{OUT}/feature_1024x500.png')
+    feature().save(f'{OUT}/feature_ko_1024x500.png')
+    feature(en=True).save(f'{OUT}/feature_en_1024x500.png')
     for n in os.listdir(OUT):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
 
