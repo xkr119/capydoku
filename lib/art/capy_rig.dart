@@ -102,8 +102,10 @@ class CapySkins {
                0.2818, 0.4724, 0.7152, 0.4724],
     'stage5': [0.5076, 0.4289, 0.0454, 0.0503, 0.3636, 0.6439, 0.0789,
                0.2424, 0.4895, 0.7561, 0.4895],
-    'mate':   [0.4970, 0.4553, 0.0424, 0.0403, 0.3970, 0.6061, 0.2566,
-               0.3333, 0.5263, 0.6652, 0.5263],
+    // 짝꿍은 **팔을 나누지 않는다**(어깨 좌표가 없다 = 일곱 개짜리 항목).
+    // 앞발이 배에 바짝 붙은 렌더라 도려낼 자리가 배 한가운데까지 파고들어,
+    // 좁게 자르면 발톱이 남고 넓게 자르면 메울 털이 없다. 아기와 같은 처지다.
+    'mate':   [0.4970, 0.4553, 0.0424, 0.0403, 0.3970, 0.6061, 0.2566],
     // 퍼즐 칸에 쓰는 얼굴. 원본 카피에서 뽑았고 성장과 무관하다.
     // 퍼즐 칸 얼굴은 청소년 렌더에서 뽑는다 — 원본 카피는 둥글고 납작해
     // "빵떡" 소리를 들었다. tool/rig_stages.py의 FACE_FROM이 출처다.
@@ -817,22 +819,31 @@ class _CapyPerformerState extends State<CapyPerformer>
   }
 
   CapyPose _poseAt(double t) {
+    // 먹는 동안은 밑바닥의 미세한 배회까지 끈다. 숨은 남긴다 — 완전히
+    // 굳으면 이번엔 인형이 된다.
+    final wander = (_act == CapyAct.eat || _act == CapyAct.feast) ? 0.0 : 1.0;
     final breathe = math.sin(t * 1.9);
-    var headTurn = math.sin(t * 0.7) * 0.012; // 완전 정지를 막는 미세한 흔들림
+    var headTurn = math.sin(t * 0.7) * 0.012 * wander; // 완전 정지 방지
     var headNod = 0.0;
     var jaw = 0.0;
-    var lean = math.sin(t * 0.55) * 0.006;
+    var lean = math.sin(t * 0.55) * 0.006 * wander;
     var hop = 0.0;
     var shift = 0.0;
     var squash = 0.0;
     // 팔은 가만히 있어도 숨결에 맞춰 아주 조금 흔들린다.
-    var armL = math.sin(t * 1.9 + 0.6) * 0.010;
-    var armR = -math.sin(t * 1.9 + 0.6) * 0.010;
+    var armL = math.sin(t * 1.9 + 0.6) * 0.010 * wander;
+    var armR = -math.sin(t * 1.9 + 0.6) * 0.010 * wander;
     var armLY = 0.0, armRY = 0.0;
 
     // ── 무심코 하는 짓 ──
+    //
+    // **먹는 동안은 아무 짓도 안 한다.** 두리번거리거나 갸웃하는 채로 먹으면
+    // 먹는 게 아니라 그냥 돌아다니는데 입에서 음식만 사라지는 그림이 된다
+    // (사용자 지적). 먹는 건 이 게임에서 가장 오래(5초) 보는 동작이라
+    // 그 사이에 딴짓이 섞이면 안 된다.
+    final busy = _act == CapyAct.eat || _act == CapyAct.feast;
     var smile = 0.0;
-    final qp = (t - _quirkStart) / _quirkLen;
+    final qp = busy ? -1.0 : (t - _quirkStart) / _quirkLen;
     if (qp >= 0 && qp <= 1) {
       final e = _bell(qp);
       /// 앞뒤로 부드럽게 오르내리되 가운데서는 값을 유지하는 사다리꼴.

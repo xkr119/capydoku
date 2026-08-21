@@ -195,7 +195,10 @@ class _WinCelebrationState extends State<WinCelebration>
                       CapySays.commentFor(widget.level, widget.score),
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          fontSize: 16,
+                          // **이 화면에서 제목 다음으로 큰 글자다.** 카피가
+                          // 판마다 다른 말을 건네는 자리인데, 16이면 배경의
+                          // 색종이에 묻혀서 읽히기 전에 넘겨 버린다.
+                          fontSize: 20,
                           height: 1.5,
                           color: Colors.white,
                           fontFamily: 'Apple SD Gothic Neo',

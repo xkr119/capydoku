@@ -31,6 +31,19 @@ class Ads {
   static Future<void> init() async {
     if (kIsWeb) return;
     try {
+      // **광고 소재의 등급을 제한한다.**
+      //
+      // 어떤 소재가 나올지는 우리가 못 고른다(경매로 정해진다). 고를 수 있는
+      // 건 등급뿐이고, G로 못 박으면 성인·도박·과격한 소재가 빠져서 "길고
+      // 닫기 버튼이 어디 있는지 모르겠는" 광고가 눈에 띄게 줄어든다.
+      // 매출은 조금 깎이지만, 카피바라 게임에 맞지 않는 광고가 뜨는 쪽이
+      // 훨씬 비싸다.
+      //
+      // 아동 대상(`tagForChildDirectedTreatment`)은 **켜지 않는다** —
+      // 이 앱은 특정 연령을 겨냥하지 않고, 잘못 켜면 COPPA 의무가 따라붙는다.
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(maxAdContentRating: MaxAdContentRating.g),
+      );
       await MobileAds.instance.initialize();
       _ready = true;
       preloadInterstitial();
