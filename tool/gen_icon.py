@@ -34,9 +34,10 @@ COLORS = [
 # 칸을 나누는 흰 선의 굵기(아이콘 크기 대비). 얇으면 48dp에서 사라진다.
 LINE_W = 0.034
 
-# 몇 칸으로 나눌까. **적을수록 칸이 커서 멀리서도 읽힌다** — 4칸일 때는
-# 작게 줄이면 잔무늬가 됐다.
-CELLS = 3
+# **완성된 아이콘 폭**을 몇 칸으로 나눌까. 눕히려고 넉넉한 캔버스에 그리지만,
+# 칸 크기는 잘라 낸 뒤의 크기로 잡아야 한다 — 큰 캔버스 기준으로 잡았더니
+# 칸이 1.75배로 커져서 런처에서는 한 칸만 보였다.
+CELLS = 4
 
 # 판을 이만큼 비스듬히 눕힌다. 반듯하면 UI 부품처럼 보이고, 너무 기울이면
 # 무슨 모양인지 안 읽힌다.
@@ -44,10 +45,12 @@ GRID_TILT = -9
 
 # 어느 칸이 어느 색인가. **덩어리로 묶는다** — 체크무늬로 흩으면 퍼즐의
 # 색영역이 아니라 그냥 무늬가 된다.
+# 어느 칸이 어느 색인가. 큰 캔버스를 덮을 만큼 되풀이해서 쓴다.
 REGIONS = [
-    [0, 0, 1],
-    [2, 0, 1],
-    [2, 0, 0],
+    [0, 0, 1, 1],
+    [2, 0, 0, 1],
+    [2, 2, 0, 0],
+    [1, 2, 2, 0],
 ]
 
 
@@ -89,19 +92,21 @@ def background(size):
     """
     # 눕혀도 네 귀퉁이가 비지 않도록 넉넉히 그린 뒤 잘라 낸다.
     big = int(size * 1.75)
-    step = big / CELLS
+    # **칸 크기는 완성 크기 기준.** 큰 캔버스를 나누면 칸이 1.75배가 된다.
+    step = size / CELLS
+    n = int(big / step) + 2
     im = Image.new('RGBA', (big, big), COLORS[0])
     d = ImageDraw.Draw(im)
-    for row in range(CELLS):
-        for col in range(CELLS):
+    for row in range(n):
+        for col in range(n):
+            c = COLORS[REGIONS[row % CELLS][col % CELLS]]
             d.rectangle([col * step, row * step,
-                         (col + 1) * step, (row + 1) * step],
-                        fill=COLORS[REGIONS[row][col]])
-    _gloss(im, CELLS, step)
+                         (col + 1) * step, (row + 1) * step], fill=c)
+    _gloss(im, n, step)
     # 선은 면과 광택을 다 올린 뒤에 긋는다. 칸마다 테두리를 그리면 맞닿은
     # 자리에서 선이 두 번 겹쳐 굵기가 들쭉날쭉해진다.
     w = max(3, round(size * LINE_W))
-    for i in range(CELLS + 1):
+    for i in range(n + 1):
         k = i * step
         d.line([(k, -big), (k, big * 2)], fill=(255, 255, 255, 255), width=w)
         d.line([(-big, k), (big * 2, k)], fill=(255, 255, 255, 255), width=w)
@@ -153,15 +158,16 @@ def main():
     bg = background(SIZE)
     bg.save(f'{OUT}/icon_bg.png')
 
-    # **얼굴은 가운데, 사방으로 판이 보이게.** 한때 구석에서 크게 올라오게
-    # 했더니 얼굴이 판을 다 덮어 **타일이 하나만 보였다** — 그러면 그냥
-    # 동물 사진이지 퍼즐 게임 아이콘이 아니다. 레퍼런스도 얼굴을 가운데
-    # 두고 뒤로 색영역이 여러 개 보이게 잡는다.
-    rising(bg, SIZE, 0.86, 0.50, 0.15).convert('RGB').save(f'{OUT}/icon.png')
+    # **얼굴은 가운데, 턱까지 다 보이게, 사방으로 판이 남게.**
+    # 레퍼런스(Meowdoku)가 정확히 이 구도다.
+    rising(bg, SIZE, 0.80, 0.50, 0.12).convert('RGB').save(f'{OUT}/icon.png')
 
-    # 적응형 전경: 바깥 1/4이 잘려 나가므로 조금 더 줄여 가운데 66% 안에.
+    # 적응형 전경은 **훨씬 작아야 한다.** 바깥 1/3(108dp 중 36dp)이 잘려
+    # 나가므로, 가운데 66% 안에서 다시 여백을 두고 앉혀야 턱이 안 잘린다.
+    # 레거시와 같은 숫자를 쓰다가 런처에서 입이 잘린 아이콘을 세 번 냈다.
+    # 실제로 잘린 모습은 `python3 tool/preview_icon.py`로 본다.
     fg = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    rising(fg, SIZE, 0.64, 0.50, 0.22).save(f'{OUT}/icon_fg.png')
+    rising(fg, SIZE, 0.56, 0.50, 0.235).save(f'{OUT}/icon_fg.png')
 
     for n in ('icon.png', 'icon_bg.png', 'icon_fg.png'):
         print(f'{OUT}/{n}  {os.path.getsize(f"{OUT}/{n}") // 1024}KB')
