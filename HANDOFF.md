@@ -104,6 +104,11 @@ Capydoku는 **기능적으로 완성**됐고 출시 준비물도 다 만들어�
    릴리스가 디버그 키로 서명되고 Play가 거부한다.
 3. **폐쇄 테스트 12명 × 14일** — 개인 계정이면 앱이 다 돼 있어도 3주가 더 걸린다.
 
+개인정보처리방침 URL은 **끝났다**: `https://xkr119.github.io/capydoku/`
+(`docs/index.html`, GitHub Pages). 방침을 고치면 `store/privacy.md`와
+`docs/index.html`을 **함께** 고칠 것 — 원본은 md지만 사용자가 보는 것은 html이다.
+Pages 때문에 저장소는 공개다. 키스토어와 `key.properties`는 `.gitignore`가 막는다.
+
 ### 두 언어 (2026-08-21에 넣음)
 
 앱이 한국어 전용이라 영어 등록정보를 올릴 수가 없었다(받아 보면 한국어 앱).
