@@ -78,7 +78,7 @@ flutter build appbundle --release
 - 스토어 등록정보 문구 → `store/listing.md`
 - 데이터 안전(Data safety) 답변 → `store/data_safety.md`
 - 개인정보처리방침 → `store/privacy.md` (아래 "호스팅" 참고)
-- 스크린샷 → `store/screenshots/`
+- 스크린샷 → `store/screenshots/ko/`, `store/screenshots/en/` (언어별로 따로)
 - 아이콘 512×512 → `store/graphics/icon_512.png`
 - 피처 그래픽 1024×500 → `store/graphics/feature_1024x500.png`
 
@@ -88,6 +88,41 @@ Play는 **공개 URL**을 요구한다. 파일만으로는 안 된다.
 가장 싼 방법은 GitHub Pages다 — 이 저장소를 GitHub에 올린 뒤
 `store/privacy.md`를 `docs/index.md`로 두고 Settings → Pages를 켜면
 `https://<계정>.github.io/<저장소>/` 가 그대로 URL이 된다.
+
+### 스크린샷 다시 찍기
+
+**1080×1920(9:16)이어야 한다.** 에뮬레이터가 1080×2400이면 9:20이라 Play가
+거부한다. 크기를 먼저 맞출 것:
+
+```bash
+adb shell wm size 1080x1920 && adb shell wm density 420
+# 끝나면: adb shell wm size reset && adb shell wm density reset
+```
+
+**`lib/core/flags.dart`의 `kShotMode`를 true로 두고 디버그 빌드를 올린다.**
+광고 배너와 디버그 UI(⏩·레벨 점프·먹이 채우기)가 통째로 빠진다 — 이걸 몰라서
+**테스트 광고와 ⏩ 버튼이 찍힌 스크린샷**을 만든 적이 있다.
+단 완료 화면은 ⏩로 판을 끝내야 하므로 그때만 `kDebugStages`를 켠다
+(⏩는 퍼즐 화면에만 있어서 완료 화면에는 안 찍힌다).
+**찍고 나면 반드시 `kShotMode = false`로 되돌릴 것.**
+
+상태는 **UI를 눌러 만들지 말고 저장값으로 직접** 만든다(레벨·언어·이름·먹이).
+`run-as`는 디버그 빌드에서만 되고, 값은 `<int>`가 아니라 **`<long>`**으로
+저장돼 있다(여기서 한 번 걸렸다):
+
+```bash
+P=/data/data/kr.tak.capydoku/shared_prefs/FlutterSharedPreferences.xml
+adb shell "run-as kr.tak.capydoku cat $P" > p.xml
+#   flutter.level.current / flutter.set.lang (0=기기,1=한국어,2=English)
+#   flutter.pet.name(<string>) / flutter.inv.carrot / flutter.pet.sat
+adb shell "run-as kr.tak.capydoku sh -c 'cat > $P'" < p.xml
+```
+
+지금 다섯 장의 구성(언어마다 같다):
+`1_capy`(어린이 홈 — 목록 썸네일) · `2_puzzle` · `3_clear` ·
+`4_baby`(성장의 시작) · `5_family`(성장의 끝).
+**1번이 썸네일이라 판이 아니라 카피가 와야 한다** — 판을 앞에 두면
+"또 스도쿠"로 읽힌다.
 
 ### 콘텐츠 등급 설문
 

@@ -16,6 +16,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'flags.dart';
 
 class AdIds {
   static String get banner => 'ca-app-pub-3940256099942544/6300978111';
@@ -29,6 +30,9 @@ class Ads {
 
   /// 실패해도 앱은 정상 동작해야 한다 — 광고는 부가 기능이다.
   static Future<void> init() async {
+    // 스크린샷을 찍을 때는 광고를 아예 띄우지 않는다.
+    if (kShotMode) return;
+
     if (kIsWeb) return;
     try {
       // **광고 소재의 등급을 제한한다.**

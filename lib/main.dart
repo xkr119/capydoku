@@ -26,6 +26,7 @@ import 'ui/settings_sheet.dart';
 import 'ui/tutorial.dart';
 import 'ui/splash.dart';
 import 'core/lang.dart';
+import 'core/flags.dart';
 
 /// **디버그 전용 스위치.** 홈 오른쪽 위에 레벨 점프·먹이 채우기를 띄운다.
 ///
@@ -34,7 +35,7 @@ import 'core/lang.dart';
 /// 지우지 않고 [kDebugMode]에 묶어 둔다 — 릴리스에서는 상수가 false라
 /// 트리 셰이킹으로 통째로 빠지고, 디버그 빌드에서는 그대로 쓸 수 있다.
 /// 손으로 껐다 켜면 켠 채로 스토어에 올리는 사고가 언젠가 난다.
-const bool kDebugStages = kDebugMode;
+
 
 /// 홈이 "다시 보이는 순간"을 알기 위한 전역 라우트 관찰자.
 final routeObserver = RouteObserver<ModalRoute<void>>();

@@ -26,6 +26,7 @@ import 'capy_says.dart';
 import 'win_celebration.dart';
 import 'levels.dart';
 import '../core/lang.dart';
+import '../core/flags.dart';
 
 /// 퍼즐 한 판. 레벨 번호가 퍼즐을 결정하므로 화면은 상태를 저장하지 않는다.
 ///
@@ -376,7 +377,7 @@ class _GameScreenState extends State<GameScreen>
       // 디버그: 판을 통째로 채우고 바로 완료로 넘긴다. 완료 연출·보상·성장
       // 사건을 확인하는 데 매번 10×10을 손으로 풀 수는 없다.
       // 릴리스에서는 상수가 false라 트리 셰이킹으로 통째로 빠진다.
-      if (kDebugMode) ...[
+      if (kDebugStages) ...[
         _circleButton(Icons.fast_forward_rounded, _debugSolve),
       ],
     ]);
