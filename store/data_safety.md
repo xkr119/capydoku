@@ -86,5 +86,10 @@ Play Console은 "앱이 광고 ID를 사용합니까?"를 따로 묻는다 → *
 
 ## 개인정보처리방침 URL
 
-`store/privacy.md`를 공개 URL로 올린 주소를 입력한다.
-호스팅 방법은 `store/RELEASE.md` 참고.
+```
+https://xkr119.github.io/capydoku/
+```
+
+`docs/index.html`이 그 페이지다(한국어·영어 한 장). GitHub Pages라
+저장소에 푸시하면 몇 분 뒤 반영된다 — **방침을 고치면 `docs/index.html`도
+같이 고칠 것.** `store/privacy.md`는 원본이고, 사용자가 보는 것은 저 페이지다.
