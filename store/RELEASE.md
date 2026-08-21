@@ -85,9 +85,16 @@ flutter build appbundle --release
 ### 개인정보처리방침 호스팅
 
 Play는 **공개 URL**을 요구한다. 파일만으로는 안 된다.
-가장 싼 방법은 GitHub Pages다 — 이 저장소를 GitHub에 올린 뒤
-`store/privacy.md`를 `docs/index.md`로 두고 Settings → Pages를 켜면
-`https://<계정>.github.io/<저장소>/` 가 그대로 URL이 된다.
+GitHub Pages로 붙여 뒀다 — Play Console에 넣을 URL은 이것이다.
+
+**https://xkr119.github.io/capydoku/**
+
+- 실제 페이지는 `docs/index.html`이다(`store/privacy.md`가 원본, HTML은 사본).
+  **문구를 고치면 두 파일을 함께 고칠 것** — Play가 보는 것은 HTML 쪽이다.
+- `docs/.nojekyll`은 Jekyll 처리를 끄는 빈 파일이다. 지우지 말 것.
+- 켜는 법: 저장소 Settings → Pages → Source `Deploy from a branch`,
+  Branch `main` / 폴더 `/docs` → Save. 첫 배포까지 1~2분.
+- **저장소가 public이어야 한다.** private에서 Pages를 쓰려면 유료 플랜이다.
 
 ### 스크린샷 다시 찍기
 
