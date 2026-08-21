@@ -5,7 +5,7 @@
 
 ---
 
-## 🔴 올리기 전에 반드시 (이 둘 없이는 출시 불가)
+## 🔴 올리기 전에 반드시
 
 ### 1. AdMob 실제 ID 교체 — **두 곳을 함께**
 
@@ -21,19 +21,30 @@
 AdMob 콘솔에서 앱을 먼저 등록해야 유닛 ID가 나온다 —
 스토어에 올리기 전이라도 "아직 스토어에 없음"으로 등록할 수 있다.
 
-### 2. 업로드 키스토어 만들기
+### 2. 업로드 키스토어 — **끝났다**
 
-`android/key.properties`와 `*.jks`는 `.gitignore`에 걸려 있어 저장소에 없다.
-**작업 PC에서 한 번만** 만들고, 그 파일을 안전한 곳에 백업할 것 —
-잃어버리면 이 앱을 **영영 업데이트할 수 없다**(Play 지원팀 통해 복구 요청은 가능하나 번거롭다).
+키는 저장소 **밖**, `/Users/tak/개발/keystore/`에 모아 두었다
+(`capydoku-upload.jks`, alias `upload`). 그 폴더의 `README.md`에 왜 밖에
+두는지와 백업 규칙이 적혀 있다.
 
+`android/key.properties`(gitignore됨)가 그 경로를 가리키고, 있으면 자동으로
+그 키로 서명한다. 없는 PC에서는 디버그 키로 떨어져 `flutter run --release`가
+그냥 된다.
+
+**다른 PC에서 작업하려면 `.jks`와 `key.properties`를 직접 옮겨야 한다** —
+둘 다 git에 없다.
+
+> **경로에 한글이 있다.** `Properties.load(InputStream)`의 기본 인코딩이
+> ISO-8859-1이라 `개발`이 `ê°ë°`로 깨져 "키스토어 파일 없음"으로 빌드가
+> 죽는다. `build.gradle.kts`가 **UTF-8로 읽도록** 고쳐져 있다
+> (`f.reader(Charsets.UTF_8)`). 되돌리지 말 것.
+
+서명 확인:
+
+```bash
+keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab
+# 소유자에 CN=Android Debug 가 뜨면 디버그 키다 — key.properties를 다시 볼 것
 ```
-keytool -genkey -v -keystore ~/capydoku-upload.jks \
-  -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-```
-
-그다음 `android/key.properties.example`을 `android/key.properties`로 복사해 값을 채운다.
-파일이 없으면 릴리스 빌드가 **디버그 키로 서명**되고, Play가 그런 AAB는 거부한다.
 
 ### 3. 폐쇄 테스트 12명 × 14일 (개인 개발자 계정)
 

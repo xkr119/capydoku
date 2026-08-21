@@ -100,8 +100,11 @@ Capydoku는 **기능적으로 완성**됐고 출시 준비물도 다 만들어�
 ### 출시를 막는 것
 1. **AdMob 실제 ID** — `lib/core/ads.dart`와 `AndroidManifest.xml` **두 곳**.
    지금은 구글 테스트 ID다.
-2. **업로드 키스토어** — `android/key.properties.example`대로 만든다. 없으면
-   릴리스가 디버그 키로 서명되고 Play가 거부한다.
+2. ~~업로드 키스토어~~ → **만들었다**(2026-08-21). 저장소 밖
+   `/Users/tak/개발/keystore/`에 두 앱 것을 함께 둔다(그 폴더의 README 참고).
+   `android/key.properties`가 그 경로를 가리키고, 서명된 AAB까지 구워 확인했다
+   (`CN=Tak Kim`, SHA256withRSA). **다른 PC에서는 `.jks`와 `key.properties`를
+   직접 옮겨야 한다** — 둘 다 git에 없다.
 3. **폐쇄 테스트 12명 × 14일** — 개인 계정이면 앱이 다 돼 있어도 3주가 더 걸린다.
 
 개인정보처리방침 URL은 **끝났다**: `https://xkr119.github.io/capydoku/`

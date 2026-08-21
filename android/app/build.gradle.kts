@@ -13,7 +13,10 @@ plugins {
 // 만드는 법은 android/key.properties.example 참고.
 val keystoreProperties = Properties().apply {
     val f = rootProject.file("key.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
+    // **UTF-8로 읽는다.** Properties.load(InputStream)의 기본은 ISO-8859-1이라
+    // 경로에 한글이 있으면 그대로 깨진다 — 키스토어가 `/Users/tak/개발/...`에
+    // 있는데 Gradle이 "ê°ë°"로 읽어 "파일 없음"으로 죽었다.
+    if (f.exists()) f.reader(Charsets.UTF_8).use { load(it) }
 }
 val hasUploadKey = keystoreProperties.containsKey("storeFile")
 

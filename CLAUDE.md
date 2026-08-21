@@ -709,9 +709,14 @@ nemologic에서 복사해 올 것).
 
 1. **AdMob 실제 ID** — `lib/core/ads.dart`와 `AndroidManifest.xml` **두 곳**.
    지금은 구글 테스트 ID다.
-2. **업로드 키스토어** — `android/key.properties`(gitignore됨)를
-   `android/key.properties.example`대로 만든다. 없으면 릴리스가 **디버그 키로
-   서명**되고 Play가 거부한다. 있으면 자동으로 그 키를 쓴다.
+2. ~~업로드 키스토어~~ → **끝났다.** 키는 저장소 **밖**
+   `../keystore/`에 두 앱 것을 함께 둔다 — 한때 photo_tidy는 키를 저장소
+   **안에** 두고 커밋까지 했었다(비공개라 살았다). `.gitignore`는 한 번만
+   잘못 건드리면 뚫리므로 애초에 밖에 두는 편이 맞다. capydoku는 방침을
+   GitHub Pages로 띄우느라 **공개 저장소**다.
+   - **경로에 한글이 있으면 `Properties.load(InputStream)`가 깨뜨린다**
+     (기본 인코딩 ISO-8859-1). `build.gradle.kts`에서 `f.reader(Charsets.UTF_8)`로
+     읽는다 — 되돌리면 "키스토어 파일 없음"으로 빌드가 죽는다.
 
 절차와 콘솔 입력값은 `store/RELEASE.md`. 문구는 `store/listing.md`,
 데이터 안전 답안은 `store/data_safety.md`, 방침은 `store/privacy.md`.
