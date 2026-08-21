@@ -124,6 +124,59 @@ One board a day, with a capybara.
 
 ---
 
+## 출시명 · 출시 노트
+
+### 출시명 (Release name) — 사용자에게 안 보인다
+
+Play Console이 버전으로 자동 채워 준다(`1 (1.0.0)`). 그대로 둬도 되지만,
+나중에 목록에서 알아보기 쉽게 적어 두는 편이 낫다.
+
+```
+1.0.0 (1) · 첫 폐쇄 테스트
+```
+
+**재업로드할 때마다 `pubspec.yaml`의 `version: 1.0.0+1`에서 `+` 뒤 숫자를
+올려야 한다** — 같은 빌드 번호는 Play가 거부한다. 출시명도 같이 고칠 것.
+
+### 출시 노트 (What's new) — 언어마다 따로, 각 500자
+
+첫 버전이라 "고쳤습니다"가 아니라 **무엇을 파는 앱인지**를 적는다.
+목록 설명을 이미 읽고 들어온 사람이 보는 자리라 짧게 간다.
+
+**한국어 (182자)**
+
+```
+카피도쿠의 첫 버전입니다.
+
+· 찍기 없이 논리로만 풀리는 퍼즐
+· 퍼즐을 풀면 당근이 쌓이고, 먹이면 카피바라가 자랍니다
+· 아기에서 어른까지 다섯 단계, 그다음엔 가족이 생겨요
+· 하루 한 판 오늘의 퍼즐과 연속 기록
+· 오프라인 전용 — 계정도 로그인도 없습니다
+
+느긋하게 즐겨 주세요. 카피바라는 기다리는 걸 잘합니다.
+```
+
+**English (351자)**
+
+```
+The first version of Capydoku.
+
+· Every board is solvable by logic alone — no guessing, ever
+· Solved puzzles earn carrots; carrots make your capybara grow
+· Five stages from baby to elder, then a family of its own
+· A fresh daily puzzle with a streak counter
+· Fully offline — no account, no login
+
+Take your time. Capybaras are very good at waiting.
+```
+
+> 다음 버전부터는 **바뀐 것만** 적는다. 기능 목록을 매번 되풀이하면
+> 업데이트 노트가 광고문이 되고, 그러면 아무도 안 읽는다.
+> 건강 효능 문구 금지는 여기에도 그대로 적용된다.
+
+---
+
 ## 분류
 
 | 항목 | 값 |
